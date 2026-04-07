@@ -1,0 +1,14 @@
+turify-backend/
+├── app/
+│   ├── __init__.py
+│   ├── main.py              # Tu punto de entrada principal (el servidor arranca aquí)
+│   ├── database.py          # Configuración de conexión a MySQL con SQLAlchemy
+│   ├── models.py            # Aquí defines la tabla 'Usuario' (con el campo rol: PASAJERO, etc.)
+│   ├── schemas.py           # Modelos Pydantic para validar los datos que envía el Frontend
+│   ├── security.py          # Lógica para encriptar contraseñas y generar JWT
+│   └── routers/             # Aquí separamos las rutas para mantener el orden
+│       ├── __init__.py
+│       └── auth.py          # Aquí irá el POST /usuarios/registro y el POST /login
+├── .env                     # Variables de entorno (¡NO lo subas a GitHub!)
+├── .gitignore               # Para ignorar el .env y la carpeta del entorno virtual (venv)
+└── requirements.txt         # Lista de dependencias del proyecto
