@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.routers import auth
 from app.database import engine, Base
 
@@ -6,6 +7,21 @@ from app.database import engine, Base
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Turify API")
+
+# Configuración de CORS
+origins = [
+    "http://localhost:3000", # URL común de React
+    "http://localhost:5173", # URL común de Vite
+    "*",                     # Esto permite CUALQUIER origen (útil para pruebas iniciales)
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Include the authentication router
 app.include_router(auth.router)
