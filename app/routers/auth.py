@@ -17,15 +17,16 @@ def register_passenger(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
     # 3. Create the user object (Default role for HU01: PASSENGER)
     new_user = models.User(
-        full_name=user.full_name,  # <--- EL CAMBIO ESTÁ AQUÍ
+        full_name=user.full_name,
         email=user.email,
+        phone_number=user.phone_number,
         password_hash=hashed_password,
-        phone_number=user.phone_number
+        role="PASSENGER" # Valor por defecto
     )
-
-    # 4. Save to MySQL database
+    
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    return new_user
 
     return {"message": "Passenger registered successfully", "user_id": new_user.id}

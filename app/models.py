@@ -1,28 +1,34 @@
-from sqlalchemy import Column, Integer, String, Enum, TIMESTAMP, func
+from sqlalchemy import Column, Integer, String, Enum, TIMESTAMP, ForeignKey, text
+from sqlalchemy.orm import relationship
 from app.database import Base
-import enum
-
-class UserRole(str, enum.Enum):
-    PASSENGER = "PASSENGER"
-    DRIVER = "DRIVER"
-    ADMIN = "ADMIN"
-
-class UserStatus(str, enum.Enum):
-    ACTIVE = "ACTIVE"
-    PENDING = "PENDING"
-    INACTIVE = "INACTIVE"
 
 class User(Base):
-    # 1. El nombre exacto de la tabla en tu MySQL Workbench
-    __tablename__ = "User" 
+    __tablename__ = "User"
 
-    # 2. Los campos exactos de tu script SQL
-    user_id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     full_name = Column(String(100), nullable=False)
     email = Column(String(100), unique=True, nullable=False)
+    phone_number = Column(String(20), nullable=False)
     password_hash = Column(String(255), nullable=False)
-    phone_number = Column(String(20), nullable=True)
-    role = Column(Enum(UserRole), default=UserRole.PASSENGER)
+    
+    # Reflejamos los ENUM de tu SQL
+    role = Column(Enum('PASSENGER', 'DRIVER', 'ADMIN'), server_default="PASSENGER")
+    status = Column(Enum('ACTIVE', 'INACTIVE'), server_default="ACTIVE")
+    
     affiliated_company = Column(String(100), nullable=True)
-    status = Column(Enum(UserStatus), default=UserStatus.ACTIVE)
-    created_at = Column(TIMESTAMP, server_default=func.now())
+    created_at = Column(TIMESTAMP, server_default=text('CURRENT_TIMESTAMP'))
+
+    # Relación con documentos
+    documents = relationship("Document", back_populates="owner", cascade="all, delete")
+
+class Document(Base):
+    __tablename__ = "Document"
+
+    document_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("User.user_id", on_delete="CASCADE"), nullable=False)
+    document_type = Column(Enum('SOAT', 'Licencia', 'Seguros', 'Certificado Afiliación', 'Antecedentes'), nullable=False)
+    file_url = Column(String(255), nullable=False)
+    verification_status = Column(Enum('PENDING', 'APPROVED', 'REJECTED'), server_default="PENDING")
+    uploaded_at = Column(TIMESTAMP, server_default=text('CURRENT_TIMESTAMP'))
+
+    owner = relationship("User", back_populates="documents")
