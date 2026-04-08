@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas, security
 from fastapi.security import OAuth2PasswordRequestForm
+from app.security import get_current_user
+from app.security import get_password_hash, verify_password, create_access_token
 
 router = APIRouter(prefix="/users", tags=["Authentication"])
 
@@ -42,3 +44,50 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     # Generar el Token
     access_token = security.create_access_token(data={"sub": str(user.user_id)})
     return {"access_token": access_token, "token_type": "bearer"}
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from sqlalchemy.orm import Session
+from app import models, schemas
+from app.database import get_db
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Variables de entorno para JWT (¡Asegúrate de tenerlas en tu .env!)
+SECRET_KEY = os.getenv("SECRET_KEY", "una_clave_muy_secreta_para_desarrollo") 
+ALGORITHM = "HS256"
+
+# Esto le dice a FastAPI dónde está la ruta de login para que Swagger funcione bien
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="users/login")
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="No se pudieron validar las credenciales",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    try:
+        # 1. Intentamos desencriptar el token con nuestra llave secreta
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        # 2. Extraemos el ID del usuario (guardado bajo la llave "sub")
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+            
+    except JWTError:
+        # Si el token expiró o es inventado, cae aquí
+        raise credentials_exception
+        
+    # 3. Si el token es válido, buscamos al usuario en MySQL
+    user = db.query(models.User).filter(models.User.user_id == user_id).first()
+    
+    if user is None:
+        raise credentials_exception
+        
+    # 4. Devolvemos el objeto del usuario completo
+    return user
