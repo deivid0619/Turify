@@ -36,3 +36,32 @@ VALUES ('John Driver', 'john@test.com', 'hashed_pass_456', 'DRIVER', 'Medellin E
 
 -- 5. Verification
 SELECT * FROM User;
+
+
+-- Use the existing database
+USE turify_db;
+
+-- Create the Document table for HU04 (Driver Verification)
+CREATE TABLE IF NOT EXISTS Document (
+    document_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,               -- Link to the User (Driver)
+    vehicle_id INT NULL,                -- For future use (HU05+)
+    document_type VARCHAR(50) NOT NULL, -- SOAT, Licencia, Seguros, etc.
+    file_url VARCHAR(255) NOT NULL,     -- Path to the file in the server/cloud
+    expiry_date DATE NULL,              -- For documents like SOAT or License
+    
+    -- Verification status requested in HU04 criteria
+    verification_status ENUM('PENDING', 'APPROVED', 'REJECTED') DEFAULT 'PENDING',
+    
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    -- Constraint: Only existing users can have documents
+    FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE
+);
+
+-- Test data for HU04: Associate a SOAT to John Driver (id 2)
+INSERT INTO Document (user_id, document_type, file_url, verification_status)
+VALUES (2, 'SOAT', 'https://storage.turify.com/docs/soat_john.pdf', 'PENDING');
+
+-- Verification
+SELECT * FROM Document;
