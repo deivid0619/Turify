@@ -58,54 +58,10 @@ CREATE TABLE Vehicle (
 );
 
 -- ==========================================================
--- MÓDULO A: VIAJES PROGRAMADOS (Modelo de Catálogo/Oferta)
+-- 3. MÓDULO DE VIAJES BAJO DEMANDA (Modelo On-Demand)
 -- ==========================================================
 
--- A.1 TABLA DE VIAJES (Publicados por el conductor)
-CREATE TABLE Trip (
-    trip_id INT AUTO_INCREMENT PRIMARY KEY,
-    vehicle_id INT NOT NULL,
-    origin VARCHAR(100) NOT NULL,
-    destination VARCHAR(100) NOT NULL,
-    departure_time DATETIME NOT NULL,
-    price DECIMAL(10,2) NOT NULL,
-    total_seats INT NOT NULL,
-    available_seats INT NOT NULL, 
-    status ENUM('ACTIVE', 'COMPLETED', 'CANCELLED') DEFAULT 'ACTIVE',
-    FOREIGN KEY (vehicle_id) REFERENCES Vehicle(vehicle_id) ON DELETE CASCADE
-);
-
--- A.2 TABLA DE RESERVAS (El pasajero compra un cupo en un viaje existente)
-CREATE TABLE Reservation (
-    reservation_id INT AUTO_INCREMENT PRIMARY KEY,
-    trip_id INT NOT NULL,
-    passenger_id INT NOT NULL,
-    adults INT NOT NULL DEFAULT 1,
-    children INT NOT NULL DEFAULT 0,
-    total_price DECIMAL(10,2) NOT NULL,
-    status ENUM('PENDING', 'CONFIRMED', 'CANCELLED') DEFAULT 'CONFIRMED',
-    reservation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (trip_id) REFERENCES Trip(trip_id) ON DELETE CASCADE,
-    FOREIGN KEY (passenger_id) REFERENCES User(user_id) ON DELETE CASCADE
-);
-
--- A.3 VISTA PARA EL CATÁLOGO DE VIAJES PROGRAMADOS
-CREATE OR REPLACE VIEW VistaCatalogoViajes AS
-SELECT 
-    t.trip_id, t.origin, t.destination, t.departure_time, t.price, t.available_seats, t.status AS trip_status,
-    v.plate AS vehicle_plate, v.photo_url AS vehicle_photo, v.capacity AS vehicle_capacity,
-    u.full_name AS driver_name, u.profile_photo_url AS driver_photo, u.rating_avg AS driver_rating,
-    c.name AS company_name, c.logo_url AS company_logo
-FROM Trip t
-JOIN Vehicle v ON t.vehicle_id = v.vehicle_id
-JOIN User u ON v.owner_id = u.user_id
-JOIN AffiliatedCompany c ON v.company_id = c.company_id;
-
--- ==========================================================
--- MÓDULO B: VIAJES BAJO DEMANDA (Modelo Uber / InDrive)
--- ==========================================================
-
--- B.1 TABLA DE SOLICITUDES (Publicadas por el pasajero)
+-- 3.1 TABLA DE SOLICITUDES (HU-06: Publicadas por el pasajero)
 CREATE TABLE ServiceRequest (
     request_id INT AUTO_INCREMENT PRIMARY KEY,
     passenger_id INT NOT NULL,
@@ -118,7 +74,7 @@ CREATE TABLE ServiceRequest (
     FOREIGN KEY (passenger_id) REFERENCES User(user_id) ON DELETE CASCADE
 );
 
--- B.2 TABLA DE RESPUESTAS/OFERTAS (Los conductores aplican a la solicitud)
+-- 3.2 TABLA DE RESPUESTAS/OFERTAS (HU-07: Los conductores aplican)
 CREATE TABLE DriverResponse (
     response_id INT AUTO_INCREMENT PRIMARY KEY,
     request_id INT NOT NULL,
@@ -132,10 +88,14 @@ CREATE TABLE DriverResponse (
     FOREIGN KEY (vehicle_id) REFERENCES Vehicle(vehicle_id) ON DELETE CASCADE
 );
 
--- B.3 ÍNDICES DE RENDIMIENTO (Optimizan la velocidad del sistema)
+-- ==========================================================
+-- 4. ÍNDICES DE RENDIMIENTO
+-- ==========================================================
 CREATE INDEX idx_request_status ON ServiceRequest(status);
 CREATE INDEX idx_driver_response_request ON DriverResponse(request_id);
--- Índice compuesto añadido para búsquedas rápidas de conductores en su zona y horario:
+
+-- Índice compuesto para búsquedas rápidas de solicitudes (Radar del conductor):
 CREATE INDEX idx_request_lookup ON ServiceRequest(status, departure_time);
--- Índice para buscar rápidamente a los conductores activos a notificar:
+
+-- Índice para buscar rápidamente a los conductores activos a notificar masivamente:
 CREATE INDEX idx_active_drivers ON User(role, status);
