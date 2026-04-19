@@ -116,3 +116,26 @@ FROM Trip t
 JOIN Vehicle v ON t.vehicle_id = v.vehicle_id
 JOIN User u ON v.owner_id = u.user_id
 JOIN AffiliatedCompany c ON v.company_id = c.company_id;
+
+-- 7. TABLA DE RESERVAS (HU-07 / SCRUM-60)
+-- Almacena la compra de tiquetes de un pasajero para un viaje
+-- ==========================================================
+
+CREATE TABLE Reservation (
+    reservation_id INT AUTO_INCREMENT PRIMARY KEY,
+    trip_id INT NOT NULL,        -- El viaje que se está reservando
+    passenger_id INT NOT NULL,   -- El usuario (pasajero) que compra
+    
+    -- Datos solicitados en la SCRUM-60
+    adults INT NOT NULL DEFAULT 1,  -- Cantidad de adultos
+    children INT NOT NULL DEFAULT 0,-- Cantidad de niños
+    
+    -- Datos de facturación y control
+    total_price DECIMAL(10,2) NOT NULL, -- Precio total (adultos + niños)
+    status ENUM('PENDING', 'CONFIRMED', 'CANCELLED') DEFAULT 'CONFIRMED',
+    reservation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Relaciones (Llaves foráneas)
+    FOREIGN KEY (trip_id) REFERENCES Trip(trip_id) ON DELETE CASCADE,
+    FOREIGN KEY (passenger_id) REFERENCES User(user_id) ON DELETE CASCADE
+);
