@@ -137,3 +137,5 @@ CREATE INDEX idx_request_status ON ServiceRequest(status);
 CREATE INDEX idx_driver_response_request ON DriverResponse(request_id);
 -- Índice compuesto añadido para búsquedas rápidas de conductores en su zona y horario:
 CREATE INDEX idx_request_lookup ON ServiceRequest(status, departure_time);
+-- Índice para buscar rápidamente a los conductores activos a notificar:
+CREATE INDEX idx_active_drivers ON User(role, status);
