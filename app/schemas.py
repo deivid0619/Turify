@@ -119,3 +119,24 @@ class DriverResponse(BaseModel):
 
     class Config:
         from_attributes = True
+        
+class ServiceRequestRead(BaseModel):
+    request_id: int
+    passenger_id: int
+    origin: str
+    destination: str
+    departure_time: datetime
+    return_time: Optional[datetime] = None
+    trip_type: str
+    adults_count: int
+    children_count: int
+    has_pets: bool
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True # Permite mapear desde modelos de SQLAlchemy
+        
+class OfferCreate(BaseModel):
+    # Validamos que el precio sea mayor a 0
+    offered_price: float = Field(..., gt=0, description="Precio propuesto por el conductor")

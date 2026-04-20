@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Enum, TIMESTAMP, ForeignKey, text, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Enum, TIMESTAMP, ForeignKey, text, DateTime, Boolean, DECIMAL
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -74,3 +74,14 @@ class AffiliatedCompany(Base):
     name = Column(String(100), nullable=False)
     nit = Column(String(50), unique=True, nullable=False)
     logo_url = Column(String(255))
+    
+class DriverOffer(Base):
+    __tablename__ = "DriverOffer"
+    
+    offer_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    request_id = Column(Integer, ForeignKey("ServiceRequest.request_id", ondelete="CASCADE"), nullable=False)
+    driver_id = Column(Integer, ForeignKey("User.user_id", ondelete="CASCADE"), nullable=False)
+    vehicle_id = Column(Integer, ForeignKey("Vehicle.vehicle_id", ondelete="CASCADE"), nullable=False)
+    offered_price = Column(DECIMAL(10,2), nullable=False)
+    status = Column(Enum('DRIVER_OFFERED', 'PASSENGER_COUNTER_OFFERED', 'ACCEPTED', 'REJECTED'), server_default='DRIVER_OFFERED')
+    created_at = Column(TIMESTAMP, server_default=text('CURRENT_TIMESTAMP'))
