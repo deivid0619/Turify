@@ -99,3 +99,7 @@ CREATE INDEX idx_request_lookup ON ServiceRequest(status, departure_time);
 
 -- Índice para buscar rápidamente a los conductores activos a notificar masivamente:
 CREATE INDEX idx_active_drivers ON User(role, status);
+
+ALTER TABLE User CHANGE company_id affiliated_company INT NULL;
+
+SELECT * FROM user;
