@@ -111,3 +111,11 @@ class ServiceRequestResponse(ServiceRequestCreate):
 
     class Config:
         from_attributes = True
+        
+class DriverResponse(BaseModel):
+    id: int
+    full_name: str
+    message: str
+
+    class Config:
+        from_attributes = True

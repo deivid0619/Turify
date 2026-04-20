@@ -20,17 +20,26 @@ class User(Base):
 
     # Relación con documentos
     documents = relationship("Document", back_populates="owner", cascade="all, delete")
+    
+    # FK hacia AffiliatedCompany
+    affiliated_company = Column(Integer, ForeignKey("AffiliatedCompany.company_id"), nullable=True)
+    profile_photo_url = Column(String(255))
+    age = Column(Integer)
 
 class Document(Base):
     __tablename__ = "Document"
-
     document_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("User.user_id", ondelete="CASCADE"), nullable=False)
-    document_type = Column(Enum('SOAT', 'Licencia', 'Seguros', 'Certificado Afiliación', 'Antecedentes'), nullable=False)
+    document_type = Column(Enum(
+        'SOAT', 
+        'Licencia de Conduccion', 
+        'Tarjeta de operacion', 
+        'Tecnomecanica', 
+        'Seguros Contractual y extracontractual'
+    ), nullable=False)
     file_url = Column(String(255), nullable=False)
-    verification_status = Column(Enum('PENDING', 'APPROVED', 'REJECTED'), server_default="PENDING")
-    uploaded_at = Column(TIMESTAMP, server_default=text('CURRENT_TIMESTAMP'))
-
+    verification_status = Column(Enum('PENDING', 'APPROVED', 'REJECTED'), server_default='PENDING')
+    
     owner = relationship("User", back_populates="documents")
     
 class ServiceRequest(Base):
@@ -49,3 +58,19 @@ class ServiceRequest(Base):
     has_pets = Column(Boolean, default=False)
     status = Column(Enum('PENDING', 'ASSIGNED', 'COMPLETED', 'CANCELLED'), default='PENDING')
     created_at = Column(TIMESTAMP, server_default=text('CURRENT_TIMESTAMP'))
+    
+class Vehicle(Base):
+    __tablename__ = "Vehicle"
+    vehicle_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    owner_id = Column(Integer, ForeignKey("User.user_id", ondelete="CASCADE"), nullable=False)
+    company_id = Column(Integer, ForeignKey("AffiliatedCompany.company_id", ondelete="CASCADE"), nullable=False)
+    plate = Column(String(20), unique=True, nullable=False)
+    capacity = Column(Integer, nullable=False)
+    photo_url = Column(String(255))
+    
+class AffiliatedCompany(Base):
+    __tablename__ = "AffiliatedCompany"
+    company_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String(100), nullable=False)
+    nit = Column(String(50), unique=True, nullable=False)
+    logo_url = Column(String(255))
