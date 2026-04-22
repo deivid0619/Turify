@@ -18,12 +18,11 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"], # En producción se cambian los "" por la URL exacta de tu frontend (ej. localhost:5173)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # Include the authentication router
 app.include_router(auth.router)
 app.include_router(drivers.router)

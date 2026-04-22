@@ -6,12 +6,47 @@ from ..security import get_current_user
 
 router = APIRouter(prefix="/api/service-requests", tags=["Service Requests"])
 
+from datetime import datetime
+from fastapi import HTTPException, status, Depends
+# Asegúrate de tener tus importaciones normales aquí...
+
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_service_request(
     request_data: schemas.ServiceRequestCreate, 
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user)
 ):
+    # --- INICIO DE VALIDACIONES ---
+    
+    # 1. Validar que la fecha de salida no sea en el pasado
+    # (Usamos .replace(tzinfo=None) por si el frontend envía fechas con zona horaria)
+    if request_data.departure_time.replace(tzinfo=None) < datetime.now():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="La fecha y hora de salida no puede estar en el pasado."
+        )
+
+    # Convertimos el Enum a texto para las validaciones
+    trip_type_str = request_data.trip_type.value if hasattr(request_data.trip_type, 'value') else request_data.trip_type
+
+    # 2. Validaciones de Ida y Vuelta vs Solo Ida
+    if trip_type_str == "ROUND_TRIP":
+        if not request_data.return_time:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="Para viajes de ida y vuelta (ROUND_TRIP), la fecha de regreso es obligatoria."
+            )
+        if request_data.return_time <= request_data.departure_time:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="La fecha de regreso debe ser posterior a la fecha de salida."
+            )
+    else:
+        # Si es ONE_WAY, forzamos return_time a None
+        request_data.return_time = None
+
+    # --- FIN DE VALIDACIONES ---
+
     try:
         new_request = models.ServiceRequest(
             passenger_id=current_user.user_id,
@@ -19,8 +54,7 @@ def create_service_request(
             destination=request_data.destination,
             departure_time=request_data.departure_time,
             return_time=request_data.return_time,
-            trip_type=request_data.trip_type.value,
-            # Mapeo de los nuevos campos de pasajeros
+            trip_type=trip_type_str,
             adults_count=request_data.adults_count,
             children_count=request_data.children_count,
             has_pets=request_data.has_pets,
@@ -45,16 +79,20 @@ def get_pending_requests(
     current_user: models.User = Depends(security.get_current_user)
 ):
     """
-    Retorna la lista de viajes con estado 'PENDING' ordenados por fecha de creación 
-    para que los conductores puedan ofertar.
+    Retorna la lista de viajes con estado 'PENDING' ordenados por fecha de creación.
+    - Conductores: Ven todas las solicitudes pendientes.
+    - Pasajeros: Ven SOLO sus propias solicitudes pendientes.
     """
     try:
-        # Criterio: Solo solicitudes con estado 'PENDING'
-        # Criterio: Ordenados por fecha de creación (más recientes primero)
-        pending_requests = db.query(models.ServiceRequest)\
-            .filter(models.ServiceRequest.status == "PENDING")\
-            .order_by(models.ServiceRequest.created_at.desc())\
-            .all()
+        # Iniciamos la consulta base buscando los PENDING
+        query = db.query(models.ServiceRequest).filter(models.ServiceRequest.status == "PENDING")
+        
+        # Filtro inteligente por rol: Si no es conductor, filtramos por su ID
+        if current_user.role != "DRIVER": 
+            query = query.filter(models.ServiceRequest.passenger_id == current_user.user_id)
+            
+        # Ordenamos por los más recientes y ejecutamos
+        pending_requests = query.order_by(models.ServiceRequest.created_at.desc()).all()
             
         return pending_requests
 
