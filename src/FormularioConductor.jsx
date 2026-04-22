@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './AuthContext';
 
 const BRAND_GREEN = '#16a34a';
+const API_BASE_URL = 'http://127.0.0.1:8000';
 
 // === COMPONENTE REUTILIZABLE PARA ARRASTRAR Y SOLTAR (DRAG & DROP) ===
 const DropZone = ({ label, name, onChange, file }) => {
@@ -73,41 +74,21 @@ const DropZone = ({ label, name, onChange, file }) => {
 // === COMPONENTE PRINCIPAL DEL FORMULARIO ===
 const FormularioConductor = () => {
   const navigate = useNavigate();
-  const { token } = useContext(AuthContext); // Obtenemos el token del estado global
+  const { token, usuario } = useContext(AuthContext);
 
   const [formConductor, setFormConductor] = useState({
-    full_name: '', email: '', phone_number: '', 
     age: '', affiliated_company: '', profile_photo: null,
     plate: '', capacity: '', vehicle_photo: null,
-    doc_soat: null, doc_licencia: null, doc_tarjeta_operacion: null, doc_tecnomecanica: null, doc_seguros: null
+    doc_soat: null, doc_licencia: null, doc_tarjeta_operacion: null,
+    doc_tecnomecanica: null, doc_seguros: null
   });
 
-  // === EFECTO PARA OBTENER LOS DATOS DEL USUARIO DESDE EL BACKEND ===
-  useEffect(() => {
-    if (token) {
-      // Reemplaza esta URL con la ruta real que devuelve el perfil en tu backend local
-      fetch('http://127.0.0.1:8000/api/usuarios/perfil', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      .then(respuesta => {
-        if (!respuesta.ok) throw new Error("Error en la respuesta del servidor");
-        return respuesta.json();
-      })
-      .then(datos => {
-        setFormConductor(prev => ({
-          ...prev,
-          full_name: datos.full_name || '',
-          email: datos.email || '',
-          phone_number: datos.phone_number || ''
-        }));
-      })
-      .catch(error => console.error("Error obteniendo datos de la base:", error));
-    }
-  }, [token]);
+  // Pre-llenar datos del usuario desde el contexto (ya disponibles gracias al AuthContext actualizado)
+  const datosUsuario = {
+    full_name: usuario?.full_name || '',
+    email: usuario?.email || '',
+    phone_number: usuario?.phone_number || ''
+  };
 
   const handleInputConductor = (e) => {
     const { name, value, type, files } = e.target;
@@ -117,20 +98,15 @@ const FormularioConductor = () => {
     }));
   };
 
-  // === ENVÍO DEL FORMULARIO CON FORMDATA ===
   const enviarFormularioConductor = async (e) => {
     e.preventDefault();
 
-    // 1. Usamos FormData porque enviaremos ARCHIVOS REALES
     const formData = new FormData();
-
-    // 2. Agregamos los datos de texto
     formData.append('age', formConductor.age);
     formData.append('affiliated_company', formConductor.affiliated_company);
     formData.append('plate', formConductor.plate);
     formData.append('capacity', formConductor.capacity);
 
-    // 3. Agregamos los archivos si existen
     if (formConductor.profile_photo) formData.append('profile_photo', formConductor.profile_photo);
     if (formConductor.vehicle_photo) formData.append('vehicle_photo', formConductor.vehicle_photo);
     if (formConductor.doc_soat) formData.append('doc_soat', formConductor.doc_soat);
@@ -140,24 +116,22 @@ const FormularioConductor = () => {
     if (formConductor.doc_seguros) formData.append('doc_seguros', formConductor.doc_seguros);
 
     try {
-      // Usamos tu URL de ngrok apuntando a tu backend FastAPI
-      const respuesta = await fetch('http://127.0.0.1:8000/docs#/Modo%20Conductor/upload_document_drivers_documents_post', {
+      // URL corregida: apunta al endpoint real del backend
+      const respuesta = await fetch(`${API_BASE_URL}/drivers/register-details`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}` 
-          // ⚠️ Importante: NO se incluye 'Content-Type' aquí al usar FormData.
+          'Authorization': `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true'
+          // NO incluir Content-Type al usar FormData
         },
         body: formData
       });
 
       if (!respuesta.ok) {
         const errorData = await respuesta.json();
-        throw new Error(errorData.message || 'Error al enviar la solicitud');
+        throw new Error(errorData.detail || 'Error al enviar la solicitud');
       }
 
-      const resultado = await respuesta.json();
-      console.log("Respuesta del servidor:", resultado);
-      
       alert("¡Solicitud enviada con éxito! Revisaremos tus documentos.");
       navigate('/dashboard'); 
 
@@ -167,7 +141,6 @@ const FormularioConductor = () => {
     }
   };
 
-  // Estilo para los inputs bloqueados (ya llenos por la base de datos)
   const inputBloqueadoStyle = {
     padding: '14px',
     border: '1px solid #cbd5e1',
@@ -204,12 +177,12 @@ const FormularioConductor = () => {
           <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>Tus datos básicos han sido cargados desde tu cuenta.</p>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '40px' }}>
-            {/* Campos bloqueados pre-llenados */}
-            <input type="text" name="full_name" value={formConductor.full_name} readOnly style={inputBloqueadoStyle} title="Este dato proviene de tu cuenta" />
-            <input type="email" name="email" value={formConductor.email} readOnly style={inputBloqueadoStyle} title="Este dato proviene de tu cuenta" />
-            <input type="tel" name="phone_number" value={formConductor.phone_number} readOnly style={inputBloqueadoStyle} title="Este dato proviene de tu cuenta" />
+            {/* Campos bloqueados pre-llenados desde el contexto */}
+            <input type="text" value={datosUsuario.full_name} readOnly style={inputBloqueadoStyle} title="Este dato proviene de tu cuenta" placeholder="Nombre completo" />
+            <input type="email" value={datosUsuario.email} readOnly style={inputBloqueadoStyle} title="Este dato proviene de tu cuenta" placeholder="Correo electrónico" />
+            <input type="tel" value={datosUsuario.phone_number} readOnly style={inputBloqueadoStyle} title="Este dato proviene de tu cuenta" placeholder="Teléfono" />
             
-            {/* Campos nuevos editables */}
+            {/* Campos editables */}
             <input type="number" name="age" placeholder="Edad" onChange={handleInputConductor} required min="18" style={{ padding: '14px', border: '1px solid #cbd5e1', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }} />
             
             <select name="affiliated_company" onChange={handleInputConductor} required style={{ padding: '14px', border: '1px solid #cbd5e1', borderRadius: '8px', width: '100%', boxSizing: 'border-box', backgroundColor: '#fff' }}>
@@ -235,7 +208,7 @@ const FormularioConductor = () => {
           </div>
 
           <h3 style={{ borderBottom: '2px solid #f1f5f9', paddingBottom: '10px', color: '#1e293b' }}>📄 3. Documentación Reglamentaria</h3>
-          <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>Por favor adjunta los documentos en formato PDF o Imagen. Puedes arrastrarlos directamente a las cajas.</p>
+          <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>Por favor adjunta los documentos en formato PDF o Imagen.</p>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '40px' }}>
             <DropZone label="SOAT Vigente" name="doc_soat" onChange={handleInputConductor} file={formConductor.doc_soat} />

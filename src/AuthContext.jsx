@@ -1,27 +1,58 @@
-import { createContext, useState } from 'react';
+import { createContext, useState, useEffect } from 'react';
 
-// 1. Creamos el contexto
 export const AuthContext = createContext();
 
-// 2. Creamos el Proveedor que envolverá nuestra app
-export const AuthProvider = ({ children }) => {
-  // Inicializamos el estado leyendo el token que ya pueda existir
-  const [token, setToken] = useState(localStorage.getItem('token') || null);
+// Función para decodificar el payload del JWT sin librerías externas
+const decodeJWT = (token) => {
+  try {
+    const payload = token.split('.')[1];
+    const decoded = JSON.parse(atob(payload));
+    return decoded;
+  } catch {
+    return null;
+  }
+};
 
-  // Función global para iniciar sesión
+export const AuthProvider = ({ children }) => {
+  const [token, setToken] = useState(localStorage.getItem('token') || null);
+  const [usuario, setUsuario] = useState(null);
+
+  // Cada vez que el token cambia, obtenemos el perfil completo del backend
+  useEffect(() => {
+    if (token) {
+      fetch('http://127.0.0.1:8000/users/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true'
+        }
+      })
+        .then(res => {
+          if (!res.ok) throw new Error('Token inválido');
+          return res.json();
+        })
+        .then(data => setUsuario(data))
+        .catch(() => {
+          // Si el token es inválido, cerramos sesión
+          cerrarSesion();
+        });
+    } else {
+      setUsuario(null);
+    }
+  }, [token]);
+
   const iniciarSesion = (nuevoToken) => {
     localStorage.setItem('token', nuevoToken);
     setToken(nuevoToken);
   };
 
-  // Función global para cerrar sesión
   const cerrarSesion = () => {
     localStorage.removeItem('token');
     setToken(null);
+    setUsuario(null);
   };
 
   return (
-    <AuthContext.Provider value={{ token, iniciarSesion, cerrarSesion }}>
+    <AuthContext.Provider value={{ token, usuario, iniciarSesion, cerrarSesion }}>
       {children}
     </AuthContext.Provider>
   );
