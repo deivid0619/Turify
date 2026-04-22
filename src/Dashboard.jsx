@@ -71,7 +71,7 @@ const Dashboard = () => {
         const { latitude, longitude } = pos.coords;
         setDatosMapa(prev => ({ ...prev, origen: [latitude, longitude] }));
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const res = await fetch(`/nominatim/reverse?format=json&lat=${latitude}&lon=${longitude}`);
           const data = await res.json();
           const nombreLugar = data.address?.road || data.address?.suburb || "Mi ubicación";
           setBusqueda(prev => ({ ...prev, origen: nombreLugar }));
@@ -104,10 +104,6 @@ const Dashboard = () => {
         alert("Por favor completa origen, destino y fecha de salida.");
         return;
     }
-    if (tipoViaje === 'redondo' && !busqueda.return_time) {
-        alert("Por favor selecciona una fecha de regreso.");
-        return;
-    }
 
     setCargandoMapa(true);
     setInfoRuta(null);
@@ -116,33 +112,67 @@ const Dashboard = () => {
     try {
       let lat1, lon1;
       const textoOrigen = busqueda.origen.toLowerCase();
+      
+      // 1. Buscar coordenadas de Origen
       if (datosMapa.origen && (textoOrigen.includes("ubicación") || textoOrigen.includes("ubicacion"))) {
         [lat1, lon1] = datosMapa.origen;
       } else {
         const queryOrigen = encodeURIComponent(`${busqueda.origen}, Colombia`);
         const resOri = await fetch(`/nominatim/search?format=json&q=${queryOrigen}&limit=1`);
         const dataOri = await resOri.json();
-        if (dataOri.length > 0) { lat1 = parseFloat(dataOri[0].lat); lon1 = parseFloat(dataOri[0].lon); }
+        if (dataOri && dataOri.length > 0) {
+          lat1 = parseFloat(dataOri[0].lat);
+          lon1 = parseFloat(dataOri[0].lon);
+        }
       }
 
+      // 2. Buscar coordenadas de Destino
       const queryDestino = encodeURIComponent(`${busqueda.destino}, Colombia`);
       const resDes = await fetch(`/nominatim/search?format=json&q=${queryDestino}&limit=1`);
       const dataDes = await resDes.json();
 
-      if (lat1 && dataDes.length > 0) {
+      if (lat1 && dataDes && dataDes.length > 0) {
         const lat2 = parseFloat(dataDes[0].lat);
         const lon2 = parseFloat(dataDes[0].lon);
-        const resRuta = await fetch(`/osrm/route/v1/driving/${lon1},${lat1};${lon2},${lat2}?overview=full&geometries=geojson`);
+        
+        // --- CONEXIÓN CON OPENROUTE SERVICIÓ (ORS) ---
+        const apiKey = import.meta.env.VITE_ORS_API_KEY; 
+        // ORS usa el formato: start=long,lat & end=long,lat
+        const urlORS = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${lon1},${lat1}&end=${lon2},${lat2}`;
+        
+        const resRuta = await fetch(urlORS);
         const dataRuta = await resRuta.json();
-        if (dataRuta.routes?.length > 0) {
-          const rutaInvertida = dataRuta.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-          setDatosMapa({ origen: [lat1, lon1], destino: [lat2, lon2], ruta: rutaInvertida });
-          const distanciaKm = (dataRuta.routes[0].distance / 1000).toFixed(1);
-          const tiempoMinutos = Math.round(dataRuta.routes[0].duration / 60);
+        
+        if (dataRuta.features && dataRuta.features.length > 0) {
+          // ORS devuelve coordenadas en [long, lat], Leaflet las necesita en [lat, long]
+          const coords = dataRuta.features[0].geometry.coordinates;
+          const rutaInvertida = coords.map(c => [c[1], c[0]]);
+          
+          setDatosMapa(prev => ({ 
+            ...prev, 
+            origen: [lat1, lon1], 
+            destino: [lat2, lon2], 
+            ruta: rutaInvertida 
+          }));
+          
+          // Extraer distancia (metros a km) y tiempo (segundos a min)
+          const resumen = dataRuta.features[0].properties.summary;
+          const distanciaKm = (resumen.distance / 1000).toFixed(1);
+          const tiempoMinutos = Math.round(resumen.duration / 60);
+          
           setInfoRuta({ distancia: `${distanciaKm} km`, tiempo: `${tiempoMinutos} min` });
+        } else {
+           alert("OpenRouteService no pudo encontrar una ruta por carretera.");
         }
-      } else { alert("No encontramos una de las direcciones."); }
-    } catch (err) { alert("Error al buscar la ruta."); } finally { setCargandoMapa(false); }
+      } else { 
+        alert("No se pudo encontrar una de las direcciones."); 
+      }
+    } catch (err) { 
+      console.error("Error en ORS:", err);
+      alert("Error de conexión con el servidor de rutas."); 
+    } finally { 
+      setCargandoMapa(false); 
+    }
   };
 
   // --- FUNCIÓN PARA CREAR VIAJE (FALTABA EN EL ORIGINAL) ---
