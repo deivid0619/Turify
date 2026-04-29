@@ -1,7 +1,6 @@
-from app.routers import auth, drivers, service_requests
+from app.routers import auth, drivers, service_requests, admin
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth
 from app.database import engine, Base
 
 # Creates the tables in MySQL automatically if they don't exist
@@ -11,19 +10,21 @@ app = FastAPI(title="Turify API")
 
 # Configuración de CORS
 origins = [
-    "http://localhost:3000", # URL común de React
-    "http://localhost:5173", # URL común de Vite
-    "*",                     # Esto permite CUALQUIER origen (útil para pruebas iniciales)
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "*",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # En producción se cambian los "" por la URL exacta de tu frontend (ej. localhost:5173)
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# Include the authentication router
+
+# Routers
 app.include_router(auth.router)
 app.include_router(drivers.router)
 app.include_router(service_requests.router)
+app.include_router(admin.router)
