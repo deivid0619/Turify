@@ -1,38 +1,32 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useContext } from 'react';
-import { AuthProvider, AuthContext } from './AuthContext'; // Importamos el contexto
+import { AuthProvider, AuthContext } from './AuthContext';
 import Login from './Login';
 import Registro from './Registro';
-import RutaPrivada from './RutaPrivada';
+import RutaPrivada, { RutaAdmin } from './RutaPrivada';
 import Dashboard from './Dashboard';
-import FormularioConductor from './FormularioConductor'; // <--- 1. Importamos el nuevo componente
+import FormularioConductor from './FormularioConductor';
+import AdminConductores from './AdminConductores';
 
-// === WRAPPERS DE NAVEGACIÓN ===
 const LoginConNavegacion = () => {
   const navigate = useNavigate();
-  const { iniciarSesion } = useContext(AuthContext); 
-
+  const { iniciarSesion } = useContext(AuthContext);
   return (
-    <Login 
-      irARegistro={() => navigate('/registro')} 
+    <Login
+      irARegistro={() => navigate('/registro')}
       onLoginSuccess={(token) => {
-        iniciarSesion(token); 
-        navigate('/dashboard'); 
-      }} 
+        iniciarSesion(token);
+        navigate('/dashboard');
+      }}
     />
   );
 };
 
 const RegistroConNavegacion = () => {
   const navigate = useNavigate();
-  return (
-    <Registro 
-      irALogin={() => navigate('/login')} 
-    />
-  );
+  return <Registro irALogin={() => navigate('/login')} />;
 };
 
-// === COMPONENTE PRINCIPAL ===
 function App() {
   return (
     <AuthProvider>
@@ -42,11 +36,15 @@ function App() {
           <Route path="/login" element={<LoginConNavegacion />} />
           <Route path="/registro" element={<RegistroConNavegacion />} />
 
-          {/* Rutas Privadas (Protegidas) */}
+          {/* Rutas Privadas — cualquier usuario autenticado */}
           <Route element={<RutaPrivada />}>
             <Route path="/dashboard" element={<Dashboard />} />
-            {/* 2. Agregamos la ruta para el formulario de conductor */}
             <Route path="/registro-conductor" element={<FormularioConductor />} />
+          </Route>
+
+          {/* Rutas Privadas — solo ADMIN */}
+          <Route element={<RutaAdmin />}>
+            <Route path="/admin/conductores" element={<AdminConductores />} />
           </Route>
 
           {/* Redirección por defecto */}

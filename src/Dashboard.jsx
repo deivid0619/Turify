@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import logoTurify from './logo.png';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './AuthContext';
 import PanelConductor from './PanelConductor';
+import InputDireccion from './InputDireccion';
 
 const greenMarkerHtml = `<div style="background-color:#16a34a;width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.3);"></div>`;
 let DefaultIcon = L.divIcon({ html: greenMarkerHtml, className: '', iconSize: [18, 18], iconAnchor: [9, 9], popupAnchor: [0, -10] });
@@ -27,9 +28,46 @@ const AjustarCamara = ({ coordenadas }) => {
   return null;
 };
 
+const ModalErrorDireccion = ({ textoDireccion, onCerrar, onContinuar }) => (
+  <>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onCerrar}
+      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 3000 }} />
+    <motion.div initial={{ opacity: 0, scale: 0.92, y: -20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92, y: -20 }}
+      style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: '#fff', borderRadius: '16px', padding: '28px', zIndex: 3001, boxShadow: '0 20px 50px rgba(0,0,0,0.18)', width: '390px', fontFamily: 'Inter, sans-serif' }}>
+      <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+        <span style={{ fontSize: '40px' }}>📍</span>
+        <h3 style={{ margin: '10px 0 4px', color: '#1e293b', fontSize: '17px' }}>No encontramos "{textoDireccion}"</h3>
+        <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>
+          Esta dirección no está en el mapa, pero puedes usarla igual — el conductor verá exactamente lo que escribiste.
+        </p>
+      </div>
+      <button onClick={onContinuar}
+        style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', padding: '13px', borderRadius: '10px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+        <span>✅</span> Continuar con esta dirección
+      </button>
+      <button onClick={onCerrar}
+        style={{ width: '100%', background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', padding: '11px', borderRadius: '10px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', marginBottom: '16px' }}>
+        ✏️ Quiero corregir la dirección
+      </button>
+      <div style={{ backgroundColor: '#f8fafc', borderRadius: '10px', padding: '12px 14px', border: '1px solid #e2e8f0' }}>
+        <p style={{ margin: '0 0 6px', fontSize: '12px', fontWeight: '700', color: '#475569' }}>💡 Para mejor precisión en el mapa, intenta con:</p>
+        <ul style={{ margin: 0, padding: '0 0 0 16px', fontSize: '12px', color: '#64748b', lineHeight: '2' }}>
+          <li>Nombre del <strong>barrio</strong> — ej: <em>"Laureles, Medellín"</em></li>
+          <li>Nombre de la <strong>comuna</strong> — ej: <em>"El Poblado"</em></li>
+          <li>Un <strong>lugar cercano</strong> — ej: <em>"Parque Lleras"</em></li>
+          <li>Nombre del <strong>municipio</strong> — ej: <em>"Bello, Antioquia"</em></li>
+        </ul>
+      </div>
+    </motion.div>
+  </>
+);
+
 const Dashboard = () => {
   const { token, usuario } = useContext(AuthContext);
   const navigate = useNavigate();
+
+  const GEOAPIFY_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
 
   const [tipoViaje, setTipoViaje] = useState('ida');
   const [busqueda, setBusqueda] = useState({ origen: '', destino: '', departure_time: '', return_time: '' });
@@ -38,15 +76,25 @@ const Dashboard = () => {
   const [cargandoMapa, setCargandoMapa] = useState(false);
   const [datosMapa, setDatosMapa] = useState({ origen: null, destino: null, ruta: [] });
   const [infoRuta, setInfoRuta] = useState(null);
-
   const [enviandoSolicitud, setEnviandoSolicitud] = useState(false);
   const [mostrarMisSolicitudes, setMostrarMisSolicitudes] = useState(false);
   const [listaSolicitudes, setListaSolicitudes] = useState([]);
   const [viajeSeleccionado, setViajeSeleccionado] = useState(null);
   const [notificaciones, setNotificaciones] = useState(0);
-
-  // Panel conductor como drawer derecho
   const [mostrarPanelConductor, setMostrarPanelConductor] = useState(false);
+  const [errorDireccion, setErrorDireccion] = useState(null);
+  const coordsBuffer = useRef({});
+
+  // Geocodificar texto → coords usando Geoapify
+  const geocodificar = async (texto) => {
+    const q = encodeURIComponent(`${texto}, Colombia`);
+    const res = await fetch(`https://api.geoapify.com/v1/geocode/search?text=${q}&filter=countrycode:co&limit=1&lang=es&apiKey=${GEOAPIFY_KEY}`);
+    const data = await res.json();
+    const feature = data.features?.[0];
+    if (!feature) return null;
+    const [lon, lat] = feature.geometry.coordinates;
+    return { lat, lon };
+  };
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -54,17 +102,24 @@ const Dashboard = () => {
         const { latitude, longitude } = pos.coords;
         setDatosMapa(prev => ({ ...prev, origen: [latitude, longitude] }));
         try {
-          const res = await fetch(`/nominatim/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const res = await fetch(`https://api.geoapify.com/v1/geocode/reverse?lat=${latitude}&lon=${longitude}&lang=es&apiKey=${GEOAPIFY_KEY}`);
           const data = await res.json();
-          setBusqueda(prev => ({ ...prev, origen: data.address?.road || data.address?.suburb || "Mi ubicación" }));
+          const p = data.features?.[0]?.properties || {};
+          const nombre = p.street || p.neighbourhood || p.suburb || 'Mi ubicación';
+          const ciudad = p.city || p.town || p.municipality || '';
+          setBusqueda(prev => ({ ...prev, origen: ciudad ? `${nombre}, ${ciudad}` : nombre }));
         } catch {
-          setBusqueda(prev => ({ ...prev, origen: "Mi ubicación" }));
+          setBusqueda(prev => ({ ...prev, origen: 'Mi ubicación' }));
         }
-      }, () => console.log("El usuario denegó la ubicación"));
+      }, () => console.log('El usuario denegó la ubicación'));
     }
   }, []);
 
-  const handleBusqueda = (e) => setBusqueda({ ...busqueda, [e.target.name]: e.target.value });
+  const handleBusqueda = (e) => setBusqueda(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const handleUbicacionActual = ({ texto, coords }) => {
+    setDatosMapa(prev => ({ ...prev, origen: coords }));
+  };
 
   const actualizarPasajeros = (tipo, operacion) => {
     setPasajeros(prev => {
@@ -80,31 +135,30 @@ const Dashboard = () => {
   const totalAsientos = pasajeros.adultos + pasajeros.ninos;
   const textoViajeros = `${totalAsientos} viajero${totalAsientos > 1 ? 's' : ''}`;
 
-  // Función para que PanelConductor trace la ruta en el mapa (SCRUM-77)
-  const trazarRutaConductor = async (origen, destino) => {
+  const trazarRutaConCoords = async (lat1, lon1, lat2, lon2) => {
     try {
-      const qOri = encodeURIComponent(`${origen}, Colombia`);
-      const qDes = encodeURIComponent(`${destino}, Colombia`);
-      const [resOri, resDes] = await Promise.all([
-        fetch(`/nominatim/search?format=json&q=${qOri}&limit=1`),
-        fetch(`/nominatim/search?format=json&q=${qDes}&limit=1`)
-      ]);
-      const [dataOri, dataDes] = await Promise.all([resOri.json(), resDes.json()]);
-      if (!dataOri.length || !dataDes.length) return;
-
-      const lat1 = parseFloat(dataOri[0].lat), lon1 = parseFloat(dataOri[0].lon);
-      const lat2 = parseFloat(dataDes[0].lat), lon2 = parseFloat(dataDes[0].lon);
-
       const apiKey = import.meta.env.VITE_ORS_API_KEY;
       const res = await fetch(`https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${lon1},${lat1}&end=${lon2},${lat2}`);
       const data = await res.json();
-
       if (data.features?.length > 0) {
         const ruta = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
         const resumen = data.features[0].properties.summary;
         setDatosMapa({ origen: [lat1, lon1], destino: [lat2, lon2], ruta });
-        setInfoRuta(null); // No mostramos el modal de publicar, solo la ruta
+        setInfoRuta({ distancia: `${(resumen.distance / 1000).toFixed(1)} km`, tiempo: `${Math.round(resumen.duration / 60)} min` });
+      } else {
+        alert('No se pudo trazar una ruta entre estas dos ubicaciones.');
       }
+    } catch {
+      alert('Error de conexión con el servidor de rutas.');
+    }
+  };
+
+  const trazarRutaConductor = async (origen, destino) => {
+    try {
+      const [coordsOri, coordsDes] = await Promise.all([geocodificar(origen), geocodificar(destino)]);
+      if (!coordsOri || !coordsDes) return;
+      await trazarRutaConCoords(coordsOri.lat, coordsOri.lon, coordsDes.lat, coordsDes.lon);
+      setInfoRuta(null);
     } catch (err) {
       console.error('Error trazando ruta del conductor:', err);
     }
@@ -113,57 +167,82 @@ const Dashboard = () => {
   const buscarRuta = async (e) => {
     e.preventDefault();
     if (!busqueda.origen || !busqueda.destino || !busqueda.departure_time) {
-      alert("Por favor completa origen, destino y fecha de salida.");
+      alert('Por favor completa origen, destino y fecha de salida.');
       return;
     }
     if (tipoViaje === 'redondo' && !busqueda.return_time) {
-      alert("Por favor selecciona una fecha de regreso.");
+      alert('Por favor selecciona una fecha de regreso.');
       return;
     }
     setCargandoMapa(true);
     setInfoRuta(null);
     setMostrarPasajeros(false);
+
     try {
       let lat1, lon1;
       const textoOrigen = busqueda.origen.toLowerCase();
-      if (datosMapa.origen && (textoOrigen.includes("ubicación") || textoOrigen.includes("ubicacion"))) {
+
+      if (datosMapa.origen && (textoOrigen.includes('ubicación') || textoOrigen.includes('ubicacion') || textoOrigen.includes('mi ubicación'))) {
         [lat1, lon1] = datosMapa.origen;
       } else {
-        const qOri = encodeURIComponent(`${busqueda.origen}, Colombia`);
-        const resOri = await fetch(`/nominatim/search?format=json&q=${qOri}&limit=1`);
-        const dataOri = await resOri.json();
-        if (dataOri?.length > 0) { lat1 = parseFloat(dataOri[0].lat); lon1 = parseFloat(dataOri[0].lon); }
-      }
-      const qDes = encodeURIComponent(`${busqueda.destino}, Colombia`);
-      const resDes = await fetch(`/nominatim/search?format=json&q=${qDes}&limit=1`);
-      const dataDes = await resDes.json();
-
-      if (lat1 && dataDes?.length > 0) {
-        const lat2 = parseFloat(dataDes[0].lat), lon2 = parseFloat(dataDes[0].lon);
-        const apiKey = import.meta.env.VITE_ORS_API_KEY;
-        const resRuta = await fetch(`https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${lon1},${lat1}&end=${lon2},${lat2}`);
-        const dataRuta = await resRuta.json();
-        if (dataRuta.features?.length > 0) {
-          const ruta = dataRuta.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
-          const resumen = dataRuta.features[0].properties.summary;
-          setDatosMapa({ origen: [lat1, lon1], destino: [lat2, lon2], ruta });
-          setInfoRuta({ distancia: `${(resumen.distance / 1000).toFixed(1)} km`, tiempo: `${Math.round(resumen.duration / 60)} min` });
+        const coordsOri = await geocodificar(busqueda.origen);
+        if (coordsOri) {
+          lat1 = coordsOri.lat;
+          lon1 = coordsOri.lon;
         } else {
-          alert("No se pudo encontrar una ruta.");
+          coordsBuffer.current = {};
+          setErrorDireccion({ campo: 'origen' });
+          setCargandoMapa(false);
+          return;
+        }
+      }
+
+      const coordsDes = await geocodificar(busqueda.destino);
+      if (!coordsDes) {
+        coordsBuffer.current = { lat1, lon1 };
+        setErrorDireccion({ campo: 'destino' });
+        setCargandoMapa(false);
+        return;
+      }
+
+      await trazarRutaConCoords(lat1, lon1, coordsDes.lat, coordsDes.lon);
+
+    } catch (err) {
+      console.error('Error:', err);
+      alert('Error de conexión con el servidor de rutas.');
+    } finally {
+      setCargandoMapa(false);
+    }
+  };
+
+  const handleContinuarConDireccionManual = async () => {
+    setErrorDireccion(null);
+    setCargandoMapa(true);
+    try {
+      if (errorDireccion.campo === 'origen') {
+        const lat1 = datosMapa.origen ? datosMapa.origen[0] : 4.6097;
+        const lon1 = datosMapa.origen ? datosMapa.origen[1] : -74.0817;
+        const coordsDes = await geocodificar(busqueda.destino);
+        if (coordsDes) {
+          setDatosMapa(prev => ({ ...prev, origen: [lat1, lon1], destino: [coordsDes.lat, coordsDes.lon] }));
+          await trazarRutaConCoords(lat1, lon1, coordsDes.lat, coordsDes.lon);
+        } else {
+          setInfoRuta({ distancia: 'No disponible', tiempo: 'No disponible' });
         }
       } else {
-        alert("No se pudo encontrar una de las direcciones.");
+        const { lat1, lon1 } = coordsBuffer.current;
+        setDatosMapa(prev => ({ ...prev, origen: [lat1, lon1] }));
+        setInfoRuta({ distancia: 'No disponible', tiempo: 'No disponible' });
       }
-    } catch (err) {
-      console.error("Error ORS:", err);
-      alert("Error de conexión con el servidor de rutas.");
+    } catch {
+      setInfoRuta({ distancia: 'No disponible', tiempo: 'No disponible' });
     } finally {
       setCargandoMapa(false);
     }
   };
 
   const crearViaje = async () => {
-    if (!token) { alert("Debes iniciar sesión para publicar un viaje."); return; }
+    if (!token) { alert('Debes iniciar sesión para publicar un viaje.'); return; }
     setEnviandoSolicitud(true);
     try {
       const payload = {
@@ -182,7 +261,7 @@ const Dashboard = () => {
       setInfoRuta(null);
       setDatosMapa({ origen: null, destino: null, ruta: [] });
       setBusqueda({ origen: '', destino: '', departure_time: '', return_time: '' });
-      alert("¡Viaje publicado exitosamente! Los conductores podrán hacerte ofertas.");
+      alert('¡Viaje publicado exitosamente! Los conductores podrán hacerte ofertas.');
     } catch (error) {
       alert(`Error: ${error.message}`);
     } finally {
@@ -207,17 +286,17 @@ const Dashboard = () => {
             fechaCreacion: new Date(v.created_at || Date.now()).toLocaleDateString(),
             ofertas: ofertasArray.map(o => ({
               id: o.id, conductor: o.driver_name || `Conductor #${o.driver_id || ''}`,
-              vehiculo: o.vehicle || "Vehículo registrado", calificacion: o.rating || 4.8,
+              vehiculo: o.vehicle || 'Vehículo registrado', calificacion: o.rating || 4.8,
               precio: o.price || o.offered_price || 0
             }))
           };
         }));
       }
-    } catch (error) { console.error("Error al cargar los viajes:", error); }
+    } catch (error) { console.error('Error al cargar los viajes:', error); }
   };
 
   const handleAceptarOferta = (viajeId, ofertaId) => {
-    alert("¡Viaje aceptado! Redirigiendo a detalles del conductor...");
+    alert('¡Viaje aceptado! Redirigiendo a detalles del conductor...');
     setListaSolicitudes(prev => prev.map(v => v.id === viajeId ? { ...v, estado: 'Confirmado', ofertas: [] } : v));
     setViajeSeleccionado(null);
   };
@@ -235,14 +314,14 @@ const Dashboard = () => {
   };
 
   const handleContraoferta = (viajeId, ofertaId) => {
-    const nuevaTarifa = window.prompt("¿Cuánto deseas ofrecer por este viaje? (Ej. 40000)");
+    const nuevaTarifa = window.prompt('¿Cuánto deseas ofrecer por este viaje? (Ej. 40000)');
     if (nuevaTarifa) alert(`Has enviado una contraoferta de $${nuevaTarifa} al conductor. Esperando su respuesta...`);
   };
 
   const headerStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 40px', backgroundColor: '#fff', borderBottom: '1px solid #eee', position: 'absolute', top: 0, width: '100%', zIndex: 1000, boxSizing: 'border-box', boxShadow: '0 1px 10px rgba(0,0,0,0.05)' };
   const searchBarStyle = { display: 'flex', alignItems: 'center', border: '1px solid #ddd', borderRadius: '40px', padding: '5px 5px 5px 15px', backgroundColor: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' };
+  const dividerStyle = { width: '1px', height: '20px', background: '#ddd', margin: '0 10px', flexShrink: 0 };
   const inputStyle = { border: 'none', outline: 'none', fontSize: '13px', backgroundColor: 'transparent' };
-  const dividerStyle = { width: '1px', height: '20px', background: '#ddd', margin: '0 10px' };
 
   const SelectorPasajero = ({ titulo, subtitulo, tipo }) => {
     const deshabilitado = totalAsientos >= 44;
@@ -264,7 +343,6 @@ const Dashboard = () => {
   return (
     <div style={{ height: '100vh', width: '100%', position: 'relative', fontFamily: 'Inter, sans-serif', overflow: 'hidden' }}>
 
-      {/* HEADER */}
       <header style={headerStyle}>
         <img src={logoTurify} alt="Logo" style={{ height: '70px' }} />
 
@@ -274,9 +352,9 @@ const Dashboard = () => {
             <button type="button" onClick={() => setTipoViaje('redondo')} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: tipoViaje === 'redondo' ? BRAND_GREEN : 'transparent', color: tipoViaje === 'redondo' ? '#fff' : '#666', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Ida y vuelta</button>
           </div>
           <div style={dividerStyle} />
-          <input type="text" name="origen" placeholder="Origen" value={busqueda.origen} onChange={handleBusqueda} style={{ ...inputStyle, width: '110px' }} />
+          <InputDireccion name="origen" placeholder="Origen" value={busqueda.origen} onChange={handleBusqueda} esOrigen={true} onUbicacionActual={handleUbicacionActual} />
           <div style={dividerStyle} />
-          <input type="text" name="destino" placeholder="Destino" value={busqueda.destino} onChange={handleBusqueda} style={{ ...inputStyle, width: '110px' }} />
+          <InputDireccion name="destino" placeholder="Destino" value={busqueda.destino} onChange={handleBusqueda} />
           <div style={dividerStyle} />
           <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
             <input type="datetime-local" name="departure_time" value={busqueda.departure_time} onChange={handleBusqueda} style={{ ...inputStyle, width: '130px', color: busqueda.departure_time ? '#000' : '#888' }} required />
@@ -321,9 +399,7 @@ const Dashboard = () => {
           </motion.button>
         </form>
 
-        {/* BOTONERA DERECHA */}
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          {/* CAMPANITA */}
           <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
             onClick={() => { cargarMisViajes(); setMostrarMisSolicitudes(true); setNotificaciones(0); }}
             style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '35px', height: '35px', borderRadius: '50%', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
@@ -338,7 +414,6 @@ const Dashboard = () => {
             </AnimatePresence>
           </motion.div>
 
-          {/* MIS VIAJES */}
           <motion.button onClick={() => { cargarMisViajes(); setMostrarMisSolicitudes(true); }}
             style={{ background: '#fff', border: '1px solid #ddd', fontWeight: '600', cursor: 'pointer', color: '#444', fontSize: '13px', padding: '8px 15px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '5px' }}>
             Mis Viajes
@@ -349,24 +424,28 @@ const Dashboard = () => {
             )}
           </motion.button>
 
-          {/* PANEL CONDUCTOR - solo visible si es DRIVER */}
           {usuario?.role === 'DRIVER' && (
-            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-              onClick={() => setMostrarPanelConductor(true)}
-              style={{ background: BRAND_GREEN, border: 'none', fontWeight: '700', cursor: 'pointer', color: '#fff', fontSize: '13px', padding: '8px 15px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => setMostrarPanelConductor(true)}
+              style={{ background: BRAND_GREEN, border: 'none', fontWeight: '700', cursor: 'pointer', color: '#fff', fontSize: '13px', padding: '8px 15px', borderRadius: '20px' }}>
               🚗 Panel Conductor
             </motion.button>
           )}
 
-          {/* QUIERO SER CONDUCTOR */}
-          {usuario?.role !== 'DRIVER' && (
+          {usuario?.role === 'ADMIN' && (
+            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+              onClick={() => navigate('/admin/conductores')}
+              style={{ background: '#7c3aed', border: 'none', fontWeight: '700', cursor: 'pointer', color: '#fff', fontSize: '13px', padding: '8px 15px', borderRadius: '20px' }}>
+              🛡️ Panel Admin
+            </motion.button>
+          )}
+
+          {usuario?.role !== 'DRIVER' && usuario?.role !== 'ADMIN' && (
             <motion.button onClick={() => navigate('/registro-conductor')}
               style={{ background: BRAND_GREEN, border: 'none', fontWeight: '700', cursor: 'pointer', color: '#fff', fontSize: '13px', padding: '8px 15px', borderRadius: '20px' }}>
               Quiero ser conductor
             </motion.button>
           )}
 
-          {/* MENÚ USUARIO */}
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} style={{ border: '1px solid #ddd', borderRadius: '20px', padding: '5px 15px', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}>
             <span>☰</span>
             <div style={{ background: '#eee', borderRadius: '50%', width: '25px', height: '25px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>👤</div>
@@ -374,13 +453,29 @@ const Dashboard = () => {
         </div>
       </header>
 
+      {/* MODAL ERROR DIRECCIÓN */}
+      <AnimatePresence>
+        {errorDireccion && (
+          <ModalErrorDireccion
+            textoDireccion={errorDireccion.campo === 'origen' ? busqueda.origen : busqueda.destino}
+            onCerrar={() => setErrorDireccion(null)}
+            onContinuar={handleContinuarConDireccionManual}
+          />
+        )}
+      </AnimatePresence>
+
       {/* MODAL RESUMEN VIAJE */}
       <AnimatePresence>
         {infoRuta && (
-          <motion.div initial={{ opacity: 0, y: 50, x: "-50%" }} animate={{ opacity: 1, y: 0, x: "-50%" }} exit={{ opacity: 0, y: 50, x: "-50%" }}
-            style={{ position: 'absolute', bottom: '40px', left: '50%', backgroundColor: '#fff', padding: '20px 25px', borderRadius: '15px', zIndex: 1000, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', textAlign: 'center', width: '350px' }}>
+          <motion.div initial={{ opacity: 0, y: 50, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: 50, x: '-50%' }}
+            style={{ position: 'absolute', bottom: '40px', left: '50%', backgroundColor: '#fff', padding: '20px 25px', borderRadius: '15px', zIndex: 1000, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', textAlign: 'center', width: '380px' }}>
             <p style={{ margin: 0, color: '#666', fontSize: '13px' }}>Resumen del viaje</p>
-            <h3 style={{ margin: '8px 0 15px 0', color: '#222' }}>{infoRuta.tiempo} ({infoRuta.distancia})</h3>
+            <h3 style={{ margin: '8px 0 4px', color: '#222' }}>{infoRuta.tiempo} · {infoRuta.distancia}</h3>
+            {infoRuta.distancia === 'No disponible' && (
+              <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#f59e0b' }}>
+                ⚠️ No se pudo trazar la ruta exacta, pero el viaje se publicará con las direcciones ingresadas.
+              </p>
+            )}
             <button onClick={crearViaje} disabled={enviandoSolicitud}
               style={{ background: enviandoSolicitud ? '#9ca3af' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: enviandoSolicitud ? 'not-allowed' : 'pointer', fontWeight: 'bold', width: '100%' }}>
               {enviandoSolicitud ? 'Procesando...' : 'Confirmar y Publicar Viaje'}
@@ -474,7 +569,7 @@ const Dashboard = () => {
         )}
       </AnimatePresence>
 
-      {/* PANEL CONDUCTOR DRAWER DERECHO */}
+      {/* PANEL CONDUCTOR DRAWER */}
       <AnimatePresence>
         {mostrarPanelConductor && usuario?.role === 'DRIVER' && (
           <>
@@ -483,7 +578,6 @@ const Dashboard = () => {
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 2000 }} />
             <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.3 }}
               style={{ position: 'absolute', top: 0, right: 0, width: '420px', maxWidth: '100%', height: '100vh', zIndex: 2001, display: 'flex', flexDirection: 'column' }}>
-              {/* Botón cerrar fuera del panel */}
               <div style={{ position: 'absolute', top: '16px', left: '-44px', zIndex: 1 }}>
                 <motion.button whileTap={{ scale: 0.9 }} onClick={() => setMostrarPanelConductor(false)}
                   style={{ background: '#fff', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -492,7 +586,7 @@ const Dashboard = () => {
               </div>
               <PanelConductor onVerRuta={(origen, destino) => {
                 trazarRutaConductor(origen, destino);
-                setMostrarPanelConductor(false); // Cierra el drawer para ver el mapa
+                setMostrarPanelConductor(false);
               }} />
             </motion.div>
           </>
