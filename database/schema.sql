@@ -1,13 +1,7 @@
--- ==========================================================
--- 1. CONFIGURACIÓN INICIAL
--- ==========================================================
 CREATE DATABASE IF NOT EXISTS turify_db;
 USE turify_db;
-
-
--- ==========================================================
--- 2. ENTIDADES BASE (Configuración y Actores)
--- ==========================================================
+SELECT * FROM Document;
+SELECT * FROM User;
 
 -- Catálogo de empresas (Pre-cargado por Admins)
 CREATE TABLE IF NOT EXISTS AffiliatedCompany (
@@ -66,9 +60,9 @@ CREATE TABLE IF NOT EXISTS Vehicle (
     FOREIGN KEY (company_id) REFERENCES AffiliatedCompany(company_id) ON DELETE CASCADE
 );
 
--- ==========================================================
+
 -- 3. MÓDULO DE VIAJES (Gestión de Ofertas y Negociación)
--- ==========================================================
+
 
 -- Solicitudes de viaje (Publicadas por pasajeros)
 CREATE TABLE IF NOT EXISTS ServiceRequest (
@@ -101,9 +95,6 @@ CREATE TABLE IF NOT EXISTS DriverOffer (
     FOREIGN KEY (vehicle_id) REFERENCES Vehicle(vehicle_id) ON DELETE CASCADE
 );
 
--- ==========================================================
--- 4. NOTIFICACIONES (Campanita global independiente)
--- ==========================================================
 
 CREATE TABLE IF NOT EXISTS Notification (
     notification_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -126,4 +117,38 @@ CREATE INDEX idx_user_role ON User(role);
 CREATE INDEX idx_request_status ON ServiceRequest(status);
 CREATE INDEX idx_offer_request ON DriverOffer(request_id);
 CREATE INDEX idx_unread_notif ON Notification(user_id, is_read);
+
+
+INSERT INTO AffiliatedCompany (name, nit, logo_url) 
+VALUES ('Departour', '900123456-1', 'https://tu-storage.com/logos/departour.png');
+
+INSERT INTO AffiliatedCompany (name, nit, logo_url) 
+VALUES ('Transporte Real', '900654321-2', 'https://tu-storage.com/logos/transporte_real.png');
+
+
+UPDATE User 
+SET role = 'ADMIN' 
+WHERE email = 'usuario2@gmail.com';
+
+USE turify_db;
+
+CREATE TABLE IF NOT EXISTS AuditLog (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NULL,
+    action VARCHAR(50) NOT NULL,
+    entity VARCHAR(50) NULL,
+    entity_id INT NULL,
+    detail TEXT NULL,
+    ip_address VARCHAR(45) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_auditlog_user ON AuditLog(user_id);
+CREATE INDEX idx_auditlog_action ON AuditLog(action);
+CREATE INDEX idx_auditlog_created ON AuditLog(created_at);
+
+
+
+
 
