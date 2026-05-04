@@ -235,10 +235,16 @@ const AdminConductores = () => {
             <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>Verificación de documentos de conductores</p>
           </div>
         </div>
-        <motion.button whileTap={{ scale: 0.96 }} onClick={cargarConductores}
-          style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
-          🔄 Actualizar
-        </motion.button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <motion.button whileTap={{ scale: 0.96 }} onClick={() => navigate('/admin/logs')}
+            style={{ background: '#1e293b', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+            📋 Ver Logs
+          </motion.button>
+          <motion.button whileTap={{ scale: 0.96 }} onClick={cargarConductores}
+            style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+            🔄 Actualizar
+          </motion.button>
+        </div>
       </header>
 
       {/* ALERTA */}

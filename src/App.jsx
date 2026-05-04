@@ -7,6 +7,7 @@ import RutaPrivada, { RutaAdmin } from './RutaPrivada';
 import Dashboard from './Dashboard';
 import FormularioConductor from './FormularioConductor';
 import AdminConductores from './AdminConductores';
+import AdminLogs from './AdminLogs';
 
 const LoginConNavegacion = () => {
   const navigate = useNavigate();
@@ -45,6 +46,7 @@ function App() {
           {/* Rutas Privadas — solo ADMIN */}
           <Route element={<RutaAdmin />}>
             <Route path="/admin/conductores" element={<AdminConductores />} />
+            <Route path="/admin/logs" element={<AdminLogs />} />
           </Route>
 
           {/* Redirección por defecto */}
