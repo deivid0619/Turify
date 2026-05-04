@@ -113,9 +113,7 @@ const Registro = ({ irALogin }) => {
         }
 
         .reg-left-content { position: relative; z-index: 2; }
-
-        .reg-logo { width: 150px; margin-bottom: 0; filter: drop-shadow(0 0 20px rgba(34,197,94,0.25)); }
-
+        .reg-logo { width: 150px; filter: drop-shadow(0 0 20px rgba(34,197,94,0.25)); }
         .reg-left-bottom { position: relative; z-index: 2; }
 
         .reg-left-title {
@@ -138,11 +136,7 @@ const Registro = ({ irALogin }) => {
 
         .reg-steps { display: flex; flex-direction: column; gap: 14px; }
 
-        .reg-step {
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-        }
+        .reg-step { display: flex; align-items: flex-start; gap: 12px; }
 
         .reg-step-num {
           width: 24px; height: 24px;
@@ -150,11 +144,9 @@ const Registro = ({ irALogin }) => {
           background: rgba(34,197,94,0.15);
           border: 1px solid rgba(34,197,94,0.3);
           color: #22c55e;
-          font-size: 11px;
-          font-weight: 700;
+          font-size: 11px; font-weight: 700;
           display: flex; align-items: center; justify-content: center;
-          flex-shrink: 0;
-          margin-top: 1px;
+          flex-shrink: 0; margin-top: 1px;
         }
 
         .reg-step-text { font-size: 12px; color: rgba(255,255,255,0.45); line-height: 1.5; }
@@ -162,15 +154,14 @@ const Registro = ({ irALogin }) => {
 
         .reg-copy { font-size: 11px; color: rgba(255,255,255,0.2); margin-top: 32px; }
 
-        /* ── PANEL DERECHO ── */
         .reg-right {
           flex: 1;
-          background: #ffffff;
+          background: #0a0f0a;
           display: flex;
           align-items: center;
           justify-content: center;
           padding: 48px 64px;
-          border-left: 1px solid #e8f5e9;
+          border-left: 1px solid rgba(34,197,94,0.07);
           position: relative;
           overflow-y: auto;
         }
@@ -180,7 +171,7 @@ const Registro = ({ irALogin }) => {
           position: absolute;
           bottom: -60px; left: -60px;
           width: 240px; height: 240px;
-          background: radial-gradient(circle, rgba(34,197,94,0.04) 0%, transparent 70%);
+          background: radial-gradient(circle, rgba(34,197,94,0.06) 0%, transparent 70%);
           pointer-events: none;
         }
 
@@ -192,7 +183,7 @@ const Registro = ({ irALogin }) => {
           gap: 6px;
           background: none;
           border: none;
-          color: #94a3b8;
+          color: rgba(255,255,255,0.35);
           font-size: 13px;
           font-family: 'DM Sans', sans-serif;
           cursor: pointer;
@@ -215,27 +206,26 @@ const Registro = ({ irALogin }) => {
           font-family: 'Syne', sans-serif;
           font-size: 26px;
           font-weight: 800;
-          color: #0f1a0f;
+          color: #f0fdf4;
           margin-bottom: 6px;
           letter-spacing: -0.3px;
         }
 
         .reg-subtitle {
           font-size: 13px;
-          color: #94a3b8;
+          color: rgba(255,255,255,0.35);
           margin-bottom: 28px;
           font-weight: 300;
         }
 
         .reg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
         .reg-grid-full { grid-column: 1 / -1; }
-
         .reg-field { display: flex; flex-direction: column; }
 
         .reg-label {
           font-size: 11px;
           font-weight: 500;
-          color: #64748b;
+          color: rgba(255,255,255,0.4);
           margin-bottom: 6px;
           letter-spacing: 0.3px;
         }
@@ -245,22 +235,22 @@ const Registro = ({ irALogin }) => {
         .reg-input {
           width: 100%;
           padding: 11px 14px;
-          background: #f8fafb;
-          border: 1px solid #e2e8f0;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
           border-radius: 9px;
-          color: #0f1a0f;
+          color: #f0fdf4;
           font-size: 13px;
           font-family: 'DM Sans', sans-serif;
           outline: none;
           transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
         }
 
-        .reg-input::placeholder { color: #bfcdd9; }
+        .reg-input::placeholder { color: rgba(255,255,255,0.18); }
 
         .reg-input:focus {
-          border-color: #22c55e;
-          background: #f0fdf4;
-          box-shadow: 0 0 0 3px rgba(34,197,94,0.12);
+          border-color: rgba(34,197,94,0.4);
+          background: rgba(34,197,94,0.03);
+          box-shadow: 0 0 0 3px rgba(34,197,94,0.07);
         }
 
         .reg-input-error { border-color: rgba(239,68,68,0.4) !important; }
@@ -272,24 +262,15 @@ const Registro = ({ irALogin }) => {
           transform: translateY(-50%);
           background: none; border: none;
           cursor: pointer;
-          color: #94a3b8;
+          color: rgba(255,255,255,0.25);
           font-size: 14px; padding: 0;
           transition: color 0.2s;
         }
-        .reg-pw-toggle:hover { color: #475569; }
+        .reg-pw-toggle:hover { color: rgba(255,255,255,0.6); }
 
-        .reg-field-error {
-          font-size: 11px;
-          color: #dc2626;
-          margin-top: 4px;
-        }
+        .reg-field-error { font-size: 11px; color: #fca5a5; margin-top: 4px; }
 
-        .reg-pw-checks {
-          display: flex;
-          gap: 14px;
-          margin-top: 8px;
-          flex-wrap: wrap;
-        }
+        .reg-pw-checks { display: flex; gap: 14px; margin-top: 8px; flex-wrap: wrap; }
 
         .reg-btn {
           width: 100%;
@@ -310,13 +291,12 @@ const Registro = ({ irALogin }) => {
           box-shadow: 0 4px 18px rgba(34,197,94,0.28);
         }
         .reg-btn-active:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(34,197,94,0.38); }
-
         .reg-btn-disabled { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.18); cursor: not-allowed; }
 
         .reg-login-link {
           text-align: center;
           font-size: 13px;
-          color: #64748b;
+          color: rgba(255,255,255,0.3);
           margin-top: 20px;
         }
         .reg-login-link a { color: #22c55e; font-weight: 600; cursor: pointer; text-decoration: none; transition: color 0.2s; }
@@ -336,20 +316,14 @@ const Registro = ({ irALogin }) => {
       `}</style>
 
       <div className="reg-root">
-        {/* ── IZQUIERDO ── */}
         <div className="reg-left">
           <div className="reg-left-bg" />
           <div className="reg-left-overlay" />
-
           <div className="reg-left-content">
             <img src={logoTurify} alt="Turify" className="reg-logo" />
           </div>
-
           <div className="reg-left-bottom">
-            <h2 className="reg-left-title">
-              Únete a la red<br />
-              <span>Turify.</span>
-            </h2>
+            <h2 className="reg-left-title">Únete a la red<br /><span>Turify.</span></h2>
             <p className="reg-left-desc">
               Gestiona tus viajes, negocia tarifas y conecta con conductores verificados en Medellín y su región.
             </p>
@@ -371,12 +345,9 @@ const Registro = ({ irALogin }) => {
           </div>
         </div>
 
-        {/* ── DERECHO ── */}
         <div className="reg-right">
           <div className="reg-form-wrap">
-            <button className="reg-back-btn" onClick={irALogin}>
-              ← Volver al login
-            </button>
+            <button className="reg-back-btn" onClick={irALogin}>← Volver al login</button>
 
             <p className="reg-eyebrow">Nuevo usuario</p>
             <h2 className="reg-title">Crear cuenta</h2>
@@ -384,7 +355,6 @@ const Registro = ({ irALogin }) => {
 
             <form onSubmit={handleSubmit}>
               <div className="reg-grid">
-                {/* Nombre */}
                 <div className="reg-field reg-grid-full">
                   <label className="reg-label">Nombre completo</label>
                   <div className="reg-input-wrap">
@@ -394,7 +364,6 @@ const Registro = ({ irALogin }) => {
                   {errores.full_name && <span className="reg-field-error">{errores.full_name}</span>}
                 </div>
 
-                {/* Email */}
                 <div className="reg-field">
                   <label className="reg-label">Correo electrónico</label>
                   <div className="reg-input-wrap">
@@ -404,7 +373,6 @@ const Registro = ({ irALogin }) => {
                   {errores.email && <span className="reg-field-error">{errores.email}</span>}
                 </div>
 
-                {/* Teléfono */}
                 <div className="reg-field">
                   <label className="reg-label">Teléfono</label>
                   <div className="reg-input-wrap">
@@ -413,7 +381,6 @@ const Registro = ({ irALogin }) => {
                   </div>
                 </div>
 
-                {/* Contraseña */}
                 <div className="reg-field">
                   <label className="reg-label">Contraseña</label>
                   <div className="reg-input-wrap">
@@ -426,7 +393,6 @@ const Registro = ({ irALogin }) => {
                   </div>
                 </div>
 
-                {/* Confirmar contraseña */}
                 <div className="reg-field">
                   <label className="reg-label">Confirmar contraseña</label>
                   <div className="reg-input-wrap">
@@ -441,7 +407,6 @@ const Registro = ({ irALogin }) => {
                 </div>
               </div>
 
-              {/* Checks de contraseña */}
               {formData.password.length > 0 && (
                 <div className="reg-pw-checks">
                   <CheckItem ok={hasMinLength} label="8+ caracteres" />

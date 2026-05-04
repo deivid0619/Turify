@@ -58,7 +58,6 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
           background: #050e05;
         }
 
-        /* ── PANEL IZQUIERDO ── */
         .login-left {
           flex: 1.1;
           position: relative;
@@ -89,7 +88,6 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
           );
         }
 
-        /* líneas decorativas */
         .login-lines {
           position: absolute;
           top: 0; right: 0;
@@ -113,10 +111,7 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
           border-radius: 50%;
         }
 
-        .login-left-content {
-          position: relative;
-          z-index: 2;
-        }
+        .login-left-content { position: relative; z-index: 2; }
 
         .login-logo {
           width: 220px;
@@ -133,10 +128,7 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
           margin-bottom: 18px;
           letter-spacing: -0.5px;
         }
-
-        .login-tagline span {
-          color: #22c55e;
-        }
+        .login-tagline span { color: #22c55e; }
 
         .login-desc {
           font-size: 15px;
@@ -182,25 +174,23 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
           z-index: 2;
         }
 
-        /* ── PANEL DERECHO ── */
         .login-right {
           flex: 0 0 440px;
-          background: #ffffff;
+          background: #0a0f0a;
           display: flex;
           align-items: center;
           justify-content: center;
           padding: 60px 48px;
-          border-left: 1px solid #e8f5e9;
+          border-left: 1px solid rgba(34,197,94,0.08);
           position: relative;
         }
 
-        /* glow sutil en la esquina */
         .login-right::before {
           content: '';
           position: absolute;
           top: -80px; right: -80px;
           width: 280px; height: 280px;
-          background: radial-gradient(circle, rgba(34,197,94,0.04) 0%, transparent 70%);
+          background: radial-gradient(circle, rgba(34,197,94,0.07) 0%, transparent 70%);
           pointer-events: none;
         }
 
@@ -224,54 +214,50 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
           font-family: 'Syne', sans-serif;
           font-size: 30px;
           font-weight: 800;
-          color: #0f1a0f;
+          color: #f0fdf4;
           margin-bottom: 8px;
           letter-spacing: -0.3px;
         }
 
         .login-subtitle {
           font-size: 14px;
-          color: #94a3b8;
+          color: rgba(255,255,255,0.38);
           margin-bottom: 36px;
           font-weight: 300;
         }
 
-        .login-field {
-          margin-bottom: 16px;
-        }
+        .login-field { margin-bottom: 16px; }
 
         .login-label {
           display: block;
           font-size: 12px;
           font-weight: 500;
-          color: #64748b;
+          color: rgba(255,255,255,0.45);
           margin-bottom: 7px;
           letter-spacing: 0.3px;
         }
 
-        .login-input-wrap {
-          position: relative;
-        }
+        .login-input-wrap { position: relative; }
 
         .login-input {
           width: 100%;
           padding: 13px 16px;
-          background: #f8fafb;
-          border: 1px solid #e2e8f0;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.09);
           border-radius: 10px;
-          color: #0f1a0f;
+          color: #f0fdf4;
           font-size: 14px;
           font-family: 'DM Sans', sans-serif;
           outline: none;
           transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
         }
 
-        .login-input::placeholder { color: #bfcdd9; }
+        .login-input::placeholder { color: rgba(255,255,255,0.2); }
 
         .login-input:focus {
-          border-color: #22c55e;
-          background: #f0fdf4;
-          box-shadow: 0 0 0 3px rgba(34,197,94,0.12);
+          border-color: rgba(34,197,94,0.45);
+          background: rgba(34,197,94,0.04);
+          box-shadow: 0 0 0 3px rgba(34,197,94,0.08);
         }
 
         .login-input-pw { padding-right: 48px; }
@@ -284,13 +270,13 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
           background: none;
           border: none;
           cursor: pointer;
-          color: #94a3b8;
+          color: rgba(255,255,255,0.3);
           font-size: 16px;
           padding: 0;
           line-height: 1;
           transition: color 0.2s;
         }
-        .pw-toggle:hover { color: #475569; }
+        .pw-toggle:hover { color: rgba(255,255,255,0.65); }
 
         .login-error {
           display: flex;
@@ -317,8 +303,6 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
           letter-spacing: 0.2px;
           transition: all 0.2s;
           margin-top: 8px;
-          position: relative;
-          overflow: hidden;
         }
 
         .login-btn-active {
@@ -326,12 +310,10 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
           color: #052e16;
           box-shadow: 0 4px 20px rgba(34,197,94,0.3);
         }
-
         .login-btn-active:hover {
           transform: translateY(-1px);
           box-shadow: 0 8px 28px rgba(34,197,94,0.4);
         }
-
         .login-btn-active:active { transform: translateY(0); }
 
         .login-btn-disabled {
@@ -345,7 +327,6 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
           gap: 4px;
           align-items: center;
         }
-
         .login-loading-dots span {
           width: 5px; height: 5px;
           border-radius: 50%;
@@ -354,7 +335,6 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
         }
         .login-loading-dots span:nth-child(2) { animation-delay: 0.15s; }
         .login-loading-dots span:nth-child(3) { animation-delay: 0.3s; }
-
         @keyframes bounce-dot {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-4px); }
@@ -369,19 +349,18 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
         .login-divider-line {
           flex: 1;
           height: 1px;
-          background: #e2e8f0;
+          background: rgba(255,255,255,0.07);
         }
         .login-divider-text {
           font-size: 12px;
-          color: #94a3b8;
+          color: rgba(255,255,255,0.25);
         }
 
         .login-register-link {
           text-align: center;
           font-size: 14px;
-          color: #64748b;
+          color: rgba(255,255,255,0.35);
         }
-
         .login-register-link a {
           color: #22c55e;
           font-weight: 600;
@@ -398,12 +377,10 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
       `}</style>
 
       <div className="login-root">
-        {/* ── IZQUIERDO ── */}
         <div className="login-left">
           <div className="login-left-bg" />
           <div className="login-left-overlay" />
           <div className="login-lines" />
-
           <div className="login-left-content">
             <img src={logoTurify} alt="Turify" className="login-logo" />
             <h1 className="login-tagline">
@@ -421,7 +398,6 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
           <p className="login-copy">© 2026 Turify Transport. All rights reserved.</p>
         </div>
 
-        {/* ── DERECHO ── */}
         <div className="login-right">
           <div className="login-form-wrap">
             <p className="login-eyebrow">Bienvenido de nuevo</p>
@@ -432,38 +408,20 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
               <div className="login-field">
                 <label className="login-label">Correo electrónico</label>
                 <div className="login-input-wrap">
-                  <input
-                    type="email"
-                    name="email"
-                    placeholder="tu@correo.com"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className="login-input"
-                    disabled={isLoading}
-                    autoComplete="email"
-                  />
+                  <input type="email" name="email" placeholder="tu@correo.com"
+                    value={formData.email} onChange={handleChange}
+                    className="login-input" disabled={isLoading} autoComplete="email" />
                 </div>
               </div>
 
               <div className="login-field">
                 <label className="login-label">Contraseña</label>
                 <div className="login-input-wrap">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    name="password"
-                    placeholder="••••••••"
-                    value={formData.password}
-                    onChange={handleChange}
-                    className="login-input login-input-pw"
-                    disabled={isLoading}
-                    autoComplete="current-password"
-                  />
-                  <button
-                    type="button"
-                    className="pw-toggle"
-                    onClick={() => setShowPassword(p => !p)}
-                    tabIndex={-1}
-                  >
+                  <input type={showPassword ? 'text' : 'password'} name="password"
+                    placeholder="••••••••" value={formData.password} onChange={handleChange}
+                    className="login-input login-input-pw" disabled={isLoading} autoComplete="current-password" />
+                  <button type="button" className="pw-toggle"
+                    onClick={() => setShowPassword(p => !p)} tabIndex={-1}>
                     {showPassword ? '🙈' : '👁️'}
                   </button>
                 </div>
@@ -475,15 +433,10 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={!isFormValid || isLoading}
-                className={`login-btn ${isFormValid && !isLoading ? 'login-btn-active' : 'login-btn-disabled'}`}
-              >
+              <button type="submit" disabled={!isFormValid || isLoading}
+                className={`login-btn ${isFormValid && !isLoading ? 'login-btn-active' : 'login-btn-disabled'}`}>
                 {isLoading ? (
-                  <div className="login-loading-dots">
-                    <span /><span /><span />
-                  </div>
+                  <div className="login-loading-dots"><span /><span /><span /></div>
                 ) : 'Ingresar'}
               </button>
             </form>
