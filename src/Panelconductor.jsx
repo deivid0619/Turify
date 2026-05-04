@@ -19,6 +19,41 @@ const PanelConductor = ({ onVerRuta }) => {
   const [errorPrecio, setErrorPrecio] = useState('');
   const [viajesActivos, setViajesActivos] = useState([]);
   const [tarjetaRutaId, setTarjetaRutaId] = useState(null);
+  const [notificaciones, setNotificaciones] = useState([]);
+  const [mostrarNotifPanel, setMostrarNotifPanel] = useState(false);
+
+  // Notificaciones del conductor
+  const cargarNotificaciones = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/notifications`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (res.ok) setNotificaciones(await res.json());
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (!token) return;
+    cargarNotificaciones();
+    const intervalo = setInterval(cargarNotificaciones, 15000);
+    return () => clearInterval(intervalo);
+  }, [token]);
+
+  const marcarLeida = async (notifId) => {
+    try {
+      await fetch(`${API_BASE_URL}/api/service-requests/notifications/${notifId}/read`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+      });
+      setNotificaciones(prev => prev.map(n =>
+        n.notification_id === notifId ? { ...n, is_read: true } : n
+      ));
+    } catch {}
+  };
+
+  const marcarTodasLeidas = () => {
+    notificaciones.filter(n => !n.is_read).forEach(n => marcarLeida(n.notification_id));
+  };
 
   const cargarSolicitudes = async () => {
     setCargando(true);
@@ -38,6 +73,74 @@ const PanelConductor = ({ onVerRuta }) => {
   };
 
   useEffect(() => { if (token) cargarSolicitudes(); }, [token]);
+
+  // SCRUM-83: Cargar negociaciones activas cuando se cambia a esa pestaña
+  const cargarViajesActivos = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/driver/my-offers`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setViajesActivos(data);
+      }
+    } catch (e) {
+      console.error('Error cargando ofertas activas:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (token && pestanaActiva === 'activos') cargarViajesActivos();
+  }, [token, pestanaActiva]);
+
+  // SCRUM-82: Conductor responde a contraoferta
+  const [resolviendoOferta, setResolviendoOferta] = useState(null);
+  const [gestionandoViaje, setGestionandoViaje] = useState(null); // request_id en proceso
+
+  // HU17: Conductor inicia o finaliza el viaje
+  const gestionarViaje = async (requestId, accion) => {
+    setGestionandoViaje(requestId + accion);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${requestId}/${accion}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+      const data = await res.json();
+      alert(data.message);
+      cargarViajesActivos();
+    } catch (e) {
+      alert(`Error: ${e.message}`);
+    } finally {
+      setGestionandoViaje(null);
+    }
+  };
+
+  const resolverContraoferta = async (offerId, action) => {
+    setResolviendoOferta(offerId + action);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/offers/${offerId}/resolve`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({ action })
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+      const data = await res.json();
+      alert(data.message);
+      cargarViajesActivos();
+    } catch (e) {
+      alert(`Error: ${e.message}`);
+    } finally {
+      setResolviendoOferta(null);
+    }
+  };
 
   const validarPrecio = (val) => {
     if (!val || val === '') { setErrorPrecio('El precio no puede estar vacío.'); return false; }
@@ -105,10 +208,22 @@ const PanelConductor = ({ onVerRuta }) => {
             <h3 style={{ margin: 0, color: '#fff', fontSize: '15px', fontWeight: '700' }}>🚗 Panel del Conductor</h3>
             <p style={{ margin: '2px 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>Hola, {usuario?.full_name?.split(' ')[0] || 'Conductor'}</p>
           </div>
-          <motion.button whileTap={{ scale: 0.9 }} onClick={cargarSolicitudes} disabled={cargando}
-            style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', color: '#fff', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
-            {cargando ? '⏳' : '🔄 Actualizar'}
-          </motion.button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {/* Campana de notificaciones */}
+            <div onClick={() => setMostrarNotifPanel(true)}
+              style={{ position: 'relative', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: '16px' }}>🔔</span>
+              {notificaciones.filter(n => !n.is_read).length > 0 && (
+                <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: '#ef4444', color: '#fff', borderRadius: '50%', width: '16px', height: '16px', fontSize: '10px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '2px solid #15803d' }}>
+                  {notificaciones.filter(n => !n.is_read).length}
+                </span>
+              )}
+            </div>
+            <motion.button whileTap={{ scale: 0.9 }} onClick={cargarSolicitudes} disabled={cargando}
+              style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', color: '#fff', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+              {cargando ? '⏳' : '🔄 Actualizar'}
+            </motion.button>
+          </div>
         </div>
         {/* PESTAÑAS */}
         <div style={{ display: 'flex', gap: '6px' }}>
@@ -121,6 +236,84 @@ const PanelConductor = ({ onVerRuta }) => {
           ))}
         </div>
       </div>
+
+      {/* PANEL NOTIFICACIONES CONDUCTOR */}
+      <AnimatePresence>
+        {mostrarNotifPanel && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setMostrarNotifPanel(false)}
+              style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 3000 }} />
+            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }}
+              style={{ position: 'fixed', top: 0, right: 0, width: '360px', maxWidth: '100vw', height: '100vh', backgroundColor: '#fff', zIndex: 3001, boxShadow: '-5px 0 25px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, sans-serif' }}>
+
+              {/* Header notif */}
+              <div style={{ padding: '18px 20px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#1e293b' }}>🔔 Notificaciones</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                    {notificaciones.filter(n => !n.is_read).length} sin leer
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {notificaciones.filter(n => !n.is_read).length > 0 && (
+                    <button onClick={marcarTodasLeidas}
+                      style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 9px', fontSize: '11px', fontWeight: '600', color: '#475569', cursor: 'pointer' }}>
+                      ✓ Leer todas
+                    </button>
+                  )}
+                  <button onClick={() => setMostrarNotifPanel(false)}
+                    style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#64748b' }}>×</button>
+                </div>
+              </div>
+
+              {/* Lista notif */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                {notificaciones.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '50px 20px', color: '#94a3b8' }}>
+                    <div style={{ fontSize: '36px', marginBottom: '10px' }}>🔕</div>
+                    <p style={{ margin: 0, fontWeight: '600', color: '#475569' }}>Sin notificaciones</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '13px' }}>Aquí verás cuando el pasajero responda.</p>
+                  </div>
+                )}
+                {notificaciones.map((notif) => {
+                  const cfg = {
+                    NEW_OFFER:      { icono: '💰', color: '#7c3aed', bg: '#f5f3ff' },
+                    COUNTER_OFFER:  { icono: '🔄', color: '#1d4ed8', bg: '#eff6ff' },
+                    TRIP_ACCEPTED:  { icono: '✅', color: '#15803d', bg: '#f0fdf4' },
+                    TRIP_REJECTED:  { icono: '❌', color: '#dc2626', bg: '#fef2f2' },
+                    TRIP_STARTED:   { icono: '🚗', color: '#0369a1', bg: '#f0f9ff' },
+                    TRIP_COMPLETED: { icono: '🏁', color: '#4f46e5', bg: '#eef2ff' },
+                    SYSTEM:         { icono: '📢', color: '#64748b', bg: '#f8fafc' },
+                  }[notif.type] || { icono: '📢', color: '#64748b', bg: '#f8fafc' };
+
+                  return (
+                    <div key={notif.notification_id}
+                      onClick={() => !notif.is_read && marcarLeida(notif.notification_id)}
+                      style={{ backgroundColor: notif.is_read ? '#fff' : cfg.bg, borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', border: `1px solid ${notif.is_read ? '#e2e8f0' : cfg.color + '33'}`, cursor: notif.is_read ? 'default' : 'pointer', transition: 'all 0.2s' }}>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                        <span style={{ fontSize: '18px', flexShrink: 0 }}>{cfg.icono}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <p style={{ margin: 0, fontWeight: notif.is_read ? '600' : '700', fontSize: '13px', color: notif.is_read ? '#475569' : '#1e293b' }}>
+                              {notif.title}
+                            </p>
+                            {!notif.is_read && <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: cfg.color, flexShrink: 0, marginTop: '3px' }} />}
+                          </div>
+                          <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>{notif.message}</p>
+                          <p style={{ margin: '5px 0 0', fontSize: '11px', color: '#94a3b8' }}>
+                            {new Date(notif.created_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* ALERTA ÉXITO */}
       <AnimatePresence>
@@ -234,8 +427,16 @@ const PanelConductor = ({ onVerRuta }) => {
         )}
 
         {/* PESTAÑA VIAJES ACTIVOS - SCRUM-89 */}
+        {/* PESTAÑA MIS OFERTAS — SCRUM-83 y SCRUM-84 */}
         {pestanaActiva === 'activos' && (
           <>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+              <button onClick={cargarViajesActivos}
+                style={{ background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, padding: '5px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                🔄 Actualizar
+              </button>
+            </div>
+
             {viajesActivos.length === 0 && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', padding: '40px 20px' }}>
                 <div style={{ fontSize: '48px', marginBottom: '12px' }}>📭</div>
@@ -243,11 +444,32 @@ const PanelConductor = ({ onVerRuta }) => {
                 <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>Cuando hagas una oferta aparecerá aquí con su estado.</p>
               </motion.div>
             )}
-            {viajesActivos.map((viaje, i) => {
-              const est = estadoConfig(viaje.estado);
+
+            {viajesActivos.map((viaje) => {
+              const esContraoferta = viaje.status === 'PASSENGER_COUNTER_OFFERED';
+              const esAceptado = viaje.status === 'ACCEPTED';
+              const esRechazado = viaje.status === 'REJECTED';
+
+              const cfgEstado = {
+                DRIVER_OFFERED:           { bg: '#fef3c7', color: '#92400e', label: '⏳ Esperando respuesta del pasajero' },
+                PASSENGER_COUNTER_OFFERED:{ bg: '#dbeafe', color: '#1e40af', label: '🔄 Contraoferta recibida — ¡Responde!' },
+                ACCEPTED:                 { bg: '#dcfce7', color: '#166534', label: '✅ Confirmado — Listo para iniciar' },
+                REJECTED:                 { bg: '#fee2e2', color: '#991b1b', label: '❌ Rechazado' },
+              };
+              // Estado real del viaje (viene del trip_status)
+              const cfgViaje = {
+                ASSIGNED:    { bg: '#dcfce7', color: '#166534', label: '✅ Viaje confirmado' },
+                IN_PROGRESS: { bg: '#dbeafe', color: '#1e40af', label: '🚗 Viaje en curso' },
+                COMPLETED:   { bg: '#e0e7ff', color: '#3730a3', label: '🏁 Viaje completado' },
+              };
+              const estadoViaje = viaje.trip_status;
+              const est = cfgEstado[viaje.status] || { bg: '#f1f5f9', color: '#475569', label: viaje.status };
+
               return (
-                <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                  style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px', marginBottom: '12px' }}>
+                <motion.div key={viaje.offer_id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  style={{ border: `1px solid ${esContraoferta ? '#3b82f6' : '#e2e8f0'}`, borderRadius: '12px', padding: '14px', marginBottom: '12px',
+                    boxShadow: esContraoferta ? '0 0 0 2px #3b82f633' : 'none', transition: 'all 0.2s' }}>
+
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                     <div>
                       <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: '#1e293b' }}>📍 {viaje.origin}</p>
@@ -256,12 +478,68 @@ const PanelConductor = ({ onVerRuta }) => {
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <p style={{ margin: 0, fontWeight: '700', fontSize: '15px', color: BRAND_GREEN }}>${Number(viaje.offered_price).toLocaleString()}</p>
-                      <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#94a3b8' }}>Tu oferta</p>
+                      <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#94a3b8' }}>
+                        {esContraoferta ? 'Precio del pasajero' : 'Tu oferta'}
+                      </p>
                     </div>
                   </div>
-                  <span style={{ display: 'inline-block', backgroundColor: est.bg, color: est.color, borderRadius: '20px', padding: '4px 10px', fontSize: '11px', fontWeight: '700' }}>
+
+                  <span style={{ display: 'inline-block', backgroundColor: est.bg, color: est.color, borderRadius: '20px', padding: '4px 10px', fontSize: '11px', fontWeight: '700', marginBottom: esContraoferta ? '10px' : '0' }}>
                     {est.label}
                   </span>
+
+                  {/* SCRUM-84: Botones para responder contraoferta */}
+                  {esContraoferta && (
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                      <motion.button whileTap={{ scale: 0.96 }}
+                        onClick={() => resolverContraoferta(viaje.offer_id, 'ACCEPT')}
+                        disabled={resolviendoOferta === viaje.offer_id + 'ACCEPT'}
+                        style={{ flex: 1, background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                        {resolviendoOferta === viaje.offer_id + 'ACCEPT' ? '...' : '✅ Aceptar precio'}
+                      </motion.button>
+                      <motion.button whileTap={{ scale: 0.96 }}
+                        onClick={() => resolverContraoferta(viaje.offer_id, 'REJECT')}
+                        disabled={resolviendoOferta === viaje.offer_id + 'REJECT'}
+                        style={{ flex: 1, background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                        {resolviendoOferta === viaje.offer_id + 'REJECT' ? '...' : '❌ Rechazar'}
+                      </motion.button>
+                    </div>
+                  )}
+
+                  {/* HU17: Botones de gestión del viaje */}
+                  {esAceptado && estadoViaje === 'ASSIGNED' && (
+                    <div style={{ marginTop: '10px' }}>
+                      <div style={{ backgroundColor: '#f0fdf4', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '12px', color: '#166534', fontWeight: '600' }}>
+                        🎉 Viaje confirmado — cuando recojas al pasajero, inicia el viaje
+                      </div>
+                      <motion.button whileTap={{ scale: 0.96 }}
+                        onClick={() => gestionarViaje(viaje.request_id, 'start')}
+                        disabled={gestionandoViaje === viaje.request_id + 'start'}
+                        style={{ width: '100%', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                        {gestionandoViaje === viaje.request_id + 'start' ? '...' : '🚗 Iniciar viaje'}
+                      </motion.button>
+                    </div>
+                  )}
+
+                  {esAceptado && estadoViaje === 'IN_PROGRESS' && (
+                    <div style={{ marginTop: '10px' }}>
+                      <div style={{ backgroundColor: '#dbeafe', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '12px', color: '#1e40af', fontWeight: '600' }}>
+                        🚗 Viaje en curso — finaliza cuando llegues al destino
+                      </div>
+                      <motion.button whileTap={{ scale: 0.96 }}
+                        onClick={() => gestionarViaje(viaje.request_id, 'complete')}
+                        disabled={gestionandoViaje === viaje.request_id + 'complete'}
+                        style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                        {gestionandoViaje === viaje.request_id + 'complete' ? '...' : '🏁 Finalizar viaje'}
+                      </motion.button>
+                    </div>
+                  )}
+
+                  {esAceptado && estadoViaje === 'COMPLETED' && (
+                    <div style={{ marginTop: '10px', backgroundColor: '#e0e7ff', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#3730a3', fontWeight: '600', textAlign: 'center' }}>
+                      🏁 Viaje completado — ¡Buen trabajo!
+                    </div>
+                  )}
                 </motion.div>
               );
             })}

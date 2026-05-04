@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './AuthContext';
 import PanelConductor from './PanelConductor';
 import InputDireccion from './InputDireccion';
+import PerfilDrawer from './PerfilDrawer';
 
 const greenMarkerHtml = `<div style="background-color:#16a34a;width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.3);"></div>`;
 let DefaultIcon = L.divIcon({ html: greenMarkerHtml, className: '', iconSize: [18, 18], iconAnchor: [9, 9], popupAnchor: [0, -10] });
@@ -79,9 +80,13 @@ const Dashboard = () => {
   const [enviandoSolicitud, setEnviandoSolicitud] = useState(false);
   const [mostrarMisSolicitudes, setMostrarMisSolicitudes] = useState(false);
   const [listaSolicitudes, setListaSolicitudes] = useState([]);
+  const [viajesConfirmados, setViajesConfirmados] = useState([]);
+  const [pestanaViajes, setPestanaViajes] = useState('activos'); // 'activos' | 'confirmados'
   const [viajeSeleccionado, setViajeSeleccionado] = useState(null);
-  const [notificaciones, setNotificaciones] = useState(0);
+  const [notificaciones, setNotificaciones] = useState([]);
+  const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
   const [mostrarPanelConductor, setMostrarPanelConductor] = useState(false);
+  const [mostrarPerfil, setMostrarPerfil] = useState(false);
   const [errorDireccion, setErrorDireccion] = useState(null);
   const coordsBuffer = useRef({});
 
@@ -269,36 +274,116 @@ const Dashboard = () => {
     }
   };
 
-  const cargarMisViajes = async () => {
+  // SCRUM-91: Cargar notificaciones reales del backend
+  const cargarNotificaciones = async () => {
+    if (!token) return;
     try {
-      const respuesta = await fetch(`${API_BASE_URL}/api/service-requests/pending`, {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/notifications`, {
         headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
       });
-      if (respuesta.ok) {
-        const datos = await respuesta.json();
-        setListaSolicitudes(datos.map(v => {
-          const ofertasArray = v.offers || v.ofertas || [];
-          return {
-            id: v.request_id, origin: v.origin, destination: v.destination,
+      if (res.ok) setNotificaciones(await res.json());
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (!token) return;
+    cargarNotificaciones();
+    const intervalo = setInterval(cargarNotificaciones, 15000);
+    return () => clearInterval(intervalo);
+  }, [token]);
+
+  const marcarLeida = async (notifId) => {
+    try {
+      await fetch(`${API_BASE_URL}/api/service-requests/notifications/${notifId}/read`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+      });
+      setNotificaciones(prev => prev.map(n =>
+        n.notification_id === notifId ? { ...n, is_read: true } : n
+      ));
+    } catch {}
+  };
+
+  const marcarTodasLeidas = () => {
+    notificaciones.filter(n => !n.is_read).forEach(n => marcarLeida(n.notification_id));
+  };
+
+  // SCRUM-79: Cargar viajes del pasajero — pendientes y confirmados
+  const cargarMisViajes = async () => {
+    try {
+      const headers = { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' };
+
+      // Cargar viajes PENDING con sus ofertas
+      const respuesta = await fetch(`${API_BASE_URL}/api/service-requests/pending`, { headers });
+      if (!respuesta.ok) return;
+      const datos = await respuesta.json();
+
+      const viajesConOfertas = await Promise.all(datos.map(async (v) => {
+        let ofertas = [];
+        try {
+          const resOfertas = await fetch(`${API_BASE_URL}/api/service-requests/${v.request_id}/offers`, { headers });
+          if (resOfertas.ok) {
+            const dataOfertas = await resOfertas.json();
+            ofertas = dataOfertas.map(o => ({
+              id: o.offer_id,
+              conductor: o.driver_name || `Conductor #${o.driver_id}`,
+              foto: o.driver_photo || null,
+              calificacion: 4.8,
+              precio: o.offered_price,
+              estado: o.status
+            }));
+          }
+        } catch {}
+        return {
+          id: v.request_id,
+          origin: v.origin,
+          destination: v.destination,
+          departure_time: v.departure_time,
+          seats_needed: (v.adults_count || 1) + (v.children_count || 0),
+          estado: ofertas.length > 0 ? 'Oferta recibida' : 'Buscando conductor',
+          fechaCreacion: new Date(v.created_at || Date.now()).toLocaleDateString(),
+          ofertas
+        };
+      }));
+
+      // Cargar viajes ASSIGNED (confirmados)
+      try {
+        const resConfirmados = await fetch(`${API_BASE_URL}/api/service-requests/assigned`, { headers });
+        if (resConfirmados.ok) {
+          const dataConfirmados = await resConfirmados.json();
+          setViajesConfirmados(dataConfirmados.map(v => ({
+            id: v.request_id,
+            origin: v.origin,
+            destination: v.destination,
             departure_time: v.departure_time,
             seats_needed: (v.adults_count || 1) + (v.children_count || 0),
-            estado: ofertasArray.length > 0 ? 'Oferta recibida' : 'Buscando conductor',
             fechaCreacion: new Date(v.created_at || Date.now()).toLocaleDateString(),
-            ofertas: ofertasArray.map(o => ({
-              id: o.id, conductor: o.driver_name || `Conductor #${o.driver_id || ''}`,
-              vehiculo: o.vehicle || 'Vehículo registrado', calificacion: o.rating || 4.8,
-              precio: o.price || o.offered_price || 0
-            }))
-          };
-        }));
-      }
+            conductor_nombre: v.conductor_nombre || 'Conductor asignado',
+            conductor_foto: v.conductor_foto || null,
+            precio_acordado: v.precio_acordado || 0,
+            trip_status: v.status || 'ASSIGNED'
+          })));
+        }
+      } catch {}
+
+      setListaSolicitudes(viajesConOfertas);
     } catch (error) { console.error('Error al cargar los viajes:', error); }
   };
 
-  const handleAceptarOferta = (viajeId, ofertaId) => {
-    alert('¡Viaje aceptado! Redirigiendo a detalles del conductor...');
-    setListaSolicitudes(prev => prev.map(v => v.id === viajeId ? { ...v, estado: 'Confirmado', ofertas: [] } : v));
-    setViajeSeleccionado(null);
+  // SCRUM-81: Aceptar oferta — llama al endpoint real
+  const handleAceptarOferta = async (viajeId, ofertaId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/offers/${ofertaId}/accept`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+      alert('¡Viaje aceptado! El conductor ha sido notificado.');
+      setViajeSeleccionado(null);
+      cargarMisViajes();
+    } catch (error) {
+      alert(`Error: ${error.message}`);
+    }
   };
 
   const handleRechazarOferta = (viajeId, ofertaId) => {
@@ -313,9 +398,41 @@ const Dashboard = () => {
     });
   };
 
+  // SCRUM-80: Contraofertar — input dinámico + llamada al endpoint real
+  const [modalContraoferta, setModalContraoferta] = useState(null); // { viajeId, ofertaId }
+  const [precioContraoferta, setPrecioContraoferta] = useState('');
+  const [enviandoContraoferta, setEnviandoContraoferta] = useState(false);
+
   const handleContraoferta = (viajeId, ofertaId) => {
-    const nuevaTarifa = window.prompt('¿Cuánto deseas ofrecer por este viaje? (Ej. 40000)');
-    if (nuevaTarifa) alert(`Has enviado una contraoferta de $${nuevaTarifa} al conductor. Esperando su respuesta...`);
+    setModalContraoferta({ viajeId, ofertaId });
+    setPrecioContraoferta('');
+  };
+
+  const enviarContraoferta = async () => {
+    if (!precioContraoferta || isNaN(precioContraoferta) || Number(precioContraoferta) <= 0) {
+      alert('Ingresa un precio válido mayor a 0.');
+      return;
+    }
+    setEnviandoContraoferta(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/offers/${modalContraoferta.ofertaId}/counter-offer`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({ offered_price: Number(precioContraoferta) })
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+      alert(`¡Contraoferta de $${Number(precioContraoferta).toLocaleString()} enviada al conductor!`);
+      setModalContraoferta(null);
+      cargarMisViajes();
+    } catch (error) {
+      alert(`Error: ${error.message}`);
+    } finally {
+      setEnviandoContraoferta(false);
+    }
   };
 
   const headerStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 40px', backgroundColor: '#fff', borderBottom: '1px solid #eee', position: 'absolute', top: 0, width: '100%', zIndex: 1000, boxSizing: 'border-box', boxShadow: '0 1px 10px rgba(0,0,0,0.05)' };
@@ -401,14 +518,14 @@ const Dashboard = () => {
 
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-            onClick={() => { cargarMisViajes(); setMostrarMisSolicitudes(true); setNotificaciones(0); }}
+            onClick={() => { setMostrarNotificaciones(true); }}
             style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '35px', height: '35px', borderRadius: '50%', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
             <span style={{ fontSize: '18px' }}>🔔</span>
             <AnimatePresence>
-              {notificaciones > 0 && (
+              {notificaciones.filter(n => !n.is_read).length > 0 && (
                 <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
                   style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '2px solid #fff' }}>
-                  {notificaciones}
+                  {notificaciones.filter(n => !n.is_read).length}
                 </motion.span>
               )}
             </AnimatePresence>
@@ -446,9 +563,15 @@ const Dashboard = () => {
             </motion.button>
           )}
 
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} style={{ border: '1px solid #ddd', borderRadius: '20px', padding: '5px 15px', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+            onClick={() => setMostrarPerfil(true)}
+            style={{ border: '1px solid #ddd', borderRadius: '20px', padding: '5px 15px', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}>
             <span>☰</span>
-            <div style={{ background: '#eee', borderRadius: '50%', width: '25px', height: '25px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>👤</div>
+            <div style={{ background: '#eee', borderRadius: '50%', width: '25px', height: '25px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {usuario?.profile_photo_url
+                ? <img src={usuario.profile_photo_url} alt="perfil" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <span>👤</span>}
+            </div>
           </motion.div>
         </div>
       </header>
@@ -461,6 +584,46 @@ const Dashboard = () => {
             onCerrar={() => setErrorDireccion(null)}
             onContinuar={handleContinuarConDireccionManual}
           />
+        )}
+      </AnimatePresence>
+
+      {/* MODAL CONTRAOFERTA — SCRUM-80 */}
+      <AnimatePresence>
+        {modalContraoferta && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setModalContraoferta(null)}
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
+            <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
+              style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: '#fff', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '360px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: 'Inter, sans-serif' }}>
+              <h3 style={{ margin: '0 0 8px', color: '#1e293b', fontSize: '17px' }}>💬 Enviar Contraoferta</h3>
+              <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '13px' }}>
+                Ingresa el precio que estás dispuesto a pagar por este viaje.
+              </p>
+              <div style={{ position: 'relative', marginBottom: '8px' }}>
+                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', fontWeight: '700', fontSize: '15px' }}>$</span>
+                <input
+                  type="number"
+                  placeholder="Ej: 45000"
+                  value={precioContraoferta}
+                  onChange={e => setPrecioContraoferta(e.target.value)}
+                  min="1"
+                  autoFocus
+                  style={{ width: '100%', padding: '12px 12px 12px 28px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '15px', boxSizing: 'border-box', outline: 'none' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                <button onClick={() => setModalContraoferta(null)}
+                  style={{ flex: 1, background: '#f1f5f9', color: '#475569', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
+                  Cancelar
+                </button>
+                <button onClick={enviarContraoferta} disabled={enviandoContraoferta}
+                  style={{ flex: 1, background: enviandoContraoferta ? '#9ca3af' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: enviandoContraoferta ? 'not-allowed' : 'pointer' }}>
+                  {enviandoContraoferta ? 'Enviando...' : 'Enviar oferta'}
+                </button>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
@@ -498,18 +661,37 @@ const Dashboard = () => {
                   {viajeSeleccionado && (
                     <button onClick={() => setViajeSeleccionado(null)} style={{ border: 'none', background: '#e2e8f0', width: '30px', height: '30px', borderRadius: '50%', cursor: 'pointer', fontWeight: 'bold' }}>←</button>
                   )}
-                  <h2 style={{ margin: 0, fontSize: '18px', color: '#1e293b' }}>{viajeSeleccionado ? 'Ofertas del viaje' : 'Mis Viajes Activos'}</h2>
+                  <h2 style={{ margin: 0, fontSize: '18px', color: '#1e293b' }}>{viajeSeleccionado ? 'Ofertas del viaje' : 'Mis Viajes'}</h2>
                 </div>
                 <button onClick={() => { setMostrarMisSolicitudes(false); setViajeSeleccionado(null); }} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#64748b' }}>×</button>
               </div>
+              {/* PESTAÑAS */}
+              {!viajeSeleccionado && (
+                <div style={{ display: 'flex', padding: '0 16px 12px', gap: '8px', borderBottom: '1px solid #eee', backgroundColor: '#f8fafc' }}>
+                  {[
+                    { id: 'activos', label: '⏳ En búsqueda', count: listaSolicitudes.length },
+                    { id: 'confirmados', label: '✅ Confirmados', count: viajesConfirmados.length }
+                  ].map(tab => (
+                    <button key={tab.id} onClick={() => setPestanaViajes(tab.id)}
+                      style={{ flex: 1, padding: '7px 10px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '12px', transition: 'all 0.2s',
+                        backgroundColor: pestanaViajes === tab.id ? BRAND_GREEN : '#e2e8f0',
+                        color: pestanaViajes === tab.id ? '#fff' : '#475569' }}>
+                      {tab.label}
+                      {tab.count > 0 && <span style={{ marginLeft: '5px', background: 'rgba(0,0,0,0.15)', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '10px' }}>{tab.count}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-                {!viajeSeleccionado && listaSolicitudes.length === 0 && (
+
+                {/* PESTAÑA: EN BÚSQUEDA */}
+                {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.length === 0 && (
                   <div style={{ textAlign: 'center', color: '#888', marginTop: '40px' }}>
                     <div style={{ fontSize: '40px', marginBottom: '10px' }}>🚗</div>
-                    Aún no tienes solicitudes.
+                    Aún no tienes solicitudes activas.
                   </div>
                 )}
-                {!viajeSeleccionado && listaSolicitudes.map((viaje) => (
+                {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.map((viaje) => (
                   <div key={viaje.id} onClick={() => setViajeSeleccionado(viaje)}
                     style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '15px', marginBottom: '15px', cursor: 'pointer', backgroundColor: viaje.ofertas.length > 0 ? '#f0fdf4' : '#fff', borderLeft: viaje.ofertas.length > 0 ? `4px solid ${BRAND_GREEN}` : '1px solid #e2e8f0' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
@@ -525,6 +707,65 @@ const Dashboard = () => {
                     <div style={{ fontSize: '13px', color: '#555' }}>👥 {viaje.seats_needed} asientos solicitados</div>
                   </div>
                 ))}
+
+                {/* PESTAÑA: CONFIRMADOS */}
+                {!viajeSeleccionado && pestanaViajes === 'confirmados' && viajesConfirmados.length === 0 && (
+                  <div style={{ textAlign: 'center', color: '#888', marginTop: '40px' }}>
+                    <div style={{ fontSize: '40px', marginBottom: '10px' }}>✅</div>
+                    <p style={{ margin: 0, fontWeight: '600', color: '#1e293b' }}>No tienes viajes confirmados aún.</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '13px' }}>Cuando un conductor acepte tu viaje aparecerá aquí.</p>
+                  </div>
+                )}
+                {!viajeSeleccionado && pestanaViajes === 'confirmados' && viajesConfirmados.map((viaje) => {
+                  const cfgEstadoViaje = {
+                    ASSIGNED:    { border: BRAND_GREEN, bg: '#f0fdf4', badgeBg: '#dcfce7', badgeColor: '#166534', badgeLabel: '✅ Confirmado', info: 'El conductor está listo para recogerte.' },
+                    IN_PROGRESS: { border: '#2563eb',   bg: '#eff6ff', badgeBg: '#dbeafe', badgeColor: '#1e40af', badgeLabel: '🚗 En camino', info: '¡Tu conductor está en camino!' },
+                    COMPLETED:   { border: '#7c3aed',   bg: '#f5f3ff', badgeBg: '#e0e7ff', badgeColor: '#3730a3', badgeLabel: '🏁 Completado', info: 'Viaje finalizado exitosamente.' },
+                  };
+                  const cfg = cfgEstadoViaje[viaje.trip_status] || cfgEstadoViaje.ASSIGNED;
+                  const esEnCurso = viaje.trip_status === 'IN_PROGRESS';
+
+                  return (
+                    <div key={viaje.id}
+                      style={{ border: `1px solid ${cfg.border}`, borderRadius: '12px', padding: '16px', marginBottom: '15px', backgroundColor: cfg.bg, borderLeft: `4px solid ${cfg.border}`, transition: 'all 0.3s' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '12px', color: '#64748b' }}>{viaje.fechaCreacion}</span>
+                        <span style={{ backgroundColor: cfg.badgeBg, color: cfg.badgeColor, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {cfg.badgeLabel}
+                          {esEnCurso && (
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#2563eb', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
+                          )}
+                        </span>
+                      </div>
+                      <div style={{ fontWeight: 'bold', color: '#0f172a', fontSize: '15px', marginBottom: '6px' }}>
+                        {viaje.origin} <span style={{ color: cfg.border }}>→</span> {viaje.destination}
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#555', marginBottom: '4px' }}>🗓️ Salida: {new Date(viaje.departure_time).toLocaleString()}</div>
+                      <div style={{ fontSize: '13px', color: '#555', marginBottom: '10px' }}>👥 {viaje.seats_needed} asiento(s)</div>
+                      {/* Info estado */}
+                      <div style={{ backgroundColor: cfg.badgeBg, borderRadius: '6px', padding: '7px 10px', marginBottom: '10px', fontSize: '12px', color: cfg.badgeColor, fontWeight: '600' }}>
+                        {cfg.info}
+                      </div>
+                      {/* Info conductor */}
+                      <div style={{ backgroundColor: '#fff', borderRadius: '8px', padding: '10px 12px', border: `1px solid ${cfg.border}33`, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#e2e8f0', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0 }}>
+                          {viaje.conductor_foto
+                            ? <img src={viaje.conductor_foto} alt="conductor" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : '🚗'}
+                        </div>
+                        <div>
+                          <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: '#1e293b' }}>{viaje.conductor_nombre}</p>
+                          {viaje.precio_acordado > 0 && (
+                            <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                              Precio acordado: <strong style={{ color: BRAND_GREEN }}>${Number(viaje.precio_acordado).toLocaleString()}</strong>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
                 {viajeSeleccionado && (
                   <div>
                     <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px dashed #cbd5e1' }}>
@@ -592,6 +833,89 @@ const Dashboard = () => {
           </>
         )}
       </AnimatePresence>
+
+      {/* PANEL NOTIFICACIONES — SCRUM-91 */}
+      <AnimatePresence>
+        {mostrarNotificaciones && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setMostrarNotificaciones(false)}
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 2000 }} />
+            <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'tween', duration: 0.3 }}
+              style={{ position: 'absolute', top: 0, left: 0, width: '380px', maxWidth: '100%', height: '100vh', backgroundColor: '#fff', zIndex: 2001, boxShadow: '5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, sans-serif' }}>
+
+              {/* Header */}
+              <div style={{ padding: '20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc' }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>🔔 Notificaciones</h2>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                    {notificaciones.filter(n => !n.is_read).length} sin leer
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {notificaciones.filter(n => !n.is_read).length > 0 && (
+                    <button onClick={marcarTodasLeidas}
+                      style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '600', color: '#475569', cursor: 'pointer' }}>
+                      ✓ Leer todas
+                    </button>
+                  )}
+                  <button onClick={() => setMostrarNotificaciones(false)}
+                    style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#64748b' }}>×</button>
+                </div>
+              </div>
+
+              {/* Lista */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                {notificaciones.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '50px 20px', color: '#94a3b8' }}>
+                    <div style={{ fontSize: '40px', marginBottom: '10px' }}>🔕</div>
+                    <p style={{ margin: 0, fontWeight: '600', color: '#475569' }}>Sin notificaciones</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '13px' }}>Las notificaciones aparecerán aquí.</p>
+                  </div>
+                )}
+                {notificaciones.map((notif) => {
+                  const cfgTipo = {
+                    NEW_OFFER:     { icono: '💰', color: '#7c3aed', bg: '#f5f3ff' },
+                    COUNTER_OFFER: { icono: '🔄', color: '#1d4ed8', bg: '#eff6ff' },
+                    TRIP_ACCEPTED: { icono: '✅', color: '#15803d', bg: '#f0fdf4' },
+                    TRIP_REJECTED: { icono: '❌', color: '#dc2626', bg: '#fef2f2' },
+                    TRIP_STARTED:  { icono: '🚗', color: '#0369a1', bg: '#f0f9ff' },
+                    TRIP_COMPLETED:{ icono: '🏁', color: '#4f46e5', bg: '#eef2ff' },
+                    SYSTEM:        { icono: '📢', color: '#64748b', bg: '#f8fafc' },
+                  };
+                  const cfg = cfgTipo[notif.type] || cfgTipo.SYSTEM;
+                  return (
+                    <div key={notif.notification_id}
+                      onClick={() => !notif.is_read && marcarLeida(notif.notification_id)}
+                      style={{ backgroundColor: notif.is_read ? '#fff' : cfg.bg, borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', border: `1px solid ${notif.is_read ? '#e2e8f0' : cfg.color + '33'}`, cursor: notif.is_read ? 'default' : 'pointer', transition: 'all 0.2s' }}>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                        <span style={{ fontSize: '20px', flexShrink: 0 }}>{cfg.icono}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                            <p style={{ margin: 0, fontWeight: notif.is_read ? '600' : '700', fontSize: '13px', color: notif.is_read ? '#475569' : '#1e293b' }}>
+                              {notif.title}
+                            </p>
+                            {!notif.is_read && (
+                              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: cfg.color, flexShrink: 0, marginTop: '3px' }} />
+                            )}
+                          </div>
+                          <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>{notif.message}</p>
+                          <p style={{ margin: '5px 0 0', fontSize: '11px', color: '#94a3b8' }}>
+                            {new Date(notif.created_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* PERFIL DRAWER — HU16 */}
+      <PerfilDrawer abierto={mostrarPerfil} onCerrar={() => setMostrarPerfil(false)} />
 
       {/* MAPA */}
       <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 }}>
