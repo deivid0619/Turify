@@ -140,3 +140,46 @@ class ServiceRequestRead(BaseModel):
 class OfferCreate(BaseModel):
     # Validamos que el precio sea mayor a 0
     offered_price: float = Field(..., gt=0, description="Precio propuesto por el conductor")
+class OfferRead(BaseModel):
+    offer_id: int
+    request_id: int
+    driver_id: int
+    vehicle_id: int
+    offered_price: float
+    status: str
+    created_at: datetime
+    # Datos del conductor (se añaden manualmente en el endpoint)
+    driver_name: Optional[str] = None
+    driver_photo: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class CounterOfferCreate(BaseModel):
+    offered_price: float = Field(..., gt=0, description="Precio de contraoferta del pasajero")
+
+class ResolveOfferCreate(BaseModel):
+    action: str  # 'ACCEPT' | 'REJECT'
+# --- HU16: Schemas de perfil ---
+
+class UpdatePhoneRequest(BaseModel):
+    phone_number: str
+
+class UpdatePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=8)
+
+class UpdateProfilePhotoRequest(BaseModel):
+    profile_photo_url: str
+
+class UserProfileResponse(BaseModel):
+    user_id: int
+    full_name: str
+    email: EmailStr
+    phone_number: str
+    role: str
+    profile_photo_url: Optional[str] = None
+    age: Optional[int] = None
+
+    class Config:
+        from_attributes = True

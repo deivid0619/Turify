@@ -46,7 +46,7 @@ class ServiceRequest(Base):
     adults_count = Column(Integer, nullable=False)
     children_count = Column(Integer, default=0)
     has_pets = Column(Boolean, default=False)
-    status = Column(Enum('PENDING', 'ASSIGNED', 'COMPLETED', 'CANCELLED'), default='PENDING')
+    status = Column(Enum('PENDING', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'), default='PENDING')
     created_at = Column(TIMESTAMP, server_default=text('CURRENT_TIMESTAMP'))
 
 class Vehicle(Base):
@@ -84,4 +84,14 @@ class AuditLog(Base):
     entity_id = Column(Integer, nullable=True)    # ID del recurso afectado
     detail = Column(Text, nullable=True)          # Info adicional (email, origen→destino, etc.)
     ip_address = Column(String(45), nullable=True)
+    created_at = Column(TIMESTAMP, server_default=text('CURRENT_TIMESTAMP'))
+class Notification(Base):
+    __tablename__ = "Notification"
+    notification_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("User.user_id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(100), nullable=False)
+    message = Column(Text, nullable=False)
+    type = Column(Enum('NEW_OFFER', 'COUNTER_OFFER', 'TRIP_ACCEPTED', 'TRIP_REJECTED', 'TRIP_STARTED', 'TRIP_COMPLETED', 'SYSTEM'), nullable=False)
+    is_read = Column(Boolean, default=False)
+    related_offer_id = Column(Integer, ForeignKey("DriverOffer.offer_id", ondelete="SET NULL"), nullable=True)
     created_at = Column(TIMESTAMP, server_default=text('CURRENT_TIMESTAMP'))
