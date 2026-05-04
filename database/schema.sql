@@ -103,9 +103,13 @@ CREATE TABLE IF NOT EXISTS Notification (
     message TEXT NOT NULL,
     type ENUM('NEW_OFFER', 'COUNTER_OFFER', 'TRIP_ACCEPTED', 'TRIP_REJECTED', 'SYSTEM') NOT NULL,
     is_read BOOLEAN DEFAULT FALSE,
+    related_offer_id INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (related_offer_id) REFERENCES DriverOffer(offer_id) ON DELETE SET NULL
 );
+
+
 
 -- ==========================================================
 -- 5. ÍNDICES (Optimización de rendimiento)
@@ -148,6 +152,12 @@ CREATE INDEX idx_auditlog_user ON AuditLog(user_id);
 CREATE INDEX idx_auditlog_action ON AuditLog(action);
 CREATE INDEX idx_auditlog_created ON AuditLog(created_at);
 
+
+ALTER TABLE ServiceRequest 
+MODIFY COLUMN status ENUM('PENDING', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED') DEFAULT 'PENDING';
+
+ALTER TABLE Notification
+MODIFY COLUMN type ENUM('NEW_OFFER', 'COUNTER_OFFER', 'TRIP_ACCEPTED', 'TRIP_REJECTED', 'TRIP_STARTED', 'TRIP_COMPLETED', 'SYSTEM') NOT NULL;
 
 
 
