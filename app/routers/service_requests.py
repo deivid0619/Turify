@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas, security # Tu lógica de seguridad
 from ..security import get_current_user
+from app.audit import registrar_log
 
 router = APIRouter(prefix="/api/service-requests", tags=["Service Requests"])
 
@@ -64,6 +65,17 @@ def create_service_request(
         db.add(new_request)
         db.commit()
         db.refresh(new_request)
+
+        # Log de creación de viaje
+        registrar_log(
+            db,
+            action="CREATE_TRIP",
+            user_id=current_user.user_id,
+            entity="ServiceRequest",
+            entity_id=new_request.request_id,
+            detail=f"Viaje creado: {request_data.origin} → {request_data.destination}"
+        )
+
         return new_request
 
     except Exception as e:
@@ -154,6 +166,16 @@ async def create_driver_offer(
         db.add(new_offer)
         db.commit()
         db.refresh(new_offer)
+
+        # Log de oferta enviada
+        registrar_log(
+            db,
+            action="CREATE_OFFER",
+            user_id=current_user.user_id,
+            entity="DriverOffer",
+            entity_id=new_offer.offer_id,
+            detail=f"Oferta de ${new_offer.offered_price} para solicitud #{request_id}"
+        )
 
         return {
             "message": "Oferta registrada exitosamente", 

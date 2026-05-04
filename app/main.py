@@ -1,19 +1,13 @@
 from app.routers import auth, drivers, service_requests, admin
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine, Base
+from app.database import engine, Base, SessionLocal
+from app.audit import registrar_log
 
-# Creates the tables in MySQL automatically if they don't exist
+# Crea las tablas automáticamente (incluye AuditLog)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Turify API")
-
-# Configuración de CORS
-origins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "*",
-]
 
 app.add_middleware(
     CORSMiddleware,
