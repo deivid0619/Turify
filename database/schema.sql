@@ -148,6 +148,7 @@ CREATE TABLE IF NOT EXISTS AuditLog (
     FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE SET NULL
 );
 
+
 CREATE INDEX idx_auditlog_user ON AuditLog(user_id);
 CREATE INDEX idx_auditlog_action ON AuditLog(action);
 CREATE INDEX idx_auditlog_created ON AuditLog(created_at);
@@ -159,6 +160,16 @@ MODIFY COLUMN status ENUM('PENDING', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CA
 ALTER TABLE Notification
 MODIFY COLUMN type ENUM('NEW_OFFER', 'COUNTER_OFFER', 'TRIP_ACCEPTED', 'TRIP_REJECTED', 'TRIP_STARTED', 'TRIP_COMPLETED', 'SYSTEM') NOT NULL;
 
+USE turify_db;
 
+CREATE TABLE IF NOT EXISTS TripPassenger (
+    passenger_entry_id INT AUTO_INCREMENT PRIMARY KEY,
+    request_id INT NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    document_type ENUM('CC', 'TI', 'CE', 'PA') NOT NULL DEFAULT 'CC',
+    document_number VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (request_id) REFERENCES ServiceRequest(request_id) ON DELETE CASCADE
+);
 
 
