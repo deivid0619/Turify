@@ -87,6 +87,10 @@ const Dashboard = () => {
   const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
   const [mostrarPanelConductor, setMostrarPanelConductor] = useState(false);
   const [mostrarPerfil, setMostrarPerfil] = useState(false);
+  const [modalFuec, setModalFuec] = useState(null); // request_id del viaje a registrar
+  const [ocupantesFuec, setOcupantesFuec] = useState([{ full_name: '', document_type: 'CC', document_number: '' }]);
+  const [enviandoFuec, setEnviandoFuec] = useState(false);
+  const [fuecEnviado, setFuecEnviado] = useState({}); // { request_id: true } para saber cuáles ya se registraron
   const [errorDireccion, setErrorDireccion] = useState(null);
   const coordsBuffer = useRef({});
 
@@ -304,6 +308,45 @@ const Dashboard = () => {
     } catch {}
   };
 
+  // HU10: Enviar FUEC
+  const enviarFuec = async () => {
+    const invalidos = ocupantesFuec.filter(o => !o.full_name.trim() || !o.document_number.trim());
+    if (invalidos.length > 0) { alert('Completa nombre y número de documento de todos los ocupantes.'); return; }
+    setEnviandoFuec(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${modalFuec}/passengers`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({ passengers: ocupantesFuec })
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+      setFuecEnviado(prev => ({ ...prev, [modalFuec]: true }));
+      setModalFuec(null);
+      alert('✅ Ocupantes registrados. El conductor ya puede ver la lista.');
+    } catch (e) {
+      alert(`Error: ${e.message}`);
+    } finally {
+      setEnviandoFuec(false);
+    }
+  };
+
+  const agregarOcupante = () => {
+    setOcupantesFuec(prev => [...prev, { full_name: '', document_type: 'CC', document_number: '' }]);
+  };
+
+  const quitarOcupante = (idx) => {
+    if (ocupantesFuec.length === 1) return;
+    setOcupantesFuec(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const actualizarOcupante = (idx, campo, valor) => {
+    setOcupantesFuec(prev => prev.map((o, i) => i === idx ? { ...o, [campo]: valor } : o));
+  };
+
   const marcarTodasLeidas = () => {
     notificaciones.filter(n => !n.is_read).forEach(n => marcarLeida(n.notification_id));
   };
@@ -458,6 +501,41 @@ const Dashboard = () => {
   };
 
   return (
+    <>
+    <style>{`
+      .fuec-input {
+        width: 100%;
+        padding: 9px 12px;
+        background: rgba(255,255,255,0.07) !important;
+        border: 1px solid rgba(255,255,255,0.18) !important;
+        border-radius: 8px;
+        color: #f0fdf4 !important;
+        font-size: 13px;
+        font-family: 'DM Sans', sans-serif;
+        box-sizing: border-box;
+        outline: none;
+        min-width: 0;
+      }
+      .fuec-input::placeholder { color: rgba(255,255,255,0.35) !important; }
+      .fuec-input:focus {
+        border-color: rgba(34,197,94,0.55) !important;
+        background: rgba(34,197,94,0.08) !important;
+        box-shadow: 0 0 0 3px rgba(34,197,94,0.1);
+      }
+      .fuec-select {
+        width: 100%;
+        padding: 9px 6px;
+        background: #0d1a0d !important;
+        border: 1px solid rgba(255,255,255,0.18) !important;
+        border-radius: 8px;
+        color: #f0fdf4 !important;
+        font-size: 13px;
+        outline: none;
+        cursor: pointer;
+        min-width: 0;
+      }
+      .fuec-select option { background: #0d1a0d; color: #f0fdf4; }
+    `}</style>
     <div style={{ height: '100vh', width: '100%', position: 'relative', fontFamily: 'Inter, sans-serif', overflow: 'hidden' }}>
 
       <header style={headerStyle}>
@@ -762,6 +840,25 @@ const Dashboard = () => {
                           )}
                         </div>
                       </div>
+
+                    {/* Botón FUEC */}
+                    {(viaje.trip_status === 'ASSIGNED' || viaje.trip_status === 'IN_PROGRESS') && (
+                      <button
+                        onClick={() => {
+                          setOcupantesFuec([{ full_name: '', document_type: 'CC', document_number: '' }]);
+                          setModalFuec(viaje.id);
+                        }}
+                        style={{
+                          marginTop: '10px', width: '100%', padding: '10px',
+                          background: fuecEnviado[viaje.id] ? 'rgba(34,197,94,0.12)' : 'rgba(34,197,94,0.08)',
+                          border: `1px solid ${fuecEnviado[viaje.id] ? BRAND_GREEN : 'rgba(34,197,94,0.35)'}`,
+                          borderRadius: '8px',
+                          color: fuecEnviado[viaje.id] ? BRAND_GREEN : '#166534',
+                          fontSize: '12px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s'
+                        }}>
+                        {fuecEnviado[viaje.id] ? '✅ Ocupantes registrados — Actualizar' : '📋 Registrar ocupantes del viaje'}
+                      </button>
+                    )}
                     </div>
                   );
                 })}
@@ -914,6 +1011,112 @@ const Dashboard = () => {
         )}
       </AnimatePresence>
 
+      {/* MODAL FUEC — HU10 */}
+      <AnimatePresence>
+        {modalFuec && (
+          <>
+            {/* Backdrop — fixed para cubrir toda la pantalla */}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setModalFuec(null)}
+              style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9000 }} />
+
+            {/* Wrapper centrador — fixed con flex centra sin transform */}
+            <div style={{ position: 'fixed', inset: 0, zIndex: 9001, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              style={{
+                pointerEvents: 'all',
+                width: '500px', maxWidth: '95vw',
+                maxHeight: '85vh',
+                backgroundColor: '#081208',
+                border: '1px solid rgba(34,197,94,0.25)',
+                borderRadius: '16px',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
+                fontFamily: "'DM Sans', sans-serif",
+                display: 'flex',
+                flexDirection: 'column',
+              }}>
+
+              {/* HEADER — fijo arriba */}
+              <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid rgba(34,197,94,0.12)', flexShrink: 0, backgroundColor: '#0a1a0a' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: BRAND_GREEN }}>Documento de viaje</p>
+                    <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#f0fdf4', fontFamily: "'Syne', sans-serif" }}>Registrar ocupantes</h3>
+                  </div>
+                  <button onClick={() => setModalFuec(null)}
+                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '30px', height: '30px', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
+                </div>
+                <p style={{ margin: '8px 0 0', fontSize: '13px', color: 'rgba(255,255,255,0.45)' }}>
+                  Ingresa el nombre y documento de cada persona que viajará.
+                </p>
+              </div>
+
+              {/* CONTENIDO — scrollable */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', backgroundColor: '#081208' }}>
+                {ocupantesFuec.map((ocupante, idx) => (
+                  <div key={idx} style={{ backgroundColor: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.12)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: 'rgba(255,255,255,0.5)' }}>Ocupante {idx + 1}</span>
+                      {ocupantesFuec.length > 1 && (
+                        <button onClick={() => quitarOcupante(idx)}
+                          style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '6px', color: '#fca5a5', cursor: 'pointer', fontSize: '11px', padding: '3px 8px', fontWeight: '600' }}>
+                          Quitar
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 130px', gap: '8px', minWidth: 0 }}>
+                      <div>
+                        <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Nombre completo</label>
+                        <input value={ocupante.full_name}
+                          onChange={e => actualizarOcupante(idx, 'full_name', e.target.value)}
+                          placeholder="Juan Pérez"
+                          className="fuec-input" style={{}} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Tipo</label>
+                        <select value={ocupante.document_type}
+                          onChange={e => actualizarOcupante(idx, 'document_type', e.target.value)}
+                          className="fuec-select" style={{}}>
+                          <option value="CC">CC</option>
+                          <option value="TI">TI</option>
+                          <option value="CE">CE</option>
+                          <option value="PA">PA</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Número</label>
+                        <input value={ocupante.document_number}
+                          onChange={e => actualizarOcupante(idx, 'document_number', e.target.value)}
+                          placeholder="1234567890"
+                          className="fuec-input" style={{}} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                <button onClick={agregarOcupante}
+                  style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px dashed rgba(34,197,94,0.3)', borderRadius: '10px', color: BRAND_GREEN, fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}>
+                  + Agregar otro ocupante
+                </button>
+              </div>
+
+              {/* FOOTER — fijo abajo, siempre visible */}
+              <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(34,197,94,0.12)', flexShrink: 0, display: 'flex', gap: '10px', backgroundColor: '#0a1a0a' }}>
+                <button onClick={() => setModalFuec(null)}
+                  style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', color: 'rgba(255,255,255,0.6)', fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>
+                  Cancelar
+                </button>
+                <button onClick={enviarFuec} disabled={enviandoFuec}
+                  style={{ flex: 2, padding: '12px', background: enviandoFuec ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${BRAND_GREEN}, #16a34a)`, border: 'none', borderRadius: '9px', color: enviandoFuec ? 'rgba(255,255,255,0.4)' : '#052e16', fontWeight: '700', fontSize: '14px', cursor: enviandoFuec ? 'not-allowed' : 'pointer', fontFamily: "'Syne', sans-serif" }}>
+                  {enviandoFuec ? 'Guardando...' : '✓ Confirmar ocupantes'}
+                </button>
+              </div>
+            </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* PERFIL DRAWER — HU16 */}
       <PerfilDrawer abierto={mostrarPerfil} onCerrar={() => setMostrarPerfil(false)} />
 
@@ -928,6 +1131,7 @@ const Dashboard = () => {
         </MapContainer>
       </div>
     </div>
+    </>
   );
 };
 

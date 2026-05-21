@@ -75,6 +75,18 @@ const PanelConductor = ({ onVerRuta }) => {
   useEffect(() => { if (token) cargarSolicitudes(); }, [token]);
 
   // SCRUM-83: Cargar negociaciones activas cuando se cambia a esa pestaña
+  const cargarOcupantes = async (requestId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${requestId}/passengers`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOcupantesPorViaje(prev => ({ ...prev, [requestId]: data }));
+      }
+    } catch {}
+  };
+
   const cargarViajesActivos = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/service-requests/driver/my-offers`, {
@@ -95,6 +107,8 @@ const PanelConductor = ({ onVerRuta }) => {
 
   // SCRUM-82: Conductor responde a contraoferta
   const [resolviendoOferta, setResolviendoOferta] = useState(null);
+  const [ocupantesPorViaje, setOcupantesPorViaje] = useState({});
+  const [modalOcupantesId, setModalOcupantesId] = useState(null);
   const [gestionandoViaje, setGestionandoViaje] = useState(null); // request_id en proceso
 
   // HU17: Conductor inicia o finaliza el viaje
@@ -199,6 +213,36 @@ const PanelConductor = ({ onVerRuta }) => {
   };
 
   return (
+    <>
+    <style>{`
+      .fuec-input {
+        width: 100%;
+        padding: 9px 12px;
+        background: rgba(255,255,255,0.07) !important;
+        border: 1px solid rgba(255,255,255,0.18) !important;
+        border-radius: 8px;
+        color: #f0fdf4 !important;
+        font-size: 13px;
+        font-family: 'DM Sans', sans-serif;
+        box-sizing: border-box;
+        outline: none;
+        min-width: 0;
+      }
+      .fuec-input::placeholder { color: rgba(255,255,255,0.35) !important; }
+      .fuec-input:focus { border-color: rgba(34,197,94,0.55) !important; background: rgba(34,197,94,0.08) !important; }
+      .fuec-select {
+        width: 100%;
+        padding: 9px 6px;
+        background: #0d1a0d !important;
+        border: 1px solid rgba(255,255,255,0.18) !important;
+        border-radius: 8px;
+        color: #f0fdf4 !important;
+        font-size: 13px;
+        outline: none;
+        min-width: 0;
+      }
+      .fuec-select option { background: #0d1a0d; color: #f0fdf4; }
+    `}</style>
     <div style={{ backgroundColor: '#fff', borderRadius: '16px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)', overflow: 'hidden', fontFamily: 'Inter, sans-serif', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', height: '100%' }}>
 
       {/* HEADER */}
@@ -236,84 +280,6 @@ const PanelConductor = ({ onVerRuta }) => {
           ))}
         </div>
       </div>
-
-      {/* PANEL NOTIFICACIONES CONDUCTOR */}
-      <AnimatePresence>
-        {mostrarNotifPanel && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setMostrarNotifPanel(false)}
-              style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 3000 }} />
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }}
-              style={{ position: 'fixed', top: 0, right: 0, width: '360px', maxWidth: '100vw', height: '100vh', backgroundColor: '#fff', zIndex: 3001, boxShadow: '-5px 0 25px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, sans-serif' }}>
-
-              {/* Header notif */}
-              <div style={{ padding: '18px 20px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#1e293b' }}>🔔 Notificaciones</h3>
-                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
-                    {notificaciones.filter(n => !n.is_read).length} sin leer
-                  </p>
-                </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  {notificaciones.filter(n => !n.is_read).length > 0 && (
-                    <button onClick={marcarTodasLeidas}
-                      style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 9px', fontSize: '11px', fontWeight: '600', color: '#475569', cursor: 'pointer' }}>
-                      ✓ Leer todas
-                    </button>
-                  )}
-                  <button onClick={() => setMostrarNotifPanel(false)}
-                    style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#64748b' }}>×</button>
-                </div>
-              </div>
-
-              {/* Lista notif */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-                {notificaciones.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '50px 20px', color: '#94a3b8' }}>
-                    <div style={{ fontSize: '36px', marginBottom: '10px' }}>🔕</div>
-                    <p style={{ margin: 0, fontWeight: '600', color: '#475569' }}>Sin notificaciones</p>
-                    <p style={{ margin: '4px 0 0', fontSize: '13px' }}>Aquí verás cuando el pasajero responda.</p>
-                  </div>
-                )}
-                {notificaciones.map((notif) => {
-                  const cfg = {
-                    NEW_OFFER:      { icono: '💰', color: '#7c3aed', bg: '#f5f3ff' },
-                    COUNTER_OFFER:  { icono: '🔄', color: '#1d4ed8', bg: '#eff6ff' },
-                    TRIP_ACCEPTED:  { icono: '✅', color: '#15803d', bg: '#f0fdf4' },
-                    TRIP_REJECTED:  { icono: '❌', color: '#dc2626', bg: '#fef2f2' },
-                    TRIP_STARTED:   { icono: '🚗', color: '#0369a1', bg: '#f0f9ff' },
-                    TRIP_COMPLETED: { icono: '🏁', color: '#4f46e5', bg: '#eef2ff' },
-                    SYSTEM:         { icono: '📢', color: '#64748b', bg: '#f8fafc' },
-                  }[notif.type] || { icono: '📢', color: '#64748b', bg: '#f8fafc' };
-
-                  return (
-                    <div key={notif.notification_id}
-                      onClick={() => !notif.is_read && marcarLeida(notif.notification_id)}
-                      style={{ backgroundColor: notif.is_read ? '#fff' : cfg.bg, borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', border: `1px solid ${notif.is_read ? '#e2e8f0' : cfg.color + '33'}`, cursor: notif.is_read ? 'default' : 'pointer', transition: 'all 0.2s' }}>
-                      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                        <span style={{ fontSize: '18px', flexShrink: 0 }}>{cfg.icono}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <p style={{ margin: 0, fontWeight: notif.is_read ? '600' : '700', fontSize: '13px', color: notif.is_read ? '#475569' : '#1e293b' }}>
-                              {notif.title}
-                            </p>
-                            {!notif.is_read && <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: cfg.color, flexShrink: 0, marginTop: '3px' }} />}
-                          </div>
-                          <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>{notif.message}</p>
-                          <p style={{ margin: '5px 0 0', fontSize: '11px', color: '#94a3b8' }}>
-                            {new Date(notif.created_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
 
       {/* ALERTA ÉXITO */}
       <AnimatePresence>
@@ -507,6 +473,18 @@ const PanelConductor = ({ onVerRuta }) => {
                   )}
 
                   {/* HU17: Botones de gestión del viaje */}
+                  {/* HU10: Botón ver ocupantes */}
+                  {esAceptado && (estadoViaje === 'ASSIGNED' || estadoViaje === 'IN_PROGRESS') && (
+                    <button
+                      onClick={async () => {
+                        await cargarOcupantes(viaje.request_id);
+                        setModalOcupantesId(viaje.request_id);
+                      }}
+                      style={{ marginTop: '10px', width: '100%', padding: '9px', background: '#dcfce7', border: '1px solid #16a34a', borderRadius: '8px', color: '#14532d', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>
+                      👥 Ver ocupantes del viaje
+                    </button>
+                  )}
+
                   {esAceptado && estadoViaje === 'ASSIGNED' && (
                     <div style={{ marginTop: '10px' }}>
                       <div style={{ backgroundColor: '#f0fdf4', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '12px', color: '#166534', fontWeight: '600' }}>
@@ -547,6 +525,136 @@ const PanelConductor = ({ onVerRuta }) => {
         )}
       </div>
     </div>
+
+      {/* PANEL NOTIFICACIONES CONDUCTOR */}
+      <AnimatePresence>
+        {mostrarNotifPanel && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setMostrarNotifPanel(false)}
+              style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 3000 }} />
+            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }}
+              style={{ position: 'fixed', top: 0, right: 0, width: '360px', maxWidth: '100vw', height: '100vh', backgroundColor: '#fff', zIndex: 3001, boxShadow: '-5px 0 25px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, sans-serif' }}>
+
+              {/* Header notif */}
+              <div style={{ padding: '18px 20px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#1e293b' }}>🔔 Notificaciones</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                    {notificaciones.filter(n => !n.is_read).length} sin leer
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {notificaciones.filter(n => !n.is_read).length > 0 && (
+                    <button onClick={marcarTodasLeidas}
+                      style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 9px', fontSize: '11px', fontWeight: '600', color: '#475569', cursor: 'pointer' }}>
+                      ✓ Leer todas
+                    </button>
+                  )}
+                  <button onClick={() => setMostrarNotifPanel(false)}
+                    style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#64748b' }}>×</button>
+                </div>
+              </div>
+
+              {/* Lista notif */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                {notificaciones.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '50px 20px', color: '#94a3b8' }}>
+                    <div style={{ fontSize: '36px', marginBottom: '10px' }}>🔕</div>
+                    <p style={{ margin: 0, fontWeight: '600', color: '#475569' }}>Sin notificaciones</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '13px' }}>Aquí verás cuando el pasajero responda.</p>
+                  </div>
+                )}
+                {notificaciones.map((notif) => {
+                  const cfg = {
+                    NEW_OFFER:      { icono: '💰', color: '#7c3aed', bg: '#f5f3ff' },
+                    COUNTER_OFFER:  { icono: '🔄', color: '#1d4ed8', bg: '#eff6ff' },
+                    TRIP_ACCEPTED:  { icono: '✅', color: '#15803d', bg: '#f0fdf4' },
+                    TRIP_REJECTED:  { icono: '❌', color: '#dc2626', bg: '#fef2f2' },
+                    TRIP_STARTED:   { icono: '🚗', color: '#0369a1', bg: '#f0f9ff' },
+                    TRIP_COMPLETED: { icono: '🏁', color: '#4f46e5', bg: '#eef2ff' },
+                    SYSTEM:         { icono: '📢', color: '#64748b', bg: '#f8fafc' },
+                  }[notif.type] || { icono: '📢', color: '#64748b', bg: '#f8fafc' };
+
+                  return (
+                    <div key={notif.notification_id}
+                      onClick={() => !notif.is_read && marcarLeida(notif.notification_id)}
+                      style={{ backgroundColor: notif.is_read ? '#fff' : cfg.bg, borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', border: `1px solid ${notif.is_read ? '#e2e8f0' : cfg.color + '33'}`, cursor: notif.is_read ? 'default' : 'pointer', transition: 'all 0.2s' }}>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                        <span style={{ fontSize: '18px', flexShrink: 0 }}>{cfg.icono}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <p style={{ margin: 0, fontWeight: notif.is_read ? '600' : '700', fontSize: '13px', color: notif.is_read ? '#475569' : '#1e293b' }}>
+                              {notif.title}
+                            </p>
+                            {!notif.is_read && <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: cfg.color, flexShrink: 0, marginTop: '3px' }} />}
+                          </div>
+                          <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>{notif.message}</p>
+                          <p style={{ margin: '5px 0 0', fontSize: '11px', color: '#94a3b8' }}>
+                            {new Date(notif.created_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL OCUPANTES FUEC — position fixed */}
+      <AnimatePresence>
+        {modalOcupantesId && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setModalOcupantesId(null)}
+              style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9000 }} />
+            <div style={{ position: 'fixed', inset: 0, zIndex: 9001, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              style={{ pointerEvents: 'all', width: '440px', maxWidth: '95vw', maxHeight: '80vh', backgroundColor: '#0f1a0f', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', sans-serif" }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <p style={{ margin: '0 0 2px', fontSize: '11px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: BRAND_GREEN }}>Documento de viaje</p>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#f0fdf4', fontFamily: "'Syne', sans-serif" }}>Ocupantes registrados</h3>
+                </div>
+                <button onClick={() => setModalOcupantesId(null)}
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '30px', height: '30px', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+              </div>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+                {!ocupantesPorViaje[modalOcupantesId] || ocupantesPorViaje[modalOcupantesId].length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '30px 0' }}>
+                    <div style={{ fontSize: '32px', marginBottom: '8px' }}>👥</div>
+                    <p style={{ margin: 0, color: 'rgba(255,255,255,0.45)', fontSize: '13px' }}>El pasajero aún no ha registrado los ocupantes.</p>
+                  </div>
+                ) : (
+                  ocupantesPorViaje[modalOcupantesId].map((oc, i) => (
+                    <div key={i} style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: '700', fontSize: '14px', color: '#f0fdf4' }}>{oc.full_name}</p>
+                        <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Ocupante {i + 1}</p>
+                      </div>
+                      <span style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '20px', padding: '4px 10px', fontSize: '12px', fontWeight: '700', color: BRAND_GREEN }}>
+                        {oc.document_type} {oc.document_number}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div style={{ padding: '14px 24px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+                <button onClick={() => setModalOcupantesId(null)}
+                  style={{ width: '100%', padding: '11px', background: `linear-gradient(135deg, ${BRAND_GREEN}, #16a34a)`, border: 'none', borderRadius: '9px', color: '#052e16', fontWeight: '700', fontSize: '14px', cursor: 'pointer', fontFamily: "'Syne', sans-serif" }}>
+                  Cerrar
+                </button>
+              </div>
+            </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+    </>
   );
 };
 
