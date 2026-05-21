@@ -95,3 +95,11 @@ class Notification(Base):
     is_read = Column(Boolean, default=False)
     related_offer_id = Column(Integer, ForeignKey("DriverOffer.offer_id", ondelete="SET NULL"), nullable=True)
     created_at = Column(TIMESTAMP, server_default=text('CURRENT_TIMESTAMP'))
+class TripPassenger(Base):
+    __tablename__ = "TripPassenger"
+    passenger_entry_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    request_id = Column(Integer, ForeignKey("ServiceRequest.request_id", ondelete="CASCADE"), nullable=False)
+    full_name = Column(String(100), nullable=False)
+    document_type = Column(Enum('CC', 'TI', 'CE', 'PA'), nullable=False, default='CC')
+    document_number = Column(String(20), nullable=False)
+    created_at = Column(TIMESTAMP, server_default=text('CURRENT_TIMESTAMP'))

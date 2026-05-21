@@ -772,3 +772,94 @@ def get_trip_status(
         "destination": viaje.destination,
         "departure_time": viaje.departure_time.isoformat() if viaje.departure_time else None
     }
+
+# HU10 — POST /api/service-requests/{request_id}/passengers
+# Pasajero registra los ocupantes del viaje (FUEC simulado)
+@router.post("/{request_id}/passengers", status_code=201)
+def registrar_ocupantes(
+    request_id: int,
+    payload: schemas.TripPassengersCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    viaje = db.query(models.ServiceRequest).filter(
+        models.ServiceRequest.request_id == request_id
+    ).first()
+
+    if not viaje:
+        raise HTTPException(status_code=404, detail="Viaje no encontrado.")
+
+    if viaje.passenger_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Solo el pasajero del viaje puede registrar ocupantes.")
+
+    if viaje.status not in ['ASSIGNED', 'IN_PROGRESS']:
+        raise HTTPException(status_code=400, detail=f"Solo puedes registrar ocupantes en viajes confirmados. Estado actual: {viaje.status}")
+
+    # Eliminar registros previos si el pasajero actualiza la lista
+    db.query(models.TripPassenger).filter(
+        models.TripPassenger.request_id == request_id
+    ).delete()
+
+    for p in payload.passengers:
+        db.add(models.TripPassenger(
+            request_id=request_id,
+            full_name=p.full_name,
+            document_type=p.document_type,
+            document_number=p.document_number
+        ))
+
+    db.commit()
+
+    registrar_log(db, action="REGISTER_FUEC", user_id=current_user.user_id,
+        entity="ServiceRequest", entity_id=request_id,
+        detail=f"FUEC registrado con {len(payload.passengers)} ocupante(s) para viaje #{request_id}")
+
+    return {
+        "message": f"{len(payload.passengers)} ocupante(s) registrado(s) correctamente.",
+        "request_id": request_id
+    }
+
+
+# HU10 — GET /api/service-requests/{request_id}/passengers
+# Conductor y pasajero consultan los ocupantes registrados
+@router.get("/{request_id}/passengers")
+def get_ocupantes(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    viaje = db.query(models.ServiceRequest).filter(
+        models.ServiceRequest.request_id == request_id
+    ).first()
+
+    if not viaje:
+        raise HTTPException(status_code=404, detail="Viaje no encontrado.")
+
+    # El pasajero o el conductor asignado pueden ver los ocupantes
+    es_pasajero = viaje.passenger_id == current_user.user_id
+    es_conductor_asignado = False
+
+    if current_user.role == 'DRIVER':
+        oferta = db.query(models.DriverOffer).filter(
+            models.DriverOffer.request_id == request_id,
+            models.DriverOffer.driver_id == current_user.user_id,
+            models.DriverOffer.status == 'ACCEPTED'
+        ).first()
+        es_conductor_asignado = oferta is not None
+
+    if not es_pasajero and not es_conductor_asignado and current_user.role != 'ADMIN':
+        raise HTTPException(status_code=403, detail="No tienes permiso para ver estos datos.")
+
+    ocupantes = db.query(models.TripPassenger).filter(
+        models.TripPassenger.request_id == request_id
+    ).all()
+
+    return [
+        {
+            "passenger_entry_id": o.passenger_entry_id,
+            "full_name": o.full_name,
+            "document_type": o.document_type,
+            "document_number": o.document_number
+        }
+        for o in ocupantes
+    ]

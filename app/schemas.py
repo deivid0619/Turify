@@ -160,17 +160,21 @@ class CounterOfferCreate(BaseModel):
 
 class ResolveOfferCreate(BaseModel):
     action: str  # 'ACCEPT' | 'REJECT'
-# --- HU16: Schemas de perfil ---
+# HU10 — FUEC
+class TripPassengerItem(BaseModel):
+    full_name: str
+    document_type: str = 'CC'  # CC, TI, CE, PA
+    document_number: str
 
+class TripPassengersCreate(BaseModel):
+    passengers: list[TripPassengerItem]
+# HU16 — Perfil de usuario
 class UpdatePhoneRequest(BaseModel):
     phone_number: str
 
 class UpdatePasswordRequest(BaseModel):
     current_password: str
     new_password: str = Field(..., min_length=8)
-
-class UpdateProfilePhotoRequest(BaseModel):
-    profile_photo_url: str
 
 class UserProfileResponse(BaseModel):
     user_id: int
