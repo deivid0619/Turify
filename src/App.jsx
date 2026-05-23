@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useContext } from 'react';
-import { AuthProvider, AuthContext } from './AuthContext';
+import { AuthContext } from './AuthContext';
+import { AuthProvider } from './AuthProvider';
 import Login from './Login';
 import Registro from './Registro';
 import RutaPrivada, { RutaAdmin } from './RutaPrivada';

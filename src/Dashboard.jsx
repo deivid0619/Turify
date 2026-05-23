@@ -9,6 +9,7 @@ import { AuthContext } from './AuthContext';
 import PanelConductor from './PanelConductor';
 import InputDireccion from './InputDireccion';
 import PerfilDrawer from './PerfilDrawer';
+import { ToastContainer, useToast } from './Toast';
 
 const greenMarkerHtml = `<div style="background-color:#16a34a;width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.3);"></div>`;
 let DefaultIcon = L.divIcon({ html: greenMarkerHtml, className: '', iconSize: [18, 18], iconAnchor: [9, 9], popupAnchor: [0, -10] });
@@ -67,6 +68,7 @@ const ModalErrorDireccion = ({ textoDireccion, onCerrar, onContinuar }) => (
 const Dashboard = () => {
   const { token, usuario } = useContext(AuthContext);
   const navigate = useNavigate();
+  const { toasts, removeToast, toast } = useToast();
 
   const GEOAPIFY_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
 
@@ -155,10 +157,10 @@ const Dashboard = () => {
         setDatosMapa({ origen: [lat1, lon1], destino: [lat2, lon2], ruta });
         setInfoRuta({ distancia: `${(resumen.distance / 1000).toFixed(1)} km`, tiempo: `${Math.round(resumen.duration / 60)} min` });
       } else {
-        alert('No se pudo trazar una ruta entre estas dos ubicaciones.');
+        toast.warning('No se pudo trazar una ruta entre estas dos ubicaciones.');
       }
     } catch {
-      alert('Error de conexión con el servidor de rutas.');
+      toast.error('Error de conexión con el servidor de rutas.');
     }
   };
 
@@ -176,11 +178,11 @@ const Dashboard = () => {
   const buscarRuta = async (e) => {
     e.preventDefault();
     if (!busqueda.origen || !busqueda.destino || !busqueda.departure_time) {
-      alert('Por favor completa origen, destino y fecha de salida.');
+      toast.warning('Por favor completa origen, destino y fecha de salida.');
       return;
     }
     if (tipoViaje === 'redondo' && !busqueda.return_time) {
-      alert('Por favor selecciona una fecha de regreso.');
+      toast.warning('Por favor selecciona una fecha de regreso.');
       return;
     }
     setCargandoMapa(true);
@@ -218,7 +220,7 @@ const Dashboard = () => {
 
     } catch (err) {
       console.error('Error:', err);
-      alert('Error de conexión con el servidor de rutas.');
+      toast.error('Error de conexión con el servidor de rutas.');
     } finally {
       setCargandoMapa(false);
     }
@@ -251,7 +253,7 @@ const Dashboard = () => {
   };
 
   const crearViaje = async () => {
-    if (!token) { alert('Debes iniciar sesión para publicar un viaje.'); return; }
+    if (!token) { toast.warning('Debes iniciar sesión para publicar un viaje.'); return; }
     setEnviandoSolicitud(true);
     try {
       const payload = {
@@ -270,9 +272,9 @@ const Dashboard = () => {
       setInfoRuta(null);
       setDatosMapa({ origen: null, destino: null, ruta: [] });
       setBusqueda({ origen: '', destino: '', departure_time: '', return_time: '' });
-      alert('¡Viaje publicado exitosamente! Los conductores podrán hacerte ofertas.');
+      toast.success('¡Viaje publicado exitosamente! Los conductores podrán hacerte ofertas.');
     } catch (error) {
-      alert(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
     } finally {
       setEnviandoSolicitud(false);
     }
@@ -311,7 +313,7 @@ const Dashboard = () => {
   // HU10: Enviar FUEC
   const enviarFuec = async () => {
     const invalidos = ocupantesFuec.filter(o => !o.full_name.trim() || !o.document_number.trim());
-    if (invalidos.length > 0) { alert('Completa nombre y número de documento de todos los ocupantes.'); return; }
+    if (invalidos.length > 0) { toast.warning('Completa nombre y número de documento de todos los ocupantes.'); return; }
     setEnviandoFuec(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/service-requests/${modalFuec}/passengers`, {
@@ -326,9 +328,9 @@ const Dashboard = () => {
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
       setFuecEnviado(prev => ({ ...prev, [modalFuec]: true }));
       setModalFuec(null);
-      alert('✅ Ocupantes registrados. El conductor ya puede ver la lista.');
+      toast.success('✅ Ocupantes registrados. El conductor ya puede ver la lista.');
     } catch (e) {
-      alert(`Error: ${e.message}`);
+      toast.error(`Error: ${e.message}`);
     } finally {
       setEnviandoFuec(false);
     }
@@ -421,11 +423,11 @@ const Dashboard = () => {
         headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-      alert('¡Viaje aceptado! El conductor ha sido notificado.');
+      toast.success('¡Viaje aceptado! El conductor ha sido notificado.');
       setViajeSeleccionado(null);
       cargarMisViajes();
     } catch (error) {
-      alert(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
     }
   };
 
@@ -453,7 +455,7 @@ const Dashboard = () => {
 
   const enviarContraoferta = async () => {
     if (!precioContraoferta || isNaN(precioContraoferta) || Number(precioContraoferta) <= 0) {
-      alert('Ingresa un precio válido mayor a 0.');
+      toast.warning('Ingresa un precio válido mayor a 0.');
       return;
     }
     setEnviandoContraoferta(true);
@@ -468,11 +470,11 @@ const Dashboard = () => {
         body: JSON.stringify({ offered_price: Number(precioContraoferta) })
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-      alert(`¡Contraoferta de $${Number(precioContraoferta).toLocaleString()} enviada al conductor!`);
+      toast.success(`¡Contraoferta de $${Number(precioContraoferta).toLocaleString()} enviada al conductor!`);
       setModalContraoferta(null);
       cargarMisViajes();
     } catch (error) {
-      alert(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
     } finally {
       setEnviandoContraoferta(false);
     }
@@ -1131,6 +1133,7 @@ const Dashboard = () => {
         </MapContainer>
       </div>
     </div>
+    <ToastContainer toasts={toasts} onRemove={removeToast} />
     </>
   );
 };

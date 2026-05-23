@@ -1,12 +1,14 @@
 import { useState, useEffect, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AuthContext } from './AuthContext';
+import { ToastContainer, useToast } from './Toast';
 
 const BRAND_GREEN = '#16a34a';
 const API_BASE_URL = 'http://127.0.0.1:8000';
 
 const PanelConductor = ({ onVerRuta }) => {
   const { token, usuario } = useContext(AuthContext);
+  const { toasts, removeToast, toast } = useToast();
 
   const [pestanaActiva, setPestanaActiva] = useState('radar');
   const [solicitudes, setSolicitudes] = useState([]);
@@ -124,10 +126,10 @@ const PanelConductor = ({ onVerRuta }) => {
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
       const data = await res.json();
-      alert(data.message);
+      toast.success(data.message);
       cargarViajesActivos();
     } catch (e) {
-      alert(`Error: ${e.message}`);
+      toast.error(`Error: ${e.message}`);
     } finally {
       setGestionandoViaje(null);
     }
@@ -147,10 +149,10 @@ const PanelConductor = ({ onVerRuta }) => {
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
       const data = await res.json();
-      alert(data.message);
+      toast.success(data.message);
       cargarViajesActivos();
     } catch (e) {
-      alert(`Error: ${e.message}`);
+      toast.error(`Error: ${e.message}`);
     } finally {
       setResolviendoOferta(null);
     }
@@ -654,6 +656,7 @@ const PanelConductor = ({ onVerRuta }) => {
         )}
       </AnimatePresence>
 
+    <ToastContainer toasts={toasts} onRemove={removeToast} />
     </>
   );
 };
