@@ -2,6 +2,7 @@ import { useState, useEffect, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AuthContext } from './AuthContext';
 import { ToastContainer, useToast } from './Toast';
+import { SkeletonTarjetaViaje } from './Skeleton';
 
 const BRAND_GREEN = '#16a34a';
 const API_BASE_URL = 'http://127.0.0.1:8000';
@@ -333,7 +334,13 @@ const PanelConductor = ({ onVerRuta }) => {
         {/* PESTAÑA RADAR */}
         {pestanaActiva === 'radar' && (
           <>
-            {cargando && <div style={{ textAlign: 'center', padding: '30px', color: '#64748b', fontSize: '13px' }}>⏳ Cargando solicitudes...</div>}
+            {cargando && (
+              <>
+                <SkeletonTarjetaViaje />
+                <SkeletonTarjetaViaje />
+                <SkeletonTarjetaViaje />
+              </>
+            )}
             {!cargando && error && (
               <div style={{ textAlign: 'center', padding: '20px', color: '#dc2626', fontSize: '13px' }}>
                 ⚠️ {error}<br />
