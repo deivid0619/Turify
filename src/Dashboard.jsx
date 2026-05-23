@@ -10,6 +10,7 @@ import PanelConductor from './PanelConductor';
 import InputDireccion from './InputDireccion';
 import PerfilDrawer from './PerfilDrawer';
 import { ToastContainer, useToast } from './Toast';
+import { SkeletonDashboard, SkeletonTarjetaConfirmado, ErrorConexion } from './Skeleton';
 
 const greenMarkerHtml = `<div style="background-color:#16a34a;width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.3);"></div>`;
 let DefaultIcon = L.divIcon({ html: greenMarkerHtml, className: '', iconSize: [18, 18], iconAnchor: [9, 9], popupAnchor: [0, -10] });
@@ -69,6 +70,8 @@ const Dashboard = () => {
   const { token, usuario } = useContext(AuthContext);
   const navigate = useNavigate();
   const { toasts, removeToast, toast } = useToast();
+  const [cargandoInicial, setCargandoInicial] = useState(true);
+  const [errorConexion, setErrorConexion] = useState(false);
 
   const GEOAPIFY_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
 
@@ -480,6 +483,21 @@ const Dashboard = () => {
     }
   };
 
+  // HU15: Cargar viajes al montar con skeleton y manejo de error
+  useEffect(() => {
+    if (!token) return;
+    const cargar = async () => {
+      try {
+        await cargarMisViajes();
+      } catch {
+        setErrorConexion(true);
+      } finally {
+        setCargandoInicial(false);
+      }
+    };
+    cargar();
+  }, [token]);
+
   const headerStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 40px', backgroundColor: '#fff', borderBottom: '1px solid #eee', position: 'absolute', top: 0, width: '100%', zIndex: 1000, boxSizing: 'border-box', boxShadow: '0 1px 10px rgba(0,0,0,0.05)' };
   const searchBarStyle = { display: 'flex', alignItems: 'center', border: '1px solid #ddd', borderRadius: '40px', padding: '5px 5px 5px 15px', backgroundColor: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' };
   const dividerStyle = { width: '1px', height: '20px', background: '#ddd', margin: '0 10px', flexShrink: 0 };
@@ -504,6 +522,14 @@ const Dashboard = () => {
 
   return (
     <>
+    {cargandoInicial && <SkeletonDashboard />}
+    {errorConexion && !cargandoInicial && (
+      <ErrorConexion onReintentar={() => {
+        setErrorConexion(false);
+        setCargandoInicial(true);
+        cargarMisViajes().catch(() => setErrorConexion(true)).finally(() => setCargandoInicial(false));
+      }} />
+    )}
     <style>{`
       .fuec-input {
         width: 100%;
@@ -537,6 +563,39 @@ const Dashboard = () => {
         min-width: 0;
       }
       .fuec-select option { background: #0d1a0d; color: #f0fdf4; }
+
+      /* ── RESPONSIVIDAD TABLETS ── */
+      @media (max-width: 900px) {
+        .turify-panel-lateral {
+          width: 100% !important;
+          max-width: 100% !important;
+          position: fixed !important;
+          bottom: 0 !important;
+          top: auto !important;
+          left: 0 !important;
+          right: 0 !important;
+          height: 55vh !important;
+          border-radius: 20px 20px 0 0 !important;
+          box-shadow: 0 -4px 30px rgba(0,0,0,0.3) !important;
+          z-index: 2000 !important;
+        }
+        .turify-header-search {
+          flex-direction: column !important;
+          gap: 6px !important;
+        }
+        .turify-header-search input {
+          font-size: 12px !important;
+        }
+      }
+
+      @media (max-width: 600px) {
+        .turify-panel-lateral {
+          height: 60vh !important;
+        }
+        .fuec-grid {
+          grid-template-columns: 1fr !important;
+        }
+      }
     `}</style>
     <div style={{ height: '100vh', width: '100%', position: 'relative', fontFamily: 'Inter, sans-serif', overflow: 'hidden' }}>
 
