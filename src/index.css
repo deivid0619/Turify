@@ -1,0 +1,14 @@
+/* Reseteamos los márgenes y le decimos a la app que use todo el ancho y alto */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  box-sizing: border-box;
+  background-color: #ffffff;
+}
+
+/* Evitamos que los elementos sumen padding a su ancho total */
+*, *::before, *::after {
+  box-sizing: inherit;
+}
