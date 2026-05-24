@@ -409,7 +409,7 @@ const Dashboard = () => {
             conductor_nombre: v.conductor_nombre || 'Conductor asignado',
             conductor_foto: v.conductor_foto || null,
             precio_acordado: v.precio_acordado || 0,
-            trip_status: v.status || 'ASSIGNED'
+            trip_status: v.trip_status || v.status || 'ASSIGNED'
           })));
         }
       } catch {}
@@ -496,7 +496,20 @@ const Dashboard = () => {
       }
     };
     cargar();
+    // Polling de viajes confirmados para detectar cambios de estado (IN_PROGRESS, COMPLETED)
+    const intervaloViajes = setInterval(() => cargarMisViajes(), 15000);
+    return () => clearInterval(intervaloViajes);
   }, [token]);
+
+  // Tiempo relativo para ofertas
+  const tiempoRelativo = (fechaStr) => {
+    if (!fechaStr) return '';
+    const diff = Math.floor((Date.now() - new Date(fechaStr).getTime()) / 1000);
+    if (diff < 60) return 'hace un momento';
+    if (diff < 3600) return `hace ${Math.floor(diff / 60)} min`;
+    if (diff < 86400) return `hace ${Math.floor(diff / 3600)}h`;
+    return `hace ${Math.floor(diff / 86400)}d`;
+  };
 
   const headerStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 40px', backgroundColor: '#fff', borderBottom: '1px solid #eee', position: 'absolute', top: 0, width: '100%', zIndex: 1000, boxSizing: 'border-box', boxShadow: '0 1px 10px rgba(0,0,0,0.05)' };
   const searchBarStyle = { display: 'flex', alignItems: 'center', border: '1px solid #ddd', borderRadius: '40px', padding: '5px 5px 5px 15px', backgroundColor: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' };
@@ -825,9 +838,20 @@ const Dashboard = () => {
 
                 {/* PESTAÑA: EN BÚSQUEDA */}
                 {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.length === 0 && (
-                  <div style={{ textAlign: 'center', color: '#888', marginTop: '40px' }}>
-                    <div style={{ fontSize: '40px', marginBottom: '10px' }}>🚗</div>
-                    Aún no tienes solicitudes activas.
+                  <div style={{ textAlign: 'center', padding: '50px 20px' }}>
+                    <svg width="120" height="90" viewBox="0 0 120 90" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginBottom: '16px', opacity: 0.7 }}>
+                      <rect x="10" y="30" width="100" height="48" rx="10" fill="#f0fdf4" stroke="#bbf7d0" strokeWidth="1.5"/>
+                      <rect x="22" y="42" width="36" height="6" rx="3" fill="#86efac"/>
+                      <rect x="22" y="54" width="24" height="4" rx="2" fill="#d1fae5"/>
+                      <circle cx="88" cy="52" r="12" fill="#22c55e" opacity="0.15" stroke="#22c55e" strokeWidth="1.5"/>
+                      <path d="M83 52 L87 56 L93 48" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <circle cx="30" cy="16" r="8" fill="#dcfce7" stroke="#86efac" strokeWidth="1.5"/>
+                      <path d="M27 16 L29.5 18.5 L33 13" stroke="#16a34a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <circle cx="60" cy="10" r="5" fill="#f0fdf4" stroke="#bbf7d0" strokeWidth="1"/>
+                      <circle cx="90" cy="18" r="6" fill="#dcfce7" stroke="#86efac" strokeWidth="1"/>
+                    </svg>
+                    <p style={{ margin: '0 0 6px', fontWeight: '700', color: '#1e293b', fontSize: '15px' }}>Sin viajes activos</p>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>Busca una ruta en el mapa y<br/>publica tu primer viaje.</p>
                   </div>
                 )}
                 {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.map((viaje) => (
@@ -849,10 +873,19 @@ const Dashboard = () => {
 
                 {/* PESTAÑA: CONFIRMADOS */}
                 {!viajeSeleccionado && pestanaViajes === 'confirmados' && viajesConfirmados.length === 0 && (
-                  <div style={{ textAlign: 'center', color: '#888', marginTop: '40px' }}>
-                    <div style={{ fontSize: '40px', marginBottom: '10px' }}>✅</div>
-                    <p style={{ margin: 0, fontWeight: '600', color: '#1e293b' }}>No tienes viajes confirmados aún.</p>
-                    <p style={{ margin: '4px 0 0', fontSize: '13px' }}>Cuando un conductor acepte tu viaje aparecerá aquí.</p>
+                  <div style={{ textAlign: 'center', padding: '50px 20px' }}>
+                    <svg width="120" height="90" viewBox="0 0 120 90" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginBottom: '16px', opacity: 0.7 }}>
+                      <rect x="15" y="38" width="90" height="38" rx="8" fill="#f0fdf4" stroke="#bbf7d0" strokeWidth="1.5"/>
+                      <rect x="15" y="44" width="90" height="12" rx="0" fill="#dcfce7" opacity="0.5"/>
+                      <circle cx="28" cy="62" r="7" fill="#fff" stroke="#86efac" strokeWidth="2"/>
+                      <circle cx="92" cy="62" r="7" fill="#fff" stroke="#86efac" strokeWidth="2"/>
+                      <rect x="38" y="32" width="16" height="10" rx="3" fill="#86efac"/>
+                      <rect x="66" y="32" width="16" height="10" rx="3" fill="#86efac"/>
+                      <path d="M50 20 Q60 10 70 20" stroke="#22c55e" strokeWidth="2" fill="none" strokeLinecap="round" strokeDasharray="3 3"/>
+                      <circle cx="60" cy="20" r="4" fill="#22c55e" opacity="0.3"/>
+                    </svg>
+                    <p style={{ margin: '0 0 6px', fontWeight: '700', color: '#1e293b', fontSize: '15px' }}>Sin viajes confirmados</p>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>Cuando un conductor acepte<br/>tu oferta aparecerá aquí.</p>
                   </div>
                 )}
                 {!viajeSeleccionado && pestanaViajes === 'confirmados' && viajesConfirmados.map((viaje) => {
@@ -885,6 +918,49 @@ const Dashboard = () => {
                       <div style={{ backgroundColor: cfg.badgeBg, borderRadius: '6px', padding: '7px 10px', marginBottom: '10px', fontSize: '12px', color: cfg.badgeColor, fontWeight: '600' }}>
                         {cfg.info}
                       </div>
+
+                      {/* Barra de progreso del viaje */}
+                      {(() => {
+                        const pasos = [
+                          { key: 'ASSIGNED',    label: 'Confirmado' },
+                          { key: 'IN_PROGRESS', label: 'En camino' },
+                          { key: 'COMPLETED',   label: 'Completado' },
+                        ];
+                        const idxActual = pasos.findIndex(p => p.key === viaje.trip_status);
+                        return (
+                          <div style={{ marginBottom: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 0, position: 'relative' }}>
+                              {pasos.map((paso, idx) => {
+                                const activo = idx <= idxActual;
+                                const esCurrent = idx === idxActual;
+                                return (
+                                  <div key={paso.key} style={{ display: 'flex', alignItems: 'center', flex: idx < pasos.length - 1 ? 1 : 'none' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                                      <div style={{
+                                        width: esCurrent ? '20px' : '14px',
+                                        height: esCurrent ? '20px' : '14px',
+                                        borderRadius: '50%',
+                                        backgroundColor: activo ? cfg.border : '#e2e8f0',
+                                        border: esCurrent ? `3px solid ${cfg.border}` : 'none',
+                                        boxShadow: esCurrent ? `0 0 0 3px ${cfg.border}22` : 'none',
+                                        transition: 'all 0.3s',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        flexShrink: 0,
+                                      }}>
+                                        {activo && !esCurrent && <span style={{ color: '#fff', fontSize: '8px', fontWeight: '700' }}>✓</span>}
+                                      </div>
+                                      <span style={{ fontSize: '9px', fontWeight: '600', color: activo ? cfg.badgeColor : '#94a3b8', whiteSpace: 'nowrap' }}>{paso.label}</span>
+                                    </div>
+                                    {idx < pasos.length - 1 && (
+                                      <div style={{ flex: 1, height: '3px', backgroundColor: idx < idxActual ? cfg.border : '#e2e8f0', margin: '0 4px', marginBottom: '14px', borderRadius: '2px', transition: 'background-color 0.3s' }} />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       {/* Info conductor */}
                       <div style={{ backgroundColor: '#fff', borderRadius: '8px', padding: '10px 12px', border: `1px solid ${cfg.border}33`, display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#e2e8f0', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0 }}>
@@ -952,6 +1028,9 @@ const Dashboard = () => {
                             </div>
                             <div style={{ fontWeight: 'bold', fontSize: '18px', color: BRAND_GREEN }}>${oferta.precio.toLocaleString()}</div>
                           </div>
+                          {oferta.created_at && (
+                            <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>🕐 Oferta enviada {tiempoRelativo(oferta.created_at)}</div>
+                          )}
                           <div style={{ display: 'flex', gap: '8px', marginTop: '15px' }}>
                             <button onClick={() => handleAceptarOferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: BRAND_GREEN, color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Aceptar</button>
                             <button onClick={() => handleContraoferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: '#e0f2fe', color: '#0369a1', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Contra ofertar</button>
