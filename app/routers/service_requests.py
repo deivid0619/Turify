@@ -272,7 +272,7 @@ def mark_notification_read(
 
 
 # GET /api/service-requests/assigned
-# Pasajero ve sus viajes confirmados (ASSIGNED) con datos del conductor asignado
+# Pasajero ve sus viajes activos (ASSIGNED, IN_PROGRESS, COMPLETED) con datos del conductor asignado
 
 @router.get("/assigned")
 def get_assigned_requests(
@@ -281,7 +281,7 @@ def get_assigned_requests(
 ):
     viajes = db.query(models.ServiceRequest).filter(
         models.ServiceRequest.passenger_id == current_user.user_id,
-        models.ServiceRequest.status == 'ASSIGNED'
+        models.ServiceRequest.status.in_(['ASSIGNED', 'IN_PROGRESS', 'COMPLETED'])
     ).order_by(models.ServiceRequest.created_at.desc()).all()
 
     resultado = []
