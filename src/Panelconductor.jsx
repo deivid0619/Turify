@@ -25,6 +25,10 @@ const PanelConductor = ({ onVerRuta }) => {
   const [notificaciones, setNotificaciones] = useState([]);
   const [mostrarNotifPanel, setMostrarNotifPanel] = useState(false);
 
+  // Filtros del radar
+  const [filtros, setFiltros] = useState({ tipo: 'todos', pasajeros: 'todos', mascotas: false });
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+
   // Notificaciones del conductor
   const cargarNotificaciones = async () => {
     try {
@@ -215,6 +219,17 @@ const PanelConductor = ({ onVerRuta }) => {
     return m[estado] || { bg: '#f1f5f9', color: '#475569', label: estado };
   };
 
+  const solicitudesFiltradas = solicitudes.filter(sol => {
+    if (filtros.tipo !== 'todos' && sol.trip_type !== filtros.tipo) return false;
+    const totalPax = (sol.adults_count || 1) + (sol.children_count || 0);
+    if (filtros.pasajeros === '1') { if (totalPax !== 1) return false; }
+    else if (filtros.pasajeros === '2-4') { if (totalPax < 2 || totalPax > 4) return false; }
+    else if (filtros.pasajeros === '5+') { if (totalPax < 5) return false; }
+    if (filtros.mascotas && !sol.has_pets) return false;
+    return true;
+  });
+  const filtrosActivos = filtros.tipo !== 'todos' || filtros.pasajeros !== 'todos' || filtros.mascotas;
+
   return (
     <>
     <style>{`
@@ -334,6 +349,69 @@ const PanelConductor = ({ onVerRuta }) => {
         {/* PESTAÑA RADAR */}
         {pestanaActiva === 'radar' && (
           <>
+            {/* BARRA DE FILTROS */}
+            <div style={{ marginBottom: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: mostrarFiltros ? '10px' : '0' }}>
+                <button onClick={() => setMostrarFiltros(f => !f)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: filtrosActivos ? '#f0fdf4' : '#f8fafc', border: `1px solid ${filtrosActivos ? BRAND_GREEN : '#e2e8f0'}`, borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', color: filtrosActivos ? BRAND_GREEN : '#475569', cursor: 'pointer' }}>
+                  <span>⚙️</span> Filtros
+                  {filtrosActivos && <span style={{ background: BRAND_GREEN, color: '#fff', borderRadius: '50%', width: '16px', height: '16px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>}
+                </button>
+                {filtrosActivos && (
+                  <button onClick={() => setFiltros({ tipo: 'todos', pasajeros: 'todos', mascotas: false })}
+                    style={{ background: 'none', border: 'none', fontSize: '11px', color: '#ef4444', fontWeight: '600', cursor: 'pointer' }}>
+                    Limpiar filtros
+                  </button>
+                )}
+              </div>
+
+              <AnimatePresence>
+                {mostrarFiltros && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                    style={{ overflow: 'hidden', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+
+                    {/* Tipo de viaje */}
+                    <p style={{ margin: '0 0 6px', fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tipo de viaje</p>
+                    <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                      {[{ val: 'todos', label: 'Todos' }, { val: 'ONE_WAY', label: '→ Solo ida' }, { val: 'ROUND_TRIP', label: '↩ Ida y vuelta' }].map(op => (
+                        <button key={op.val} onClick={() => setFiltros(f => ({ ...f, tipo: op.val }))}
+                          style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: '600', transition: 'all 0.15s', backgroundColor: filtros.tipo === op.val ? BRAND_GREEN : '#e2e8f0', color: filtros.tipo === op.val ? '#fff' : '#475569' }}>
+                          {op.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Pasajeros */}
+                    <p style={{ margin: '0 0 6px', fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pasajeros</p>
+                    <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                      {[{ val: 'todos', label: 'Todos' }, { val: '1', label: '1 pasajero' }, { val: '2-4', label: '2–4' }, { val: '5+', label: '5 o más' }].map(op => (
+                        <button key={op.val} onClick={() => setFiltros(f => ({ ...f, pasajeros: op.val }))}
+                          style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: '600', transition: 'all 0.15s', backgroundColor: filtros.pasajeros === op.val ? BRAND_GREEN : '#e2e8f0', color: filtros.pasajeros === op.val ? '#fff' : '#475569' }}>
+                          {op.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Mascotas */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Solo con mascotas 🐾</p>
+                      <div onClick={() => setFiltros(f => ({ ...f, mascotas: !f.mascotas }))}
+                        style={{ width: '36px', height: '20px', borderRadius: '10px', backgroundColor: filtros.mascotas ? BRAND_GREEN : '#cbd5e1', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
+                        <div style={{ position: 'absolute', top: '2px', left: filtros.mascotas ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Contador de resultados filtrados */}
+              {filtrosActivos && !cargando && (
+                <p style={{ margin: '8px 0 0', fontSize: '11px', color: '#64748b' }}>
+                  {solicitudesFiltradas.length} de {solicitudes.length} viaje(s) coinciden con tus filtros
+                </p>
+              )}
+            </div>
+
             {cargando && (
               <>
                 <SkeletonTarjetaViaje />
@@ -347,20 +425,41 @@ const PanelConductor = ({ onVerRuta }) => {
                 <button onClick={cargarSolicitudes} style={{ marginTop: '8px', background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>Reintentar</button>
               </div>
             )}
-            {/* ESTADO VACÍO AMIGABLE - SCRUM-75 */}
+            {/* ESTADO VACÍO */}
             {!cargando && !error && solicitudes.length === 0 && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', padding: '40px 20px' }}>
-                <div style={{ fontSize: '48px', marginBottom: '12px' }}>🗺️</div>
-                <p style={{ margin: '0 0 6px', fontWeight: '700', color: '#1e293b', fontSize: '15px' }}>Por ahora no hay viajes en tu zona</p>
-                <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '13px', lineHeight: '1.5' }}>Te avisaremos cuando haya nuevas solicitudes cerca de ti.</p>
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', padding: '36px 20px' }}>
+                <svg width="110" height="90" viewBox="0 0 110 90" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginBottom: '14px', opacity: 0.75 }}>
+                  <circle cx="55" cy="45" r="32" fill="#f0fdf4" stroke="#bbf7d0" strokeWidth="1.5"/>
+                  <circle cx="55" cy="45" r="20" fill="none" stroke="#86efac" strokeWidth="1" strokeDasharray="4 3"/>
+                  <circle cx="55" cy="45" r="8" fill="#dcfce7" stroke="#22c55e" strokeWidth="1.5"/>
+                  <circle cx="55" cy="45" r="3" fill="#16a34a"/>
+                  <line x1="55" y1="13" x2="55" y2="7" stroke="#22c55e" strokeWidth="2" strokeLinecap="round"/>
+                  <line x1="55" y1="77" x2="55" y2="83" stroke="#22c55e" strokeWidth="2" strokeLinecap="round"/>
+                  <line x1="23" y1="45" x2="17" y2="45" stroke="#22c55e" strokeWidth="2" strokeLinecap="round"/>
+                  <line x1="87" y1="45" x2="93" y2="45" stroke="#22c55e" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                <p style={{ margin: '0 0 6px', fontWeight: '700', color: '#1e293b', fontSize: '14px' }}>Radar sin señal</p>
+                <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '13px', lineHeight: '1.5' }}>No hay viajes en tu zona por ahora.<br/>Vuelve a verificar en un momento.</p>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={cargarSolicitudes}
-                  style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
+                  style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
                   🔄 Verificar de nuevo
                 </motion.button>
               </motion.div>
             )}
-            {/* TARJETAS - SCRUM-75, SCRUM-76, SCRUM-77 */}
-            {!cargando && solicitudes.map((sol) => {
+            {/* ESTADO VACÍO CUANDO HAY VIAJES PERO NINGUNO PASA FILTROS */}
+            {!cargando && !error && solicitudes.length > 0 && solicitudesFiltradas.length === 0 && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ textAlign: 'center', padding: '30px 20px' }}>
+                <div style={{ fontSize: '32px', marginBottom: '10px' }}>🔍</div>
+                <p style={{ margin: '0 0 6px', fontWeight: '700', color: '#1e293b', fontSize: '14px' }}>Sin resultados con estos filtros</p>
+                <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: '13px' }}>Hay {solicitudes.length} viaje(s) disponibles, pero ninguno coincide.</p>
+                <button onClick={() => setFiltros({ tipo: 'todos', pasajeros: 'todos', mascotas: false })}
+                  style={{ background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, borderRadius: '8px', padding: '7px 14px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
+                  Limpiar filtros
+                </button>
+              </motion.div>
+            )}
+            {/* TARJETAS */}
+            {!cargando && solicitudesFiltradas.map((sol) => {
               const estaSeleccionada = tarjetaRutaId === sol.request_id;
               return (
                 <motion.div key={sol.request_id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}

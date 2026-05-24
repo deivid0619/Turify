@@ -10,6 +10,8 @@ const Registro = ({ irALogin }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [mensajeExito, setMensajeExito] = useState('');
+  const [errorBackend, setErrorBackend] = useState('');
 
   const hasMinLength = formData.password.length >= 8;
   const hasUppercase = /[A-Z]/.test(formData.password);
@@ -27,6 +29,7 @@ const Registro = ({ irALogin }) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
     if (errores[name]) setErrores({ ...errores, [name]: '' });
+    if (errorBackend) setErrorBackend('');
   };
 
   const validarFormulario = () => {
@@ -52,14 +55,14 @@ const Registro = ({ irALogin }) => {
         body: JSON.stringify(payload)
       });
       if (response.ok) {
-        alert('¡Registro exitoso! Ya puedes iniciar sesión.');
-        irALogin();
+        setMensajeExito('¡Cuenta creada exitosamente! Redirigiendo al login...');
+        setTimeout(() => irALogin(), 1800);
       } else {
         const errorData = await response.json();
-        alert(`Error en el registro: ${errorData.detail || 'Inténtalo de nuevo.'}`);
+        setErrorBackend(errorData.detail || 'Error en el registro. Inténtalo de nuevo.');
       }
     } catch {
-      alert('Error de conexión. Verifica que el backend esté activo.');
+      setErrorBackend('Error de conexión. Verifica que el backend esté activo.');
     } finally {
       setIsLoading(false);
     }
@@ -420,6 +423,17 @@ const Registro = ({ irALogin }) => {
                 className={`reg-btn ${isFormValid && !isLoading ? 'reg-btn-active' : 'reg-btn-disabled'}`}>
                 {isLoading ? <div className="reg-loading-dots"><span /><span /><span /></div> : 'Crear cuenta'}
               </button>
+
+              {errorBackend && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '8px', padding: '11px 14px', color: '#fca5a5', fontSize: '13px', marginTop: '12px' }}>
+                  <span>⚠️</span> {errorBackend}
+                </div>
+              )}
+              {mensajeExito && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', borderRadius: '8px', padding: '11px 14px', color: '#4ade80', fontSize: '13px', marginTop: '12px' }}>
+                  <span>✅</span> {mensajeExito}
+                </div>
+              )}
             </form>
 
             <p className="reg-login-link">
