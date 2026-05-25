@@ -1,3 +1,4 @@
+import API_BASE_URL from './api';
 import { useState } from 'react';
 import logoTurify from './logo.png';
 import fondoImagen from './fondo.png';
@@ -24,7 +25,7 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
     urlEncodedData.append('username', formData.email);
     urlEncodedData.append('password', formData.password);
     try {
-      const response = await fetch('http://127.0.0.1:8000/users/login', {
+      const response = await fetch(`${API_BASE_URL}/users/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'ngrok-skip-browser-warning': 'true' },
         body: urlEncodedData
