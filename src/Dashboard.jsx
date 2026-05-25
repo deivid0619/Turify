@@ -6,7 +6,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './AuthContext';
-import PanelConductor from './Panelconductor';
+import PanelConductor from './Paneldonductor';
 import InputDireccion from './Inputdireccion';
 import PerfilDrawer from './PerfilDrawer';
 import { ToastContainer, useToast } from './Toast';
