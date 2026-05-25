@@ -1,3 +1,4 @@
+import API_BASE_URL from './api';
 import { useState } from 'react';
 import logoTurify from './logo.png';
 import fondoImagen from './fondo.png';
@@ -49,7 +50,7 @@ const Registro = ({ irALogin }) => {
     setIsLoading(true);
     const { confirmPassword, ...payload } = formData;
     try {
-      const response = await fetch('http://127.0.0.1:8000/users/register', {
+      const response = await fetch(`${API_BASE_URL}/users/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
         body: JSON.stringify(payload)
