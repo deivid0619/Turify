@@ -1,3 +1,4 @@
+import API_BASE_URL from './api';
 import { useState, useEffect } from 'react';
 import { AuthContext } from './AuthContext';
 
@@ -28,7 +29,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!token) { setUsuario(null); return; }
-    fetch('http://127.0.0.1:8000/users/me', {
+    fetch(`${API_BASE_URL}/users/me`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'ngrok-skip-browser-warning': 'true'
