@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './AuthContext';
 
 const BRAND_GREEN = '#16a34a';
-const API_BASE_URL = 'http://127.0.0.1:8000';
+import API_BASE_URL from './api';
 
 const ETIQUETA_DOCUMENTO = {
   'SOAT': 'SOAT Vigente',
