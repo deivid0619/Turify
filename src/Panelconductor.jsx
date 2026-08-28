@@ -5,7 +5,7 @@ import { ToastContainer, useToast } from './Toast';
 import { SkeletonTarjetaViaje } from './Skeleton';
 
 const BRAND_GREEN = '#16a34a';
-const API_BASE_URL = 'http://127.0.0.1:8000';
+import API_BASE_URL from './api';
 
 const PanelConductor = ({ onVerRuta }) => {
   const { token, usuario } = useContext(AuthContext);
@@ -29,7 +29,7 @@ const PanelConductor = ({ onVerRuta }) => {
   const [filtros, setFiltros] = useState({ tipo: 'todos', pasajeros: 'todos', mascotas: false });
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
 
-  // Notificaciones del conductor
+  // Notificaciones del conductor — carga inicial + Realtime (fallback a polling)
   const cargarNotificaciones = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/service-requests/notifications`, {
@@ -40,11 +40,29 @@ const PanelConductor = ({ onVerRuta }) => {
   };
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !usuario) return;
     cargarNotificaciones();
-    const intervalo = setInterval(cargarNotificaciones, 15000);
-    return () => clearInterval(intervalo);
-  }, [token]);
+
+    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+    const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      import('@supabase/supabase-js').then(({ createClient }) => {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const channel = supabase
+          .channel(`notif-conductor-${usuario.user_id}`)
+          .on('postgres_changes', {
+            event: 'INSERT', schema: 'public', table: 'Notification',
+            filter: `user_id=eq.${usuario.user_id}`
+          }, () => cargarNotificaciones())
+          .subscribe();
+        return () => supabase.removeChannel(channel);
+      });
+    } else {
+      const intervalo = setInterval(cargarNotificaciones, 15000);
+      return () => clearInterval(intervalo);
+    }
+  }, [token, usuario]);
 
   const marcarLeida = async (notifId) => {
     try {

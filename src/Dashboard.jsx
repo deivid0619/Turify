@@ -17,7 +17,7 @@ let DefaultIcon = L.divIcon({ html: greenMarkerHtml, className: '', iconSize: [1
 L.Marker.prototype.options.icon = DefaultIcon;
 
 const BRAND_GREEN = '#16a34a';
-const API_BASE_URL = 'http://127.0.0.1:8000';
+import API_BASE_URL from './api';
 
 const AjustarCamara = ({ coordenadas }) => {
   const map = useMap();
@@ -283,7 +283,7 @@ const Dashboard = () => {
     }
   };
 
-  // SCRUM-91: Cargar notificaciones reales del backend
+  // Cargar notificaciones — carga inicial + Realtime (fallback a polling)
   const cargarNotificaciones = async () => {
     if (!token) return;
     try {
@@ -295,11 +295,31 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !usuario) return;
     cargarNotificaciones();
-    const intervalo = setInterval(cargarNotificaciones, 15000);
-    return () => clearInterval(intervalo);
-  }, [token]);
+
+    // Supabase Realtime — escucha INSERT en Notification para este usuario
+    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+    const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      import('@supabase/supabase-js').then(({ createClient }) => {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const channel = supabase
+          .channel(`notif-dashboard-${usuario.user_id}`)
+          .on('postgres_changes', {
+            event: 'INSERT', schema: 'public', table: 'Notification',
+            filter: `user_id=eq.${usuario.user_id}`
+          }, () => cargarNotificaciones())
+          .subscribe();
+        return () => supabase.removeChannel(channel);
+      });
+    } else {
+      // Fallback polling si Supabase no configurado
+      const intervalo = setInterval(cargarNotificaciones, 15000);
+      return () => clearInterval(intervalo);
+    }
+  }, [token, usuario]);
 
   const marcarLeida = async (notifId) => {
     try {
@@ -496,10 +516,29 @@ const Dashboard = () => {
       }
     };
     cargar();
-    // Polling de viajes confirmados para detectar cambios de estado (IN_PROGRESS, COMPLETED)
-    const intervaloViajes = setInterval(() => cargarMisViajes(), 15000);
-    return () => clearInterval(intervaloViajes);
-  }, [token]);
+
+    // Supabase Realtime — escucha UPDATE en ServiceRequest para este pasajero
+    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+    const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (SUPABASE_URL && SUPABASE_ANON_KEY && usuario) {
+      import('@supabase/supabase-js').then(({ createClient }) => {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const channel = supabase
+          .channel(`viajes-pasajero-${usuario.user_id}`)
+          .on('postgres_changes', {
+            event: 'UPDATE', schema: 'public', table: 'ServiceRequest',
+            filter: `passenger_id=eq.${usuario.user_id}`
+          }, () => cargarMisViajes())
+          .subscribe();
+        return () => supabase.removeChannel(channel);
+      });
+    } else {
+      // Fallback polling
+      const intervaloViajes = setInterval(() => cargarMisViajes(), 15000);
+      return () => clearInterval(intervaloViajes);
+    }
+  }, [token, usuario]);
 
   // Tiempo relativo para ofertas
   const tiempoRelativo = (fechaStr) => {
