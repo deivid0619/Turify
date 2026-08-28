@@ -7,16 +7,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 SQLALCHEMY_DATABASE_URL = (
-    os.getenv("MYSQL_URL") or
+    os.getenv("SUPABASE_DB_URL") or
     os.getenv("SQLALCHEMY_DATABASE_URL") or
-    "mysql+pymysql://root:password@localhost:3306/turify_db"
+    "postgresql://postgres:1234@localhost:5432/turify_db"
 )
 
-# Railway entrega mysql:// pero SQLAlchemy necesita mysql+pymysql://
-if SQLALCHEMY_DATABASE_URL.startswith("mysql://"):
-    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("mysql://", "mysql+pymysql://", 1)
+# Convertir postgres:// a postgresql:// si es necesario
+if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+engine = create_engine(SQLALCHEMY_DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
