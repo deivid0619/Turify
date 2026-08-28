@@ -1,12 +1,12 @@
 import os
 import uuid
-import cloudinary
-import cloudinary.uploader
+from io import BytesIO
 from dotenv import load_dotenv
 
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
+from supabase import create_client, Client
 
 from app.database import get_db
 from app.security import get_current_user
@@ -14,43 +14,81 @@ from app import models, schemas
 
 load_dotenv()
 
-cloudinary.config(
-    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-    api_key=os.getenv("CLOUDINARY_API_KEY"),
-    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
-    secure=True
-)
+# ── Supabase Storage client ──────────────────────────────────────────────────
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")  # service_role key (no anon)
+
+def get_supabase() -> Client:
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="Supabase no configurado. Verifica SUPABASE_URL y SUPABASE_SERVICE_KEY en el .env"
+        )
+    return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+# ── Tipos MIME permitidos ────────────────────────────────────────────────────
+TIPOS_PERMITIDOS = {
+    "application/pdf": "pdf",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+}
+TAMANO_MAXIMO_MB = 5
 
 router = APIRouter(prefix="/drivers", tags=["Modo Conductor"])
 
-def detectar_extension(file: UploadFile) -> str:
-    """
-    Detecta la extensión real del archivo usando content_type y filename.
-    Si no se puede detectar, asume pdf.
-    """
+
+def validar_archivo(file: UploadFile) -> str:
+    """Valida tipo MIME y devuelve la extensión. Lanza HTTPException si no es válido."""
     content_type = file.content_type or ""
-    filename = file.filename or ""
+    if content_type not in TIPOS_PERMITIDOS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tipo de archivo no permitido: {content_type}. Solo se aceptan PDF, JPG, PNG y WEBP."
+        )
+    return TIPOS_PERMITIDOS[content_type]
 
-    # Por content_type
-    mapa_content_type = {
-        "application/pdf": "pdf",
-        "image/jpeg": "jpg",
-        "image/jpg": "jpg",
-        "image/png": "png",
-        "image/webp": "webp",
-        "image/heic": "heic",
-    }
-    if content_type in mapa_content_type:
-        return mapa_content_type[content_type]
 
-    # Por extensión del filename
-    if "." in filename:
-        ext = filename.rsplit(".", 1)[1].lower()
-        if ext in ["pdf", "jpg", "jpeg", "png", "webp", "heic"]:
-            return ext
+async def upload_to_supabase(
+    supabase: Client,
+    file: UploadFile,
+    bucket: str,
+    path: str,
+) -> str:
+    """
+    Sube un archivo a Supabase Storage y devuelve la URL firmada (expira en 15 min).
+    Para acceso permanente del admin se usa signed URL con TTL largo.
+    """
+    ext = validar_archivo(file)
 
-    # Por defecto asumimos pdf para documentos legales
-    return "pdf"
+    # Leer contenido y validar tamaño
+    contenido = await file.read()
+    tamano_mb = len(contenido) / (1024 * 1024)
+    if tamano_mb > TAMANO_MAXIMO_MB:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El archivo supera el límite de {TAMANO_MAXIMO_MB}MB ({tamano_mb:.1f}MB)."
+        )
+
+    file_path = f"{path}/{uuid.uuid4()}.{ext}"
+
+    try:
+        supabase.storage.from_(bucket).upload(
+            path=file_path,
+            file=contenido,
+            file_options={"content-type": file.content_type}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error subiendo archivo a Supabase: {str(e)}")
+
+    # URL firmada con 1 año de validez para documentos legales
+    try:
+        signed = supabase.storage.from_(bucket).create_signed_url(file_path, expires_in=31536000)
+        return signed["signedURL"]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generando URL firmada: {str(e)}")
+
 
 @router.post("/register-details")
 async def register_driver_info(
@@ -68,7 +106,7 @@ async def register_driver_info(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    # --- VALIDACIÓN: bloquear si ya tiene documentos PENDING o APPROVED ---
+    # ── Bloquear si ya tiene documentos PENDING o APPROVED ───────────────────
     docs_existentes = db.query(models.Document).filter(
         models.Document.user_id == current_user.user_id,
         models.Document.verification_status.in_(["PENDING", "APPROVED"])
@@ -80,36 +118,8 @@ async def register_driver_info(
             detail="Ya tienes documentos enviados. Debes esperar la revisión del administrador o tener documentos rechazados para volver a enviar."
         )
 
-    def upload_foto(file: UploadFile, folder_path: str) -> str:
-        """Sube fotos de perfil y vehículo como imagen normal."""
-        try:
-            result = cloudinary.uploader.upload(
-                file.file,
-                folder=folder_path,
-                resource_type="image"
-            )
-            return result.get("secure_url")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error subiendo foto: {str(e)}")
-
-    def upload_documento(file: UploadFile, folder_path: str, nombre_doc: str) -> str:
-        """
-        Sube documentos como image/upload para que Cloudinary
-        pueda renderizarlos directamente en el navegador (preview).
-        """
-        try:
-            result = cloudinary.uploader.upload(
-                file.file,
-                folder=folder_path,
-                resource_type="image",
-                use_filename=True,
-                unique_filename=True
-            )
-            return result.get("secure_url")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error subiendo documento '{nombre_doc}': {str(e)}")
-
-    cloud_folder = f"turify/drivers/{current_user.user_id}"
+    supabase = get_supabase()
+    base_path = f"drivers/{current_user.user_id}"
 
     try:
         # A. Actualizar datos del usuario
@@ -121,8 +131,9 @@ async def register_driver_info(
 
         user_db.age = age
         user_db.affiliated_company = affiliated_company
-        user_db.profile_photo_url = upload_foto(profile_photo, f"{cloud_folder}/profile")
-        # El rol sigue siendo PASSENGER hasta que el admin apruebe todos los documentos
+        user_db.profile_photo_url = await upload_to_supabase(
+            supabase, profile_photo, "turify-fotos", f"{base_path}/profile"
+        )
 
         # B. Vehículo — solo si no tiene uno ya
         vehiculo_existente = db.query(models.Vehicle).filter(
@@ -130,22 +141,25 @@ async def register_driver_info(
         ).first()
 
         if not vehiculo_existente:
+            vehicle_photo_url = await upload_to_supabase(
+                supabase, vehicle_photo, "turify-fotos", f"{base_path}/vehicle"
+            )
             new_vehicle = models.Vehicle(
                 owner_id=current_user.user_id,
                 company_id=affiliated_company,
                 plate=plate.upper(),
                 capacity=capacity,
-                photo_url=upload_foto(vehicle_photo, f"{cloud_folder}/vehicle")
+                photo_url=vehicle_photo_url
             )
             db.add(new_vehicle)
 
-        # C. Documentos legales — subidos como image para permitir preview en el admin
+        # C. Documentos legales → bucket privado con URLs firmadas
         docs_to_save = [
-            ("SOAT",                                   doc_soat,               "soat"),
-            ("Licencia de Conduccion",                 doc_licencia,           "licencia"),
-            ("Tarjeta de operacion",                   doc_tarjeta_operacion,  "tarjeta_operacion"),
-            ("Tecnomecanica",                          doc_tecnomecanica,      "tecnomecanica"),
-            ("Seguros Contractual y extracontractual", doc_seguros,            "seguros"),
+            ("SOAT",                                    doc_soat,              "soat"),
+            ("Licencia de Conduccion",                  doc_licencia,          "licencia"),
+            ("Tarjeta de operacion",                    doc_tarjeta_operacion, "tarjeta_operacion"),
+            ("Tecnomecanica",                           doc_tecnomecanica,     "tecnomecanica"),
+            ("Seguros Contractual y extracontractual",  doc_seguros,           "seguros"),
         ]
 
         for doc_type, file_obj, nombre_clave in docs_to_save:
@@ -157,12 +171,17 @@ async def register_driver_info(
             if doc_previo and doc_previo.verification_status in ["PENDING", "APPROVED"]:
                 continue  # Ya existe y no fue rechazado, no tocar
 
-            secure_url = upload_documento(file_obj, f"{cloud_folder}/documents", nombre_clave)
+            secure_url = await upload_to_supabase(
+                supabase, file_obj, "turify-documentos", f"{base_path}/{nombre_clave}"
+            )
 
             if doc_previo:
                 # Era rechazado — actualizar con el nuevo archivo
                 doc_previo.file_url = secure_url
                 doc_previo.verification_status = "PENDING"
+                doc_previo.ai_extracted_data = None
+                doc_previo.ai_confidence = None
+                doc_previo.ai_observations = None
             else:
                 db.add(models.Document(
                     user_id=current_user.user_id,
@@ -200,10 +219,6 @@ def get_registration_status(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """
-    El frontend usa este endpoint para saber si mostrar el formulario
-    o el estado actual de los documentos del conductor.
-    """
     documentos = db.query(models.Document).filter(
         models.Document.user_id == current_user.user_id
     ).all()
