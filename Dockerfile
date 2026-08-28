@@ -1,23 +1,25 @@
-# ── Backend Turify — FastAPI ─────────────────────────────────────────────────
-FROM python:3.13-slim
+# ── Frontend Turify — React/Vite ─────────────────────────────────────────────
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Instalar dependencias del sistema
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Instalar dependencias
+COPY package*.json ./
+RUN npm ci
 
-# Instalar dependencias Python
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copiar código fuente
+# Copiar código y construir
 COPY . .
+RUN npm run build
 
-# Exponer puerto
-EXPOSE 8000
+# ── Servidor de producción con Nginx ─────────────────────────────────────────
+FROM nginx:alpine
 
-# Comando de inicio
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Copiar build de Vite
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Configuración de Nginx para React Router
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
