@@ -1,0 +1,66 @@
+version: '3.9'
+
+services:
+
+  # ── Base de datos PostgreSQL local ─────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: turify-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: deivid0619
+      POSTGRES_DB: turify_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - turify_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend FastAPI ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./turify-backend
+      dockerfile: Dockerfile
+    container_name: turify-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      SQLALCHEMY_DATABASE_URL: postgresql://postgres:deivid0619@db:5432/turify_db
+      SECRET_KEY: turify2026key
+      CLOUDINARY_CLOUD_NAME: dndhp5u2r
+      CLOUDINARY_API_KEY: "249839992439446"
+      CLOUDINARY_API_SECRET: WKngiBXyG8o2VWeevV_MeZ5gXxU
+      SUPABASE_URL: https://zuhuinrahcvnyluautow.supabase.co
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./turify-backend:/app
+
+  # ── Frontend React/Vite ─────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./turify-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8000
+        VITE_SUPABASE_URL: https://zuhuinrahcvnyluautow.supabase.co
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_ORS_API_KEY: ${VITE_ORS_API_KEY}
+        VITE_GEOAPIFY_API_KEY: df08a0d704f447cd91d7ab6d7f2896bf
+    container_name: turify-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  turify_pg_data:
