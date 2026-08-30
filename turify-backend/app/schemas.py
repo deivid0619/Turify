@@ -90,14 +90,27 @@ class ServiceRequestCreate(BaseModel):
     return_time: Optional[datetime] = None
     trip_type: TripType
     # Nuevos campos según tu tabla SQL
-    adults_count: int 
+    adults_count: int
     children_count: int = 0
     has_pets: bool = False
+    # Épica 2 (HU08) — datos de la ruta calculados con Google Maps, para el motor de precio (Épica 12)
+    origin_lat: Optional[float] = None
+    origin_lng: Optional[float] = None
+    destination_lat: Optional[float] = None
+    destination_lng: Optional[float] = None
+    distance_km: Optional[float] = None
+    tolls_count: Optional[int] = None
+    tolls_cost: Optional[float] = None
+    tipo_via: Optional[str] = None  # 'PAVIMENTADA' | 'DESTAPADA' | 'MIXTA'
+    # HU09 — punto y radio de búsqueda de conductores (por defecto: el origen, 15 km)
+    search_lat: Optional[float] = None
+    search_lng: Optional[float] = None
+    radius_km: Optional[float] = None
 
     @model_validator(mode='after')
     def validate_dates(self) -> 'ServiceRequestCreate':
         # ... (mantén tu lógica de validación de fechas anterior)
-        
+
         # Validación adicional: Al menos debe viajar un adulto
         if self.adults_count <= 0:
             raise ValueError("Debe haber al menos un adulto en la solicitud.")
@@ -187,3 +200,8 @@ class UserProfileResponse(BaseModel):
 
     class Config:
         from_attributes = True
+# HU09 — Rango geográfico de conductores
+class DriverLocationUpdate(BaseModel):
+    current_lat: Optional[float] = None
+    current_lng: Optional[float] = None
+    is_online: Optional[bool] = None

@@ -1,7 +1,4 @@
-import os
 import httpx
-import cloudinary
-import cloudinary.utils
 from dotenv import load_dotenv
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -16,13 +13,6 @@ from app import models
 from app.audit import registrar_log
 
 load_dotenv()
-
-cloudinary.config(
-    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-    api_key=os.getenv("CLOUDINARY_API_KEY"),
-    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
-    secure=True
-)
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -138,7 +128,7 @@ def get_driver_documents(
     return db.query(models.Document).filter(models.Document.user_id == user_id).all()
 
 # --- GET /admin/documents/{document_id}/file ---
-# Proxy: descarga el archivo de Cloudinary con credenciales y lo sirve al frontend
+# Proxy: descarga el archivo desde su URL (Supabase Storage) y lo sirve al frontend
 @router.get("/documents/{document_id}/file")
 async def proxy_documento(
     document_id: int,
@@ -153,59 +143,16 @@ async def proxy_documento(
 
     url_original = documento.file_url
 
-    # Generar URL firmada de Cloudinary
-    # Extraemos el public_id correctamente desde la URL
-    try:
-        # URL ejemplo: https://res.cloudinary.com/cloud_name/image/upload/v123456/turify/drivers/18/documents/soat_abc123.pdf
-        if "/upload/" in url_original:
-            parte_despues_upload = url_original.split("/upload/")[1]
-            # Quitar version si existe (v seguido de números)
-            segmentos = parte_despues_upload.split("/")
-            if segmentos[0].startswith("v") and segmentos[0][1:].isdigit():
-                segmentos = segmentos[1:]
-            public_id_con_extension = "/".join(segmentos)
-
-            # Para image/upload los PDFs se guardan con extensión — Cloudinary
-            # necesita el public_id SIN extensión para image, CON extensión para raw
-            resource_type = "raw" if "/raw/upload/" in url_original else "image"
-
-            if resource_type == "image":
-                # Quitar extensión del public_id para image resources
-                if "." in public_id_con_extension:
-                    public_id = public_id_con_extension.rsplit(".", 1)[0]
-                else:
-                    public_id = public_id_con_extension
-            else:
-                public_id = public_id_con_extension
-
-            # Generar URL firmada válida por 1 hora
-            url_firmada, _ = cloudinary.utils.cloudinary_url(
-                public_id,
-                resource_type=resource_type,
-                type="upload",
-                sign_url=True,
-                secure=True
-            )
-        else:
-            url_firmada = url_original
-
-    except Exception as e:
-        # Si falla la firma, usar la URL original directamente
-        url_firmada = url_original
-
-    # Descargar el archivo y reenviarlo al frontend
+    # Descargar el archivo (Document.file_url ya es una URL firmada de Supabase Storage,
+    # no necesita firmarse aparte como pasaba con Cloudinary) y reenviarlo al frontend
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            respuesta = await client.get(url_firmada)
-
-            # Si la URL firmada falla, intentar con la original
-            if respuesta.status_code != 200:
-                respuesta = await client.get(url_original)
+            respuesta = await client.get(url_original)
 
             if respuesta.status_code != 200:
                 raise HTTPException(
                     status_code=502,
-                    detail=f"Cloudinary devolvió {respuesta.status_code}"
+                    detail=f"El almacenamiento devolvió {respuesta.status_code}"
                 )
 
         # Determinar content-type

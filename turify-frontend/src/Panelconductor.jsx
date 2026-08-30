@@ -29,6 +29,10 @@ const PanelConductor = ({ onVerRuta }) => {
   const [filtros, setFiltros] = useState({ tipo: 'todos', pasajeros: 'todos', mascotas: false });
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
 
+  // HU09 — Disponibilidad y rango geográfico del conductor
+  const [disponible, setDisponible] = useState(false);
+  const [ubicacionActual, setUbicacionActual] = useState(null); // { lat, lng }
+
   // Notificaciones del conductor — carga inicial + Realtime (fallback a polling)
   const cargarNotificaciones = async () => {
     try {
@@ -80,10 +84,62 @@ const PanelConductor = ({ onVerRuta }) => {
     notificaciones.filter(n => !n.is_read).forEach(n => marcarLeida(n.notification_id));
   };
 
+  // HU09 — Envía current_lat/current_lng/is_online al backend
+  const actualizarUbicacionBackend = async (payload) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/drivers/location`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return null;
+  };
+
+  // HU09 — Activar/desactivar disponibilidad. Al activar, pide geolocalización
+  // y empieza a reportarla periódicamente mientras el conductor esté disponible.
+  const toggleDisponibilidad = () => {
+    if (disponible) {
+      setDisponible(false);
+      actualizarUbicacionBackend({ is_online: false });
+      return;
+    }
+    if (!navigator.geolocation) {
+      toast('Tu navegador no soporta geolocalización.', 'error');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setUbicacionActual({ lat: latitude, lng: longitude });
+        setDisponible(true);
+        actualizarUbicacionBackend({ current_lat: latitude, current_lng: longitude, is_online: true });
+      },
+      () => toast('No se pudo obtener tu ubicación. Actívala e intenta de nuevo.', 'error'),
+      { enableHighAccuracy: true }
+    );
+  };
+
+  // Mientras esté disponible, reporta su posición cada 20s (mantiene el radar actualizado)
+  useEffect(() => {
+    if (!disponible || !navigator.geolocation) return;
+    const intervalo = setInterval(() => {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const { latitude, longitude } = pos.coords;
+        setUbicacionActual({ lat: latitude, lng: longitude });
+        actualizarUbicacionBackend({ current_lat: latitude, current_lng: longitude });
+      });
+    }, 20000);
+    return () => clearInterval(intervalo);
+  }, [disponible, token]);
+
   const cargarSolicitudes = async () => {
     setCargando(true);
     setError(null);
     try {
+      // HU09 — el radio de búsqueda lo define el PASAJERO al publicar el viaje;
+      // el backend filtra comparándolo contra current_lat/current_lng del conductor.
       const res = await fetch(`${API_BASE_URL}/api/service-requests/pending`, {
         headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
       });
@@ -97,7 +153,7 @@ const PanelConductor = ({ onVerRuta }) => {
     }
   };
 
-  useEffect(() => { if (token) cargarSolicitudes(); }, [token]);
+  useEffect(() => { if (token) cargarSolicitudes(); }, [token, disponible, ubicacionActual]);
 
   // SCRUM-83: Cargar negociaciones activas cuando se cambia a esa pestaña
   const cargarOcupantes = async (requestId) => {
@@ -289,6 +345,12 @@ const PanelConductor = ({ onVerRuta }) => {
             <p style={{ margin: '2px 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>Hola, {usuario?.full_name?.split(' ')[0] || 'Conductor'}</p>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {/* HU09 — Switch de disponibilidad */}
+            <div onClick={toggleDisponibilidad} title={disponible ? 'Disponible — toca para desconectarte' : 'No disponible — toca para conectarte'}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '20px', padding: '4px 10px 4px 8px', cursor: 'pointer' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: disponible ? '#4ade80' : '#94a3b8', boxShadow: disponible ? '0 0 6px #4ade80' : 'none' }} />
+              <span style={{ fontSize: '11px', fontWeight: '600', color: '#fff' }}>{disponible ? 'Disponible' : 'Desconectado'}</span>
+            </div>
             {/* Campana de notificaciones */}
             <div onClick={() => setMostrarNotifPanel(true)}
               style={{ position: 'relative', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

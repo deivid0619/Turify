@@ -59,7 +59,21 @@ def create_service_request(
             adults_count=request_data.adults_count,
             children_count=request_data.children_count,
             has_pets=request_data.has_pets,
-            status="PENDING"
+            status="PENDING",
+            # Épica 2 (HU08) — datos de ruta de Google Maps, para el motor de precio (Épica 12)
+            origin_lat=request_data.origin_lat,
+            origin_lng=request_data.origin_lng,
+            destination_lat=request_data.destination_lat,
+            destination_lng=request_data.destination_lng,
+            distance_km=request_data.distance_km,
+            tolls_count=request_data.tolls_count or 0,
+            tolls_cost=request_data.tolls_cost or 0,
+            tipo_via=request_data.tipo_via or "PAVIMENTADA",
+            # HU09 — punto/radio de búsqueda de conductores. Si el pasajero no eligió
+            # un punto distinto, usamos el origen del viaje como valor por defecto.
+            search_lat=request_data.search_lat if request_data.search_lat is not None else request_data.origin_lat,
+            search_lng=request_data.search_lng if request_data.search_lng is not None else request_data.origin_lng,
+            search_radius_km=request_data.radius_km or 15,
         )
         
         db.add(new_request)
@@ -76,6 +90,27 @@ def create_service_request(
             detail=f"Viaje creado: {request_data.origin} → {request_data.destination}"
         )
 
+        # HU09 — Notificar (push, vía Supabase Realtime + tabla Notification) a los
+        # conductores DISPONIBLES cuya ubicación cae dentro del radio de búsqueda
+        # que eligió el pasajero, en vez de que dependan de refrescar el radar.
+        if new_request.search_lat is not None and new_request.search_lng is not None:
+            radio = float(new_request.search_radius_km or 15)
+            conductores_online = db.query(models.User).filter(
+                models.User.role == "DRIVER",
+                models.User.is_online == True,
+                models.User.current_lat.isnot(None),
+                models.User.current_lng.isnot(None),
+            ).all()
+            for conductor in conductores_online:
+                if _distancia_km(new_request.search_lat, new_request.search_lng, conductor.current_lat, conductor.current_lng) <= radio:
+                    crear_notificacion(
+                        db,
+                        user_id=conductor.user_id,
+                        title="Nuevo viaje disponible cerca de ti",
+                        message=f"{request_data.origin} → {request_data.destination}",
+                        tipo="SYSTEM",
+                    )
+
         return new_request
 
     except Exception as e:
@@ -85,6 +120,17 @@ def create_service_request(
             detail=f"Error al procesar la solicitud: {str(e)}"
         )
         
+def _distancia_km(lat1, lon1, lat2, lon2):
+    """Distancia en línea recta (fórmula Haversine) entre dos puntos lat/lng."""
+    from math import radians, sin, cos, sqrt, atan2
+    R = 6371.0  # radio de la Tierra en km
+    lat1, lon1, lat2, lon2 = map(radians, [float(lat1), float(lon1), float(lat2), float(lon2)])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+    return R * 2 * atan2(sqrt(a), sqrt(1 - a))
+
+
 @router.get("/pending", response_model=list[schemas.ServiceRequestRead])
 def get_pending_requests(
     db: Session = Depends(get_db),
@@ -92,8 +138,12 @@ def get_pending_requests(
 ):
     """
     Retorna la lista de viajes con estado 'PENDING' ordenados por fecha de creación.
-    - Conductores: Ven todas las solicitudes pendientes.
-    - Pasajeros: Ven SOLO sus propias solicitudes pendientes.
+    - Conductores: Ven las solicitudes pendientes cuyo punto/radio de búsqueda
+      (elegido por el PASAJERO al publicar, HU09) alcanza la ubicación actual
+      del conductor. Si el conductor no ha compartido ubicación (current_lat/lng
+      nulos, ej. aún no activó "Disponible"), ve todas las pendientes para no
+      dejarlo sin nada que ver mientras se conecta.
+    - Pasajeros: Ven SOLO sus propias solicitudes pendientes (sin filtro geográfico).
     """
     try:
         # Iniciamos la consulta base buscando los PENDING
@@ -105,6 +155,15 @@ def get_pending_requests(
             
         # Ordenamos por los más recientes y ejecutamos
         pending_requests = query.order_by(models.ServiceRequest.created_at.desc()).all()
+
+        # Filtro geográfico (HU09) — el radio lo definió el PASAJERO al publicar el viaje.
+        # Solo aplica si el conductor ya compartió su ubicación (activó "Disponible").
+        if current_user.role == "DRIVER" and current_user.current_lat is not None and current_user.current_lng is not None:
+            pending_requests = [
+                sr for sr in pending_requests
+                if sr.search_lat is None or sr.search_lng is None or not sr.search_radius_km
+                or _distancia_km(current_user.current_lat, current_user.current_lng, sr.search_lat, sr.search_lng) <= float(sr.search_radius_km)
+            ]
             
         return pending_requests
 

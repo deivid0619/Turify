@@ -2,7 +2,18 @@ import { useState, useEffect, useRef } from 'react';
 
 const BRAND_GREEN = '#16a34a';
 
-const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, onUbicacionActual }) => {
+// Contenedor oculto reutilizable que exige la API de PlacesService de Google (necesita un
+// nodo del DOM o una instancia de mapa para construirse, aunque no lo vayamos a mostrar).
+let placesServiceDiv = null;
+const getPlacesService = () => {
+  if (!window.google?.maps?.places) return null;
+  if (!placesServiceDiv) {
+    placesServiceDiv = document.createElement('div');
+  }
+  return new window.google.maps.places.PlacesService(placesServiceDiv);
+};
+
+const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, onUbicacionActual, mapsLoaded = false }) => {
   const [sugerencias, setSugerencias] = useState([]);
   const [mostrar, setMostrar] = useState(false);
   const [cargando, setCargando] = useState(false);
@@ -10,8 +21,8 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
   const [cargandoUbicacion, setCargandoUbicacion] = useState(false);
   const debounceRef = useRef(null);
   const wrapperRef = useRef(null);
-
-  const API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
+  const autocompleteServiceRef = useRef(null);
+  const sessionTokenRef = useRef(null);
 
   useEffect(() => {
     const handleClickFuera = (e) => {
@@ -24,35 +35,45 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
     return () => document.removeEventListener('mousedown', handleClickFuera);
   }, []);
 
+  // Inicializa el AutocompleteService de Google cuando el SDK ya cargó
+  useEffect(() => {
+    if (mapsLoaded && window.google?.maps?.places && !autocompleteServiceRef.current) {
+      autocompleteServiceRef.current = new window.google.maps.places.AutocompleteService();
+    }
+  }, [mapsLoaded]);
+
   const buscarSugerencias = (texto) => {
     clearTimeout(debounceRef.current);
     setSinResultados(false);
     if (!texto || texto.length < 3) { setSugerencias([]); setMostrar(false); return; }
+    if (!mapsLoaded || !autocompleteServiceRef.current) return;
 
-    debounceRef.current = setTimeout(async () => {
+    debounceRef.current = setTimeout(() => {
       setCargando(true);
-      try {
-        const q = encodeURIComponent(texto);
-        const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${q}&filter=countrycode:co&limit=5&lang=es&apiKey=${API_KEY}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        const features = data.features || [];
-
-        if (features.length > 0) {
-          setSugerencias(features);
-          setMostrar(true);
-          setSinResultados(false);
-        } else {
-          setSugerencias([]);
-          setMostrar(true);
-          setSinResultados(true);
-        }
-      } catch {
-        setSugerencias([]);
-        setMostrar(false);
-      } finally {
-        setCargando(false);
+      // Un session token por "sesión de búsqueda" (se crea al empezar a escribir y se reusa
+      // hasta seleccionar un resultado) — reduce el costo de las llamadas a Places API
+      if (!sessionTokenRef.current) {
+        sessionTokenRef.current = new window.google.maps.places.AutocompleteSessionToken();
       }
+      autocompleteServiceRef.current.getPlacePredictions(
+        {
+          input: texto,
+          componentRestrictions: { country: 'co' },
+          sessionToken: sessionTokenRef.current,
+        },
+        (predictions, status) => {
+          setCargando(false);
+          if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions?.length > 0) {
+            setSugerencias(predictions);
+            setMostrar(true);
+            setSinResultados(false);
+          } else {
+            setSugerencias([]);
+            setMostrar(true);
+            setSinResultados(true);
+          }
+        }
+      );
     }, 350);
   };
 
@@ -61,19 +82,26 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
     buscarSugerencias(e.target.value);
   };
 
-  const seleccionarSugerencia = (feature) => {
-    const p = feature.properties;
-    // Construimos el texto: calle + ciudad + estado
-    const partes = [
-      p.street ? (p.housenumber ? `${p.street} #${p.housenumber}` : p.street) : null,
-      p.city || p.town || p.municipality || p.county || null,
-      p.state || null
-    ].filter(Boolean);
-    const texto = partes.join(', ');
-    onChange({ target: { name, value: texto } });
+  const seleccionarSugerencia = (prediction) => {
+    // Texto que se muestra en el input mientras se resuelve el detalle del lugar
+    onChange({ target: { name, value: prediction.description } });
     setSugerencias([]);
     setMostrar(false);
     setSinResultados(false);
+
+    const placesService = getPlacesService();
+    if (placesService) {
+      placesService.getDetails(
+        { placeId: prediction.place_id, fields: ['geometry', 'formatted_address'], sessionToken: sessionTokenRef.current },
+        (place, status) => {
+          if (status === window.google.maps.places.PlacesServiceStatus.OK && place?.geometry?.location) {
+            const coords = [place.geometry.location.lat(), place.geometry.location.lng()];
+            if (onUbicacionActual) onUbicacionActual({ texto: place.formatted_address || prediction.description, coords });
+          }
+          sessionTokenRef.current = null; // cerramos la sesion de autocompletar
+        }
+      );
+    }
   };
 
   const usarDireccionManual = () => {
@@ -85,24 +113,21 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
     if (!navigator.geolocation) { alert('Tu navegador no soporta geolocalización.'); return; }
     setCargandoUbicacion(true);
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
+      (pos) => {
         const { latitude, longitude } = pos.coords;
-        try {
-          const url = `https://api.geoapify.com/v1/geocode/reverse?lat=${latitude}&lon=${longitude}&lang=es&apiKey=${API_KEY}`;
-          const res = await fetch(url);
-          const data = await res.json();
-          const p = data.features?.[0]?.properties || {};
-          const nombre = p.street || p.neighbourhood || p.suburb || 'Mi ubicación';
-          const ciudad = p.city || p.town || p.municipality || '';
-          const texto = ciudad ? `${nombre}, ${ciudad}` : nombre;
-          onChange({ target: { name, value: texto } });
-          if (onUbicacionActual) onUbicacionActual({ texto, coords: [latitude, longitude] });
-        } catch {
+        if (!mapsLoaded || !window.google) {
           onChange({ target: { name, value: 'Mi ubicación' } });
           if (onUbicacionActual) onUbicacionActual({ texto: 'Mi ubicación', coords: [latitude, longitude] });
-        } finally {
           setCargandoUbicacion(false);
+          return;
         }
+        const geocoder = new window.google.maps.Geocoder();
+        geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
+          const texto = status === 'OK' && results?.[0] ? results[0].formatted_address : 'Mi ubicación';
+          onChange({ target: { name, value: texto } });
+          if (onUbicacionActual) onUbicacionActual({ texto, coords: [latitude, longitude] });
+          setCargandoUbicacion(false);
+        });
       },
       () => { alert('No pudimos acceder a tu ubicación. Verifica los permisos del navegador.'); setCargandoUbicacion(false); },
       { enableHighAccuracy: true, timeout: 8000 }
@@ -146,31 +171,24 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
         <div style={{ position: 'absolute', top: 'calc(100% + 10px)', left: '-15px', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0', zIndex: 3000, minWidth: '300px', maxWidth: '360px', overflow: 'hidden' }}>
 
           {/* RESULTADOS */}
-          {!sinResultados && sugerencias.map((feature, i) => {
-            const p = feature.properties;
-            const nombrePrincipal = p.street
-              ? (p.housenumber ? `${p.street} #${p.housenumber}` : p.street)
-              : p.name || p.neighbourhood || p.suburb || p.formatted?.split(',')[0] || '';
-            const ciudad = p.city || p.town || p.municipality || p.county || '';
-            const dpto = p.state || '';
-
-            return (
-              <div key={i} onMouseDown={() => seleccionarSugerencia(feature)}
-                style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: i < sugerencias.length - 1 ? '1px solid #f1f5f9' : 'none', display: 'flex', alignItems: 'flex-start', gap: '10px', backgroundColor: '#fff', transition: 'background 0.15s' }}
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0fdf4'}
-                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fff'}>
-                <span style={{ fontSize: '16px', marginTop: '1px', flexShrink: 0 }}>📍</span>
-                <div>
-                  <div style={{ fontWeight: '600', fontSize: '13px', color: '#1e293b' }}>{nombrePrincipal}</div>
-                  {(ciudad || dpto) && (
-                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                      {[ciudad, dpto].filter(Boolean).join(', ')} · Colombia
-                    </div>
-                  )}
+          {!sinResultados && sugerencias.map((prediction) => (
+            <div key={prediction.place_id} onMouseDown={() => seleccionarSugerencia(prediction)}
+              style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'flex-start', gap: '10px', backgroundColor: '#fff', transition: 'background 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0fdf4'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fff'}>
+              <span style={{ fontSize: '16px', marginTop: '1px', flexShrink: 0 }}>📍</span>
+              <div>
+                <div style={{ fontWeight: '600', fontSize: '13px', color: '#1e293b' }}>
+                  {prediction.structured_formatting?.main_text || prediction.description}
                 </div>
+                {prediction.structured_formatting?.secondary_text && (
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                    {prediction.structured_formatting.secondary_text}
+                  </div>
+                )}
               </div>
-            );
-          })}
+            </div>
+          ))}
 
           {/* NO ENCONTRADO */}
           {sinResultados && (

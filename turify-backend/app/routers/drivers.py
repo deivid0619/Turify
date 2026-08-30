@@ -250,3 +250,36 @@ def get_registration_status(
             for d in documentos
         ]
     }
+
+# ── HU09 — Rango geográfico de conductores ──────────────────────────────────
+@router.patch("/location")
+def update_driver_location(
+    payload: schemas.DriverLocationUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Permite al conductor actualizar su posición actual (current_lat/current_lng)
+    y su estado online/offline. El frontend del conductor debe llamar este
+    endpoint periódicamente mientras esté disponible/en viaje (Supabase Realtime
+    hace el resto en el lado de Supabase, pero la fuente de verdad la
+    actualizamos por este endpoint estándar de FastAPI).
+    """
+    if current_user.role != "DRIVER":
+        raise HTTPException(status_code=403, detail="Solo los conductores pueden actualizar su ubicación.")
+
+    if payload.current_lat is not None:
+        current_user.current_lat = payload.current_lat
+    if payload.current_lng is not None:
+        current_user.current_lng = payload.current_lng
+    if payload.is_online is not None:
+        current_user.is_online = payload.is_online
+
+    db.commit()
+    db.refresh(current_user)
+
+    return {
+        "current_lat": float(current_user.current_lat) if current_user.current_lat is not None else None,
+        "current_lng": float(current_user.current_lng) if current_user.current_lng is not None else None,
+        "is_online": current_user.is_online,
+    }
