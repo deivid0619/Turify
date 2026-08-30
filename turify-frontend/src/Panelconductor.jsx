@@ -186,6 +186,34 @@ const PanelConductor = ({ onVerRuta }) => {
     if (token && pestanaActiva === 'activos') cargarViajesActivos();
   }, [token, pestanaActiva]);
 
+  // HU26 — Sondeo ligero en segundo plano (independiente de la pestaña activa) para
+  // saber si el conductor tiene un viaje EN CURSO y así activar el tracking cada 3s.
+  useEffect(() => {
+    if (!token) return;
+    cargarViajesActivos();
+    const intervalo = setInterval(cargarViajesActivos, 15000);
+    return () => clearInterval(intervalo);
+  }, [token]);
+
+  const viajeEnCurso = viajesActivos.some(v => v.trip_status === 'IN_PROGRESS');
+
+  // HU26 — Mientras haya un viaje IN_PROGRESS, reporta la ubicación cada 3 segundos
+  // (más frecuente que el reporte de disponibilidad, para que el pasajero vea al
+  // conductor moverse en tiempo real durante el viaje).
+  useEffect(() => {
+    if (!viajeEnCurso || !navigator.geolocation) return;
+    const reportar = () => {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const { latitude, longitude } = pos.coords;
+        setUbicacionActual({ lat: latitude, lng: longitude });
+        actualizarUbicacionBackend({ current_lat: latitude, current_lng: longitude });
+      });
+    };
+    reportar();
+    const intervalo = setInterval(reportar, 3000);
+    return () => clearInterval(intervalo);
+  }, [viajeEnCurso, token]);
+
   // SCRUM-82: Conductor responde a contraoferta
   const [resolviendoOferta, setResolviendoOferta] = useState(null);
   const [ocupantesPorViaje, setOcupantesPorViaje] = useState({});

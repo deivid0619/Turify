@@ -354,14 +354,22 @@ def get_assigned_requests(
         conductor_nombre = 'Conductor asignado'
         conductor_foto = None
         precio_acordado = 0
+        driver_id = None
+        conductor_lat = None
+        conductor_lng = None
 
         if oferta_aceptada:
+            driver_id = oferta_aceptada.driver_id
             conductor = db.query(models.User).filter(
                 models.User.user_id == oferta_aceptada.driver_id
             ).first()
             if conductor:
                 conductor_nombre = conductor.full_name
                 conductor_foto = conductor.profile_photo_url
+                # HU26 — ubicación en vivo del conductor, solo tiene sentido mientras el viaje está en curso
+                if v.status == 'IN_PROGRESS':
+                    conductor_lat = float(conductor.current_lat) if conductor.current_lat is not None else None
+                    conductor_lng = float(conductor.current_lng) if conductor.current_lng is not None else None
             precio_acordado = float(oferta_aceptada.offered_price)
 
         resultado.append({
@@ -378,7 +386,10 @@ def get_assigned_requests(
             "created_at": v.created_at.isoformat() if v.created_at else None,
             "conductor_nombre": conductor_nombre,
             "conductor_foto": conductor_foto,
-            "precio_acordado": precio_acordado
+            "precio_acordado": precio_acordado,
+            "driver_id": driver_id,
+            "conductor_lat": conductor_lat,
+            "conductor_lng": conductor_lng,
         })
 
     return resultado
