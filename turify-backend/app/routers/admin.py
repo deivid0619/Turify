@@ -19,12 +19,17 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 # --- Schemas locales ---
 class DocumentVerifyRequest(BaseModel):
     verification_status: str  # 'APPROVED' | 'REJECTED'
+    # HU21 — el admin puede corregir/confirmar los años de experiencia declarados
+    # al aprobar un documento RUNT. Se ignora para cualquier otro tipo de documento.
+    years_experience: int | None = None
 
 class DocumentOut(BaseModel):
     document_id: int
     document_type: str
     file_url: str
     verification_status: str
+    years_experience: int | None = None
+    license_categories: str | None = None
 
     class Config:
         from_attributes = True
@@ -36,6 +41,7 @@ class DriverPendingOut(BaseModel):
     phone_number: str
     profile_photo_url: str | None
     role: str
+    conductor_verificado: bool = False
     documents: List[DocumentOut]
 
     class Config:
@@ -73,8 +79,8 @@ def verify_document(
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_admin_user)
 ):
-    if payload.verification_status not in ['APPROVED', 'REJECTED']:
-        raise HTTPException(status_code=400, detail="Estado inválido. Use 'APPROVED' o 'REJECTED'.")
+    if payload.verification_status not in ['APPROVED', 'REJECTED', 'PENDING']:
+        raise HTTPException(status_code=400, detail="Estado inválido. Use 'APPROVED', 'REJECTED' o 'PENDING'.")
 
     documento = db.query(models.Document).filter(
         models.Document.document_id == document_id
@@ -82,15 +88,31 @@ def verify_document(
     if not documento:
         raise HTTPException(status_code=404, detail="Documento no encontrado.")
 
+    # HU21 — si el admin corrige los años de experiencia al revisar un RUNT
+    if documento.document_type == 'RUNT' and payload.years_experience is not None:
+        documento.years_experience = payload.years_experience
+
     documento.verification_status = payload.verification_status
     db.commit()
     db.refresh(documento)
 
-    if payload.verification_status == 'APPROVED':
-        todos_docs = db.query(models.Document).filter(
-            models.Document.user_id == documento.user_id
+    if documento.document_type == 'RUNT':
+        # HU21 — el RUNT es opcional y posterior al registro: no toca el rol DRIVER,
+        # solo activa/desactiva el badge de "conductor verificado".
+        conductor = db.query(models.User).filter(
+            models.User.user_id == documento.user_id
+        ).first()
+        if conductor:
+            conductor.conductor_verificado = (payload.verification_status == 'APPROVED')
+            db.commit()
+    elif payload.verification_status == 'APPROVED':
+        # Documentos obligatorios de registro (sin contar el RUNT) — activar el rol
+        # DRIVER solo cuando todos estén aprobados.
+        docs_obligatorios = db.query(models.Document).filter(
+            models.Document.user_id == documento.user_id,
+            models.Document.document_type != 'RUNT'
         ).all()
-        if all(d.verification_status == 'APPROVED' for d in todos_docs):
+        if docs_obligatorios and all(d.verification_status == 'APPROVED' for d in docs_obligatorios):
             conductor = db.query(models.User).filter(
                 models.User.user_id == documento.user_id
             ).first()

@@ -1,0 +1,144 @@
+import { motion, AnimatePresence } from 'framer-motion';
+
+const FOREST = '#052e16';
+const GOLD = '#eab308';
+
+// HU21 — Perfil público del conductor: el pasajero lo abre tocando el nombre/foto
+// del conductor en una tarjeta de oferta. Formato "pase de abordar" (coherente con
+// ser una app de transporte) — sello dorado para experiencia verificada, distinto
+// del verde de "conectado/aprobado" que ya usa el resto de la app.
+const ETIQUETAS_COMODIDAD = [
+  ['tiene_ac', '❄️ Aire acondicionado'],
+  ['tiene_wifi', '📶 WiFi'],
+  ['tiene_bano', '🚻 Baño'],
+  ['tiene_musica', '🎵 Música'],
+  ['tiene_maletero_amplio', '🧳 Maletero amplio'],
+  ['tiene_sillas_bebe', '🍼 Sillas para bebé'],
+  ['acepta_mascotas', '🐾 Acepta mascotas'],
+];
+
+const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
+  return (
+    <AnimatePresence>
+      {abierto && (
+        <>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={onCerrar}
+            style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(5,14,5,0.6)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', zIndex: 4000 }} />
+
+          <motion.div initial={{ opacity: 0, y: 28, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 14, scale: 0.96 }}
+            transition={{ type: 'tween', duration: 0.24 }}
+            style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '480px', maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', zIndex: 4001, borderRadius: '26px', boxShadow: '0 30px 80px rgba(5,46,22,0.45)', backgroundColor: '#fff', fontFamily: 'Inter, sans-serif' }}>
+
+            {(cargando || !datos) ? (
+              <div style={{ padding: '100px 20px', textAlign: 'center', color: '#64748b', fontSize: '15px' }}>⏳ Cargando perfil...</div>
+            ) : (
+              <div>
+                {/* CABECERA — pase de abordar */}
+                <div style={{
+                  position: 'relative', padding: '36px 34px 54px', color: '#f0fdf4',
+                  background: `radial-gradient(circle at 15% -10%, rgba(34,197,94,0.35), transparent 55%), linear-gradient(155deg, #0a3d1f, ${FOREST} 65%)`
+                }}>
+                  <button onClick={onCerrar}
+                    style={{ position: 'absolute', top: '18px', right: '18px', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    ×
+                  </button>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+                    <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '15px', letterSpacing: '0.06em', color: 'rgba(240,253,244,0.85)' }}>TURIFY</span>
+                    <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(240,253,244,0.5)', border: '1px solid rgba(240,253,244,0.25)', borderRadius: '100px', padding: '5px 12px' }}>
+                      Perfil de conductor
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <div style={{ width: '84px', height: '84px', borderRadius: '50%', flexShrink: 0, background: 'rgba(255,255,255,0.12)', border: '3px solid rgba(240,253,244,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '34px', overflow: 'hidden' }}>
+                      {datos.profile_photo_url
+                        ? <img src={datos.profile_photo_url} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : '👤'}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '27px', fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1.15 }}>{datos.full_name}</div>
+                      {datos.vehiculo && (
+                        <div style={{ fontSize: '13.5px', color: 'rgba(240,253,244,0.65)', marginTop: '5px' }}>
+                          {datos.vehiculo.categoria} · Placa {datos.vehiculo.plate} · {datos.vehiculo.capacity} puestos
+                        </div>
+                      )}
+                      {datos.rating_avg != null ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', fontSize: '14px', fontWeight: 700, color: '#fde68a' }}>
+                          ★ {Number(datos.rating_avg).toFixed(1)}
+                          <span style={{ color: 'rgba(240,253,244,0.55)', fontWeight: 500 }}>· {datos.rating_count} calificaciones</span>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '13px', color: 'rgba(240,253,244,0.5)', marginTop: '10px' }}>Sin calificaciones aún</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {datos.conductor_verificado && (
+                    <div style={{
+                      position: 'absolute', right: '30px', bottom: '-32px', width: '78px', height: '78px', borderRadius: '50%',
+                      background: `radial-gradient(circle at 32% 28%, #fde047, ${GOLD} 55%, #a16207 100%)`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+                      boxShadow: '0 10px 22px rgba(161,98,7,0.4), 0 0 0 5px #fff', transform: 'rotate(-11deg)', zIndex: 2
+                    }}>
+                      <div style={{ fontSize: '10.5px', fontWeight: 800, lineHeight: 1.15, color: '#4a2c00', letterSpacing: '0.02em' }}>
+                        <span style={{ fontSize: '20px', display: 'block', marginBottom: '1px' }}>✓</span>VERIFI-<br />CADO
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ borderTop: '2px dashed #e2e8f0' }} />
+
+                {/* DETALLE */}
+                <div style={{ padding: '48px 34px 34px' }}>
+                  {datos.empresa_afiliada && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px dashed #e2e8f0' }}>
+                      <span style={{ fontSize: '11.5px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#94a3b8' }}>Empresa afiliada</span>
+                      <span style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>🏢 {datos.empresa_afiliada.name}</span>
+                    </div>
+                  )}
+
+                  {datos.conductor_verificado && datos.years_experience != null && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px dashed #e2e8f0' }}>
+                      <span style={{ fontSize: '11.5px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#94a3b8' }}>Experiencia verificada</span>
+                      <span style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>{datos.years_experience} años</span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#94a3b8' }}>Viajes completados</span>
+                    <span style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>{datos.viajes_completados}</span>
+                  </div>
+
+                  {datos.vehiculo && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '20px' }}>
+                      {ETIQUETAS_COMODIDAD.filter(([campo]) => datos.vehiculo[campo]).map(([campo, etiqueta]) => (
+                        <span key={campo} style={{ fontSize: '12.5px', fontWeight: 600, padding: '6px 13px', borderRadius: '100px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}>
+                          {etiqueta}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {datos.conductor_verificado && (
+                    <div style={{ marginTop: '24px', display: 'flex', gap: '12px', alignItems: 'flex-start', background: 'linear-gradient(135deg,#fffbeb,#fef9c3)', border: '1px solid #fde68a', borderRadius: '12px', padding: '15px 17px' }}>
+                      <span style={{ fontSize: '21px' }}>🎓</span>
+                      <div>
+                        <b style={{ display: 'block', fontSize: '14px', color: '#854d0e', marginBottom: '3px' }}>Experiencia verificada por Turify</b>
+                        <span style={{ fontSize: '12.5px', color: '#92702f', lineHeight: 1.55 }}>El administrador confirmó los años de experiencia de este conductor a partir de su RUNT.</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+};
+
+export default PerfilConductorPublico;

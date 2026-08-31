@@ -23,17 +23,24 @@ class RoleEnum(str, Enum):
     DRIVER = 'DRIVER'
     ADMIN = 'ADMIN'
 
+# Valores alineados con el enum 'doc_type' real de models.py — antes no coincidían
+# (ej. aquí decía 'Licencia' pero en la BD/registro se guarda 'Licencia de Conduccion'),
+# lo que rompía la validación de response_model en GET /drivers/my-documents para
+# cualquier documento que no fuera exactamente 'SOAT'.
 class DocumentTypeEnum(str, Enum):
     SOAT = 'SOAT'
-    Licencia = 'Licencia'
-    Seguros = 'Seguros'
-    Certificado = 'Certificado Afiliación'
-    Antecedentes = 'Antecedentes'
+    Licencia = 'Licencia de Conduccion'
+    TarjetaOperacion = 'Tarjeta de operacion'
+    Tecnomecanica = 'Tecnomecanica'
+    Seguros = 'Seguros Contractual y extracontractual'
+    RUNT = 'RUNT'  # HU20 — RUNT (experiencia del conductor), opcional y posterior al registro
 
 class VerificationStatusEnum(str, Enum):
     PENDING = 'PENDING'
     APPROVED = 'APPROVED'
     REJECTED = 'REJECTED'
+    AI_PRE_APPROVED = 'AI_PRE_APPROVED'
+    AI_PRE_REJECTED = 'AI_PRE_REJECTED'
 
 # Esquemas de Documentos
 class DocumentResponse(BaseModel):
@@ -42,6 +49,9 @@ class DocumentResponse(BaseModel):
     document_type: DocumentTypeEnum
     file_url: str
     verification_status: VerificationStatusEnum
+    # HU20/HU21 — solo presentes en documentos tipo RUNT
+    years_experience: Optional[int] = None
+    license_categories: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -146,6 +156,9 @@ class ServiceRequestRead(BaseModel):
     has_pets: bool
     status: str
     created_at: datetime
+    # HU06 — coordenadas de origen, para pintar la solicitud como pin en el mapa del conductor
+    origin_lat: Optional[float] = None
+    origin_lng: Optional[float] = None
 
     class Config:
         from_attributes = True # Permite mapear desde modelos de SQLAlchemy
@@ -205,3 +218,48 @@ class DriverLocationUpdate(BaseModel):
     current_lat: Optional[float] = None
     current_lng: Optional[float] = None
     is_online: Optional[bool] = None
+
+# HU29 — Calificaciones bidireccionales
+class RatingCreate(BaseModel):
+    score: int = Field(..., ge=1, le=5, description="Calificación de 1 a 5 estrellas")
+    comment: Optional[str] = None
+
+# HU38 — Comodidades del vehículo. Las tarifas (por km, espera, día, etc.) NO las
+# decide el conductor — quedaron fuera de este schema a propósito, así que PATCH
+# /drivers/vehicle no puede tocarlas aunque alguien las envíe en el body.
+class VehicleSettingsUpdate(BaseModel):
+    capacidad_real: Optional[int] = Field(None, ge=1, le=60, description="Capacidad real de pasajeros")
+    tiene_ac: Optional[bool] = None
+    tiene_wifi: Optional[bool] = None
+    tiene_bano: Optional[bool] = None
+    tiene_musica: Optional[bool] = None
+    tiene_maletero_amplio: Optional[bool] = None
+    tiene_sillas_bebe: Optional[bool] = None
+    acepta_mascotas: Optional[bool] = None
+    cargo_mascota: Optional[float] = Field(None, ge=0)
+    acepta_menores_2_anos: Optional[bool] = None
+
+class VehicleSettingsResponse(BaseModel):
+    vehicle_id: int
+    plate: str
+    capacity: int
+    capacidad_real: Optional[int] = None
+    categoria: str
+    tarifa_km_base: Optional[float] = None
+    tarifa_km_rango: list[float]
+    tarifa_espera_hora: Optional[float] = None
+    tarifa_dia: Optional[float] = None
+    km_incluidos_por_dia: Optional[int] = None
+    recargo_dificil_acceso: Optional[float] = None
+    tiene_ac: bool
+    tiene_wifi: bool
+    tiene_bano: bool
+    tiene_musica: bool
+    tiene_maletero_amplio: bool
+    tiene_sillas_bebe: bool
+    acepta_mascotas: bool
+    cargo_mascota: Optional[float] = None
+    acepta_menores_2_anos: bool
+
+    class Config:
+        from_attributes = True

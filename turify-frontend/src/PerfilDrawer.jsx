@@ -12,6 +12,7 @@ const ICONO_DOC = {
   'Tarjeta de operacion': '📋',
   'Tecnomecanica': '🔧',
   'Seguros Contractual y extracontractual': '📄',
+  'RUNT': '🎓',
 };
 
 const LABEL_DOC = {
@@ -20,6 +21,7 @@ const LABEL_DOC = {
   'Tarjeta de operacion': 'Tarjeta de Operación',
   'Tecnomecanica': 'Tecnomecánica',
   'Seguros Contractual y extracontractual': 'Seguros',
+  'RUNT': 'RUNT (experiencia)',
 };
 
 const ESTADO_DOC = {
@@ -51,6 +53,14 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
   const [guardandoPassword, setGuardandoPassword] = useState(false);
   const [errorPassword, setErrorPassword] = useState('');
   const [exitoPassword, setExitoPassword] = useState(false);
+
+  // HU20 — Subida de RUNT (experiencia del conductor)
+  const [mostrarFormRunt, setMostrarFormRunt] = useState(false);
+  const [archivoRunt, setArchivoRunt] = useState(null);
+  const [aniosExperiencia, setAniosExperiencia] = useState('');
+  const [categoriasLicencia, setCategoriasLicencia] = useState('');
+  const [subiendoRunt, setSubiendoRunt] = useState(false);
+  const [errorRunt, setErrorRunt] = useState('');
 
   const cargarPerfil = async () => {
     if (!token) return;
@@ -108,6 +118,38 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
     finally { setGuardandoPassword(false); }
   };
 
+  // HU20 — Subir el RUNT con los años de experiencia declarados
+  const subirRunt = async () => {
+    setErrorRunt('');
+    if (!archivoRunt) { setErrorRunt('Selecciona el archivo de tu RUNT (PDF o imagen).'); return; }
+    if (aniosExperiencia === '' || Number(aniosExperiencia) < 0) { setErrorRunt('Ingresa tus años de experiencia.'); return; }
+
+    setSubiendoRunt(true);
+    try {
+      const formData = new FormData();
+      formData.append('years_experience', aniosExperiencia);
+      if (categoriasLicencia.trim()) formData.append('license_categories', categoriasLicencia.trim());
+      formData.append('doc_runt', archivoRunt);
+
+      const res = await fetch(`${API_BASE_URL}/drivers/upload-runt`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        body: formData
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'No se pudo enviar el RUNT.'); }
+
+      setMostrarFormRunt(false);
+      setArchivoRunt(null);
+      setAniosExperiencia('');
+      setCategoriasLicencia('');
+      await cargarPerfil();
+    } catch (e) {
+      setErrorRunt(e.message || 'No se pudo enviar el RUNT.');
+    } finally {
+      setSubiendoRunt(false);
+    }
+  };
+
   const handleCerrarSesion = () => { cerrarSesion(); onCerrar(); navigate('/login'); };
 
   const formatearFecha = (f) => {
@@ -143,6 +185,11 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                     <span style={{ display: 'inline-block', marginTop: '5px', backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff', borderRadius: '20px', padding: '2px 10px', fontSize: '11px', fontWeight: '700' }}>
                       {perfil?.role === 'DRIVER' ? '🚗 Conductor' : perfil?.role === 'ADMIN' ? '🛡️ Admin' : '👤 Pasajero'}
                     </span>
+                    {perfil?.role === 'DRIVER' && perfil?.conductor_verificado && (
+                      <span style={{ display: 'inline-block', marginTop: '5px', marginLeft: '6px', backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff', borderRadius: '20px', padding: '2px 10px', fontSize: '11px', fontWeight: '700' }}>
+                        🎓 Experiencia verificada
+                      </span>
+                    )}
                   </div>
                 </div>
                 <button onClick={onCerrar} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', width: '30px', height: '30px', borderRadius: '50%', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
@@ -281,11 +328,78 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                             <span style={{ fontSize: '22px', flexShrink: 0 }}>{ICONO_DOC[doc.document_type] || '📁'}</span>
                             <div style={{ flex: 1 }}>
                               <p style={{ margin: 0, fontWeight: '600', fontSize: '13px', color: '#1e293b' }}>{LABEL_DOC[doc.document_type] || doc.document_type}</p>
+                              {doc.document_type === 'RUNT' && doc.years_experience != null && (
+                                <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#64748b' }}>{doc.years_experience} años de experiencia declarados</p>
+                              )}
                             </div>
                             <span style={{ backgroundColor: est.bg, color: est.color, padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap' }}>{est.label}</span>
                           </div>
                         );
                       })}
+
+                      {/* HU20 — Subida de RUNT (opcional, posterior al registro) */}
+                      {(() => {
+                        const runt = perfil.documentos?.find(d => d.document_type === 'RUNT');
+                        const puedeSubir = !runt || runt.verification_status === 'REJECTED';
+                        if (!puedeSubir) return null;
+
+                        return (
+                          <div style={{ marginTop: '16px', border: '1px dashed #cbd5e1', borderRadius: '10px', padding: '14px' }}>
+                            {!mostrarFormRunt ? (
+                              <div style={{ textAlign: 'center' }}>
+                                <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>🎓 ¿Quieres verificar tu experiencia?</p>
+                                <p style={{ margin: '0 0 10px', fontSize: '12px', color: '#64748b' }}>Sube tu RUNT para obtener el badge de conductor verificado.</p>
+                                <button onClick={() => setMostrarFormRunt(true)}
+                                  style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 16px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                                  {runt ? 'Volver a enviar RUNT' : 'Subir RUNT'}
+                                </button>
+                              </div>
+                            ) : (
+                              <div>
+                                <div style={{ backgroundColor: '#f8fafc', borderRadius: '8px', padding: '10px 12px', border: '1px solid #e2e8f0', marginBottom: '12px' }}>
+                                  <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: '700', color: '#475569' }}>💡 ¿Cómo obtengo mi RUNT?</p>
+                                  <p style={{ margin: 0, fontSize: '11px', color: '#64748b', lineHeight: '1.6' }}>
+                                    Descarga el "Extracto de conductor" en la página del RUNT (runt.gov.co), con tu número de cédula. Ahí aparece tu historial e infracciones como conductor.
+                                  </p>
+                                </div>
+
+                                {errorRunt && <div style={{ backgroundColor: '#fee2e2', border: '1px solid #fca5a5', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px', color: '#991b1b', fontWeight: '600', fontSize: '12px' }}>⚠️ {errorRunt}</div>}
+
+                                <div style={{ marginBottom: '10px' }}>
+                                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '5px' }}>Años de experiencia</label>
+                                  <input type="number" min="0" max="80" value={aniosExperiencia}
+                                    onChange={e => setAniosExperiencia(e.target.value)}
+                                    style={inputStyle} placeholder="Ej: 5" />
+                                </div>
+
+                                <div style={{ marginBottom: '10px' }}>
+                                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '5px' }}>Categorías de licencia (opcional)</label>
+                                  <input value={categoriasLicencia} onChange={e => setCategoriasLicencia(e.target.value)}
+                                    style={inputStyle} placeholder="Ej: C2, C3" />
+                                </div>
+
+                                <div style={{ marginBottom: '12px' }}>
+                                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '5px' }}>Archivo del RUNT (PDF, JPG o PNG)</label>
+                                  <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                    onChange={e => setArchivoRunt(e.target.files?.[0] || null)}
+                                    style={{ fontSize: '12px' }} />
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <button onClick={subirRunt} disabled={subiendoRunt}
+                                    style={{ flex: 1, background: subiendoRunt ? '#9ca3af' : BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '13px', cursor: subiendoRunt ? 'not-allowed' : 'pointer' }}>
+                                    {subiendoRunt ? 'Enviando...' : 'Enviar RUNT'}
+                                  </button>
+                                  <button onClick={() => { setMostrarFormRunt(false); setErrorRunt(''); }}
+                                    style={{ background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', padding: '10px 14px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </>
                   )}
                 </div>

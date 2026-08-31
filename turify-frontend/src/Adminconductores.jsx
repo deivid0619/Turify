@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 import API_BASE_URL from './api';
 const BRAND_GREEN = '#16a34a';
+const FOREST = '#14532d';
 
 const ETIQUETA_DOCUMENTO = {
   'SOAT': 'SOAT Vigente',
@@ -12,6 +13,7 @@ const ETIQUETA_DOCUMENTO = {
   'Tarjeta de operacion': 'Tarjeta de Operación',
   'Tecnomecanica': 'Revisión Tecnomecánica',
   'Seguros Contractual y extracontractual': 'Seguros (Contractual y Extracontractual)',
+  'RUNT': 'RUNT (experiencia)',
 };
 
 const ICONO_DOCUMENTO = {
@@ -20,6 +22,7 @@ const ICONO_DOCUMENTO = {
   'Tarjeta de operacion': '📋',
   'Tecnomecanica': '🔧',
   'Seguros Contractual y extracontractual': '📄',
+  'RUNT': '🎓',
 };
 
 const BadgeEstado = ({ estado }) => {
@@ -138,8 +141,10 @@ const ModalDocumento = ({ doc, onCerrar, token }) => {
 
 
 const AdminConductores = () => {
-  const { token } = useContext(AuthContext);
+  const { token, cerrarSesion } = useContext(AuthContext);
   const navigate = useNavigate();
+
+  const handleCerrarSesion = () => { cerrarSesion(); navigate('/login'); };
 
   const [conductores, setConductores] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -148,6 +153,8 @@ const AdminConductores = () => {
   const [procesando, setProcesando] = useState(null);
   const [alerta, setAlerta] = useState(null);
   const [docPreview, setDocPreview] = useState(null);
+  // HU21 — años de experiencia que el admin está editando por documento RUNT (document_id -> texto)
+  const [experienciaEditada, setExperienciaEditada] = useState({});
 
   const mostrarAlerta = (tipo, mensaje) => {
     setAlerta({ tipo, mensaje });
@@ -180,9 +187,13 @@ const AdminConductores = () => {
     }
   }, [conductores]);
 
-  const verificarDocumento = async (documentId, nuevoEstado) => {
+  const verificarDocumento = async (documentId, nuevoEstado, yearsExperience) => {
     setProcesando(documentId);
     try {
+      const body = { verification_status: nuevoEstado };
+      if (yearsExperience !== undefined && yearsExperience !== null && yearsExperience !== '') {
+        body.years_experience = parseInt(yearsExperience, 10);
+      }
       const res = await fetch(`${API_BASE_URL}/admin/documents/${documentId}/verify`, {
         method: 'PATCH',
         headers: {
@@ -190,7 +201,7 @@ const AdminConductores = () => {
           'Content-Type': 'application/json',
           'ngrok-skip-browser-warning': 'true'
         },
-        body: JSON.stringify({ verification_status: nuevoEstado })
+        body: JSON.stringify(body)
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Error al verificar.'); }
       const data = await res.json();
@@ -200,8 +211,13 @@ const AdminConductores = () => {
         if (!c.documents.some(d => d.document_id === documentId)) return c;
         return {
           ...c,
+          conductor_verificado: c.documents.find(d => d.document_id === documentId)?.document_type === 'RUNT'
+            ? nuevoEstado === 'APPROVED'
+            : c.conductor_verificado,
           documents: c.documents.map(d =>
-            d.document_id === documentId ? { ...d, verification_status: nuevoEstado } : d
+            d.document_id === documentId
+              ? { ...d, verification_status: nuevoEstado, years_experience: body.years_experience ?? d.years_experience }
+              : d
           )
         };
       }));
@@ -212,39 +228,35 @@ const AdminConductores = () => {
     }
   };
 
-  const todosAprobados = (conductor) => conductor.documents.every(d => d.verification_status === 'APPROVED');
+  // El RUNT es opcional y posterior al registro — no cuenta para "conductor habilitado"
+  const todosAprobados = (conductor) =>
+    conductor.documents.filter(d => d.document_type !== 'RUNT').every(d => d.verification_status === 'APPROVED');
   const contarPendientes = (conductor) => conductor.documents.filter(d => d.verification_status === 'PENDING').length;
+
+  const totalPendientes = conductores.reduce((acc, c) => acc + contarPendientes(c), 0);
+  const totalVerificados = conductores.filter(c => c.conductor_verificado).length;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f1f5f9', fontFamily: 'Inter, sans-serif' }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&display=swap');`}</style>
 
       {/* MODAL PREVIEW */}
       <AnimatePresence>
         {docPreview && <ModalDocumento doc={docPreview} onCerrar={() => setDocPreview(null)} token={token} />}
       </AnimatePresence>
 
-      {/* HEADER */}
-      <header style={{ backgroundColor: '#fff', borderBottom: '1px solid #e2e8f0', padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <button onClick={() => navigate('/dashboard')}
-            style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '13px', color: '#64748b', fontWeight: '600' }}>
-            ← Dashboard
-          </button>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#0f172a' }}>Panel de Administración</h1>
-            <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>Verificación de documentos de conductores</p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <motion.button whileTap={{ scale: 0.96 }} onClick={() => navigate('/admin/logs')}
-            style={{ background: '#1e293b', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
-            📋 Ver Logs
-          </motion.button>
-          <motion.button whileTap={{ scale: 0.96 }} onClick={cargarConductores}
-            style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
-            🔄 Actualizar
-          </motion.button>
-        </div>
+      {/* BARRA SUPERIOR — mínima, el chrome de marca vive en el panel lateral. Este panel
+          ES el punto de entrada del admin (no hay dashboard de pasajero de por medio),
+          así que aquí van las acciones de cuenta en vez de un botón "volver". */}
+      <header style={{ padding: '18px 32px 0', display: 'flex', justifyContent: 'flex-end', gap: '10px', alignItems: 'center' }}>
+        <button onClick={() => navigate('/admin/logs')}
+          style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '7px 14px', cursor: 'pointer', fontSize: '13px', color: '#475569', fontWeight: '600' }}>
+          📋 Ver Logs
+        </button>
+        <button onClick={handleCerrarSesion}
+          style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '7px 14px', cursor: 'pointer', fontSize: '13px', color: '#991b1b', fontWeight: '600' }}>
+          🚪 Cerrar sesión
+        </button>
       </header>
 
       {/* ALERTA */}
@@ -252,7 +264,7 @@ const AdminConductores = () => {
         {alerta && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
             style={{
-              margin: '16px 40px 0', padding: '12px 18px', borderRadius: '10px', fontWeight: '600', fontSize: '13px',
+              margin: '16px 32px 0', padding: '12px 18px', borderRadius: '10px', fontWeight: '600', fontSize: '13px',
               backgroundColor: alerta.tipo === 'exito' ? '#f0fdf4' : '#fee2e2',
               color: alerta.tipo === 'exito' ? BRAND_GREEN : '#991b1b',
               border: `1px solid ${alerta.tipo === 'exito' ? BRAND_GREEN : '#fca5a5'}`
@@ -262,161 +274,214 @@ const AdminConductores = () => {
         )}
       </AnimatePresence>
 
-      <div style={{ padding: '24px 40px', display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
+      {/* SHELL — sidebar forest + hoja clara, mismo patrón que el panel de conductor */}
+      <div style={{ padding: '20px 32px 32px' }}>
+        <div style={{ display: 'flex', borderRadius: '18px', overflow: 'hidden', boxShadow: '0 10px 36px rgba(5,46,22,0.14)', minHeight: '640px' }}>
 
-        {/* LISTA */}
-        <div style={{ flex: '0 0 360px' }}>
-          <div style={{ marginBottom: '14px' }}>
-            <h2 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#1e293b' }}>
-              Conductores pendientes
-              {!cargando && (
-                <span style={{ marginLeft: '8px', background: '#fef3c7', color: '#92400e', borderRadius: '20px', padding: '2px 8px', fontSize: '12px' }}>
-                  {conductores.length}
-                </span>
-              )}
-            </h2>
-          </div>
-
-          {cargando && <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>⏳ Cargando...</div>}
-
-          {!cargando && error && (
-            <div style={{ textAlign: 'center', padding: '30px', color: '#dc2626', fontSize: '13px' }}>
-              ⚠️ {error}<br />
-              <button onClick={cargarConductores} style={{ marginTop: '10px', background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>
-                Reintentar
-              </button>
+          {/* SIDEBAR */}
+          <aside style={{ width: '330px', flexShrink: 0, background: FOREST, color: '#f0fdf4', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '22px 20px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '18px' }}>
+                <span style={{ width: '9px', height: '9px', borderRadius: '3px', background: '#22c55e' }} />
+                <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '13px', letterSpacing: '0.04em', color: 'rgba(240,253,244,0.9)' }}>TURIFY · ADMIN</span>
+              </div>
+              <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, fontFamily: "'Syne', sans-serif" }}>Verificación</h1>
+              <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: 'rgba(240,253,244,0.5)' }}>Documentos y experiencia de conductores</p>
             </div>
-          )}
 
-          {!cargando && !error && conductores.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '50px 20px', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-              <div style={{ fontSize: '40px', marginBottom: '10px' }}>🎉</div>
-              <p style={{ margin: 0, fontWeight: '700', color: '#1e293b' }}>Todo al día</p>
-              <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '13px' }}>No hay documentos pendientes.</p>
+            <div style={{ display: 'flex', gap: '8px', padding: '4px 20px 14px' }}>
+              <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 8px', textAlign: 'center' }}>
+                <b style={{ display: 'block', fontSize: '18px', fontWeight: 800, color: '#fde047' }}>{totalPendientes}</b>
+                <span style={{ fontSize: '9.5px', color: 'rgba(240,253,244,0.55)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Docs pendientes</span>
+              </div>
+              <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 8px', textAlign: 'center' }}>
+                <b style={{ display: 'block', fontSize: '18px', fontWeight: 800, color: '#86efac' }}>{conductores.length}</b>
+                <span style={{ fontSize: '9.5px', color: 'rgba(240,253,244,0.55)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>En cola</span>
+              </div>
+              <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 8px', textAlign: 'center' }}>
+                <b style={{ display: 'block', fontSize: '18px', fontWeight: 800, color: '#fde68a' }}>{totalVerificados}</b>
+                <span style={{ fontSize: '9.5px', color: 'rgba(240,253,244,0.55)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🎓 Verificados</span>
+              </div>
             </div>
-          )}
 
-          {!cargando && conductores.map((conductor) => {
-            const pendientes = contarPendientes(conductor);
-            const estaSeleccionado = conductorSeleccionado?.user_id === conductor.user_id;
-            const aprobadoTotal = todosAprobados(conductor);
-            return (
-              <motion.div key={conductor.user_id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                onClick={() => setConductorSeleccionado(estaSeleccionado ? null : conductor)}
-                style={{
-                  backgroundColor: '#fff', borderRadius: '12px', padding: '16px', marginBottom: '12px', cursor: 'pointer',
-                  border: `1px solid ${estaSeleccionado ? BRAND_GREEN : '#e2e8f0'}`,
-                  boxShadow: estaSeleccionado ? `0 0 0 2px ${BRAND_GREEN}33` : '0 1px 3px rgba(0,0,0,0.06)',
-                  transition: 'all 0.2s'
-                }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '44px', height: '44px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {conductor.profile_photo_url
-                      ? <img src={conductor.profile_photo_url} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <span style={{ fontSize: '20px' }}>👤</span>}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontWeight: '700', fontSize: '14px', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conductor.full_name}</p>
-                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conductor.email}</p>
-                  </div>
-                  <div style={{ flexShrink: 0 }}>
-                    {aprobadoTotal
-                      ? <span style={{ background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '700' }}>✅ Completo</span>
-                      : <span style={{ background: '#fef3c7', color: '#92400e', padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '700' }}>{pendientes} pendiente{pendientes !== 1 ? 's' : ''}</span>
-                    }
-                  </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '4px 14px 14px' }}>
+              {cargando && <div style={{ textAlign: 'center', padding: '30px', color: 'rgba(240,253,244,0.5)', fontSize: '13px' }}>⏳ Cargando...</div>}
+
+              {!cargando && error && (
+                <div style={{ textAlign: 'center', padding: '20px', color: '#fca5a5', fontSize: '12.5px' }}>
+                  ⚠️ {error}<br />
+                  <button onClick={cargarConductores} style={{ marginTop: '10px', background: 'none', border: '1px solid rgba(255,255,255,0.3)', color: '#f0fdf4', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>
+                    Reintentar
+                  </button>
                 </div>
-              </motion.div>
-            );
-          })}
-        </div>
+              )}
 
-        {/* PANEL DOCUMENTOS */}
-        <div style={{ flex: 1 }}>
-          <AnimatePresence mode="wait">
-            {!conductorSeleccionado ? (
-              <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                style={{ backgroundColor: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '60px 40px', textAlign: 'center' }}>
-                <div style={{ fontSize: '48px', marginBottom: '12px' }}>📋</div>
-                <p style={{ margin: 0, fontWeight: '700', fontSize: '16px', color: '#1e293b' }}>Selecciona un conductor</p>
-                <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: '13px' }}>Haz clic en un conductor para revisar sus documentos.</p>
-              </motion.div>
-            ) : (
-              <motion.div key={conductorSeleccionado.user_id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
-                style={{ backgroundColor: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+              {!cargando && !error && conductores.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '40px 16px' }}>
+                  <p style={{ margin: 0, fontWeight: 700, color: '#f0fdf4', fontSize: '13px' }}>Todo al día</p>
+                  <p style={{ margin: '4px 0 0', color: 'rgba(240,253,244,0.5)', fontSize: '12px' }}>No hay documentos pendientes.</p>
+                </div>
+              )}
 
-                {/* Header conductor */}
-                <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '16px', backgroundColor: '#f8fafc' }}>
-                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {conductorSeleccionado.profile_photo_url
-                      ? <img src={conductorSeleccionado.profile_photo_url} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <span style={{ fontSize: '24px' }}>👤</span>}
+              {!cargando && conductores.map((conductor) => {
+                const pendientes = contarPendientes(conductor);
+                const estaSeleccionado = conductorSeleccionado?.user_id === conductor.user_id;
+                return (
+                  <motion.div key={conductor.user_id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                    onClick={() => setConductorSeleccionado(estaSeleccionado ? null : conductor)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '11px', padding: '11px 10px', borderRadius: '11px',
+                      cursor: 'pointer', marginBottom: '4px', transition: 'background .15s',
+                      background: estaSeleccionado ? 'rgba(34,197,94,0.16)' : 'transparent',
+                      border: estaSeleccionado ? '1px solid rgba(34,197,94,0.4)' : '1px solid transparent'
+                    }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, backgroundColor: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>
+                      {conductor.profile_photo_url
+                        ? <img src={conductor.profile_photo_url} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : '👤'}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#f0fdf4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        {conductor.full_name}
+                        {conductor.conductor_verificado && <span style={{ fontSize: '10px' }}>🎓</span>}
+                      </p>
+                      <p style={{ margin: '1px 0 0', fontSize: '11px', color: 'rgba(240,253,244,0.45)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conductor.email}</p>
+                    </div>
+                    <span style={{
+                      flexShrink: 0, fontSize: '10px', fontWeight: 800, padding: '3px 8px', borderRadius: '100px',
+                      background: pendientes > 0 ? 'rgba(250,204,21,0.18)' : 'rgba(34,197,94,0.2)',
+                      color: pendientes > 0 ? '#fde047' : '#86efac'
+                    }}>
+                      {pendientes > 0 ? pendientes : '✓'}
+                    </span>
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+              <motion.button whileTap={{ scale: 0.97 }} onClick={cargarConductores} disabled={cargando}
+                style={{ width: '100%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: 'rgba(240,253,244,0.8)', padding: '9px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>
+                {cargando ? '···' : '🔄 Actualizar'}
+              </motion.button>
+            </div>
+          </aside>
+
+          {/* HOJA CLARA — detalle del conductor */}
+          <div style={{ flex: 1, background: '#fff', padding: '30px 34px', overflowY: 'auto' }}>
+            <AnimatePresence mode="wait">
+              {!conductorSeleccionado ? (
+                <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  style={{ padding: '80px 20px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>📋</div>
+                  <p style={{ margin: 0, fontWeight: '700', fontSize: '16px', color: '#1e293b' }}>Selecciona un conductor</p>
+                  <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: '13px' }}>Haz clic en un conductor de la lista para revisar sus documentos.</p>
+                </motion.div>
+              ) : (
+                <motion.div key={conductorSeleccionado.user_id} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
+
+                  {/* Header conductor */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', paddingBottom: '22px', marginBottom: '22px', borderBottom: '1px solid #e2e8f0' }}>
+                    <div style={{ width: '58px', height: '58px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '24px' }}>
+                      {conductorSeleccionado.profile_photo_url
+                        ? <img src={conductorSeleccionado.profile_photo_url} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : '👤'}
+                    </div>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '19px', fontWeight: '800', color: '#0f172a' }}>{conductorSeleccionado.full_name}</h3>
+                      <p style={{ margin: '2px 0 0', fontSize: '12.5px', color: '#64748b' }}>{conductorSeleccionado.email} · {conductorSeleccionado.phone_number}</p>
+                    </div>
+                    <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+                      {todosAprobados(conductorSeleccionado) && (
+                        <span style={{ background: '#dcfce7', color: '#166534', padding: '7px 14px', borderRadius: '9px', fontWeight: '700', fontSize: '12px' }}>
+                          ✅ Conductor habilitado
+                        </span>
+                      )}
+                      {conductorSeleccionado.conductor_verificado && (
+                        <span style={{ background: '#fef9c3', color: '#854d0e', padding: '7px 14px', borderRadius: '9px', fontWeight: '700', fontSize: '12px' }}>
+                          🎓 Experiencia verificada
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '800', color: '#0f172a' }}>{conductorSeleccionado.full_name}</h3>
-                    <p style={{ margin: '2px 0 0', fontSize: '13px', color: '#64748b' }}>{conductorSeleccionado.email} · {conductorSeleccionado.phone_number}</p>
+
+                  {/* Lista documentos */}
+                  <div style={{ display: 'grid', gap: '10px' }}>
+                    {conductorSeleccionado.documents.map((doc) => {
+                      const esRunt = doc.document_type === 'RUNT';
+                      return (
+                        <div key={doc.document_id}
+                          style={{
+                            border: `1px solid ${esRunt ? '#fde68a' : '#e2e8f0'}`, borderRadius: '12px', padding: '14px 16px',
+                            display: 'flex', alignItems: 'center', gap: '14px',
+                            background: esRunt
+                              ? 'linear-gradient(135deg,#fffdf5,#fefce8)'
+                              : (doc.verification_status === 'APPROVED' ? '#f0fdf4' : doc.verification_status === 'REJECTED' ? '#fff5f5' : '#fff')
+                          }}>
+
+                          <div style={{ width: '38px', height: '38px', borderRadius: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', background: esRunt ? '#fef3c7' : '#f8fafc' }}>
+                            {ICONO_DOCUMENTO[doc.document_type] || '📁'}
+                          </div>
+
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ margin: 0, fontWeight: '700', fontSize: '13.5px', color: '#1e293b' }}>
+                              {ETIQUETA_DOCUMENTO[doc.document_type] || doc.document_type}
+                            </p>
+                            <button
+                              onClick={() => setDocPreview(doc)}
+                              style={{ background: 'none', border: 'none', padding: 0, color: '#3b82f6', fontSize: '11.5px', cursor: 'pointer', fontWeight: '600', marginTop: '3px', textDecoration: 'underline' }}>
+                              👁️ Ver documento
+                            </button>
+                            {esRunt && (
+                              <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <label style={{ fontSize: '11px', color: '#92702f', fontWeight: '600' }}>Años de experiencia:</label>
+                                <input
+                                  type="number" min="0" max="80"
+                                  disabled={doc.verification_status !== 'PENDING'}
+                                  value={experienciaEditada[doc.document_id] ?? doc.years_experience ?? ''}
+                                  onChange={e => setExperienciaEditada(prev => ({ ...prev, [doc.document_id]: e.target.value }))}
+                                  style={{ width: '54px', padding: '4px 6px', border: '1px solid #fbbf24', borderRadius: '6px', fontSize: '12px', textAlign: 'center', fontWeight: 700, color: '#854d0e' }}
+                                />
+                              </div>
+                            )}
+                          </div>
+
+                          <BadgeEstado estado={doc.verification_status} />
+
+                          {doc.verification_status === 'PENDING' && (
+                            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                              <motion.button whileTap={{ scale: 0.95 }}
+                                onClick={() => verificarDocumento(doc.document_id, 'APPROVED', experienciaEditada[doc.document_id] ?? doc.years_experience)}
+                                disabled={procesando === doc.document_id}
+                                style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '7px', padding: '7px 14px', fontWeight: '700', fontSize: '12px', cursor: procesando === doc.document_id ? 'not-allowed' : 'pointer', opacity: procesando === doc.document_id ? 0.7 : 1 }}>
+                                {procesando === doc.document_id ? '...' : '✅ Aprobar'}
+                              </motion.button>
+                              <motion.button whileTap={{ scale: 0.95 }}
+                                onClick={() => verificarDocumento(doc.document_id, 'REJECTED')}
+                                disabled={procesando === doc.document_id}
+                                style={{ background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: '7px', padding: '7px 14px', fontWeight: '700', fontSize: '12px', cursor: procesando === doc.document_id ? 'not-allowed' : 'pointer', opacity: procesando === doc.document_id ? 0.7 : 1 }}>
+                                {procesando === doc.document_id ? '...' : '❌ Rechazar'}
+                              </motion.button>
+                            </div>
+                          )}
+
+                          {doc.verification_status !== 'PENDING' && (
+                            <button onClick={() => verificarDocumento(doc.document_id, 'PENDING')}
+                              style={{ background: 'none', border: '1px solid #cbd5e1', color: '#64748b', borderRadius: '7px', padding: '6px 12px', fontSize: '11px', cursor: 'pointer', fontWeight: '600', flexShrink: 0 }}>
+                              Revertir
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  {todosAprobados(conductorSeleccionado) && (
-                    <div style={{ marginLeft: 'auto', background: '#dcfce7', color: '#166534', padding: '8px 16px', borderRadius: '8px', fontWeight: '700', fontSize: '13px' }}>
-                      ✅ Conductor habilitado
+
+                  {conductorSeleccionado.documents.some(d => d.document_type === 'RUNT') && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '16px', padding: '12px 16px', background: '#f8fafc', border: '1px dashed #e2e8f0', borderRadius: '10px', fontSize: '12px', color: '#64748b' }}>
+                      <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'linear-gradient(135deg,#eab308,#facc15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', flexShrink: 0 }}>🎓</span>
+                      Al aprobar el RUNT, el conductor recibe el sello dorado en su perfil público y en sus ofertas — sin afectar su rol de conductor ya activo.
                     </div>
                   )}
-                </div>
-
-                {/* Lista documentos */}
-                <div style={{ padding: '20px 24px' }}>
-                  <p style={{ margin: '0 0 16px', fontSize: '13px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Documentos ({conductorSeleccionado.documents.length})
-                  </p>
-
-                  {conductorSeleccionado.documents.map((doc) => (
-                    <div key={doc.document_id}
-                      style={{
-                        border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px 16px', marginBottom: '10px',
-                        display: 'flex', alignItems: 'center', gap: '14px',
-                        backgroundColor: doc.verification_status === 'APPROVED' ? '#f0fdf4' : doc.verification_status === 'REJECTED' ? '#fff5f5' : '#fff'
-                      }}>
-
-                      <div style={{ fontSize: '22px', flexShrink: 0 }}>{ICONO_DOCUMENTO[doc.document_type] || '📁'}</div>
-
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ margin: 0, fontWeight: '600', fontSize: '13px', color: '#1e293b' }}>
-                          {ETIQUETA_DOCUMENTO[doc.document_type] || doc.document_type}
-                        </p>
-                        <button
-                          onClick={() => setDocPreview(doc)}
-                          style={{ background: 'none', border: 'none', padding: 0, color: '#3b82f6', fontSize: '12px', cursor: 'pointer', fontWeight: '600', marginTop: '3px', textDecoration: 'underline' }}>
-                          👁️ Ver documento
-                        </button>
-                      </div>
-
-                      <BadgeEstado estado={doc.verification_status} />
-
-                      {doc.verification_status === 'PENDING' && (
-                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                          <motion.button whileTap={{ scale: 0.95 }}
-                            onClick={() => verificarDocumento(doc.document_id, 'APPROVED')}
-                            disabled={procesando === doc.document_id}
-                            style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '7px', padding: '7px 14px', fontWeight: '700', fontSize: '12px', cursor: procesando === doc.document_id ? 'not-allowed' : 'pointer', opacity: procesando === doc.document_id ? 0.7 : 1 }}>
-                            {procesando === doc.document_id ? '...' : '✅ Aprobar'}
-                          </motion.button>
-                          <motion.button whileTap={{ scale: 0.95 }}
-                            onClick={() => verificarDocumento(doc.document_id, 'REJECTED')}
-                            disabled={procesando === doc.document_id}
-                            style={{ background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: '7px', padding: '7px 14px', fontWeight: '700', fontSize: '12px', cursor: procesando === doc.document_id ? 'not-allowed' : 'pointer', opacity: procesando === doc.document_id ? 0.7 : 1 }}>
-                            {procesando === doc.document_id ? '...' : '❌ Rechazar'}
-                          </motion.button>
-                        </div>
-                      )}
-
-                      {doc.verification_status !== 'PENDING' && (
-                        <button onClick={() => verificarDocumento(doc.document_id, 'PENDING')}
-                          style={{ background: 'none', border: '1px solid #cbd5e1', color: '#64748b', borderRadius: '7px', padding: '6px 12px', fontSize: '11px', cursor: 'pointer', fontWeight: '600', flexShrink: 0 }}>
-                          Revertir
-                        </button>
-                      )}
-                    </div>
-                  ))}
 
                   {/* Resumen */}
                   <div style={{ marginTop: '20px', padding: '14px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', gap: '24px' }}>
@@ -431,10 +496,10 @@ const AdminConductores = () => {
                       );
                     })}
                   </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </div>

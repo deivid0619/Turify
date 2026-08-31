@@ -3,13 +3,32 @@ import { useState } from 'react';
 import logoTurify from './logo.png';
 import fondoImagen from './fondo.png';
 
+// Copy del panel izquierdo — cambia según la pestaña activa arriba, para que el
+// mensaje siempre hable de lo que la persona está mirando (pasajero, conductor o marca).
+const COPY_POR_VISTA = {
+  viajar: {
+    tagline: <>Tu viaje,<br /><span>tus condiciones.</span></>,
+    desc: 'Conectamos pasajeros y conductores con tarifas justas.',
+  },
+  conducir: {
+    tagline: <>Caminos que otros<br /><span>no recorren.</span></>,
+    desc: 'Publica tu disponibilidad y recibe solicitudes de tu zona.',
+  },
+  quienes: {
+    tagline: <>Movilidad<br /><span>para toda Antioquia.</span></>,
+    desc: 'Nacimos para llegar donde el transporte tradicional no llega: veredas, fincas y cabeceras municipales.',
+  },
+};
+
 const Login = ({ irARegistro, onLoginSuccess }) => {
+  const [vista, setVista] = useState('viajar'); // 'viajar' | 'conducir' | 'quienes'
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [errorBackend, setErrorBackend] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const isFormValid = formData.email.includes('@') && formData.password.length > 0;
+  const copy = COPY_POR_VISTA[vista];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -54,10 +73,64 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
 
         .login-root {
           display: flex;
+          flex-direction: column;
           min-height: 100vh;
           font-family: 'DM Sans', sans-serif;
           background: #050e05;
         }
+
+        /* ── Barra superior — selector de vista (Viajar / Conducir / Quiénes somos).
+           Nada de negro-y-blanco estilo Uber: se apoya en la misma paleta verde/negro
+           y el mismo motivo de anillos que ya usa el panel izquierdo del login. ── */
+        .login-topnav {
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 40px;
+          height: 64px;
+          background: #050e05;
+          border-bottom: 1px solid rgba(34,197,94,0.1);
+          position: relative;
+          z-index: 5;
+        }
+        .login-topnav-logo { height: 30px; }
+        .login-topnav-tabs {
+          display: flex;
+          gap: 6px;
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.06);
+          border-radius: 100px;
+          padding: 4px;
+        }
+        .login-topnav-tab {
+          font-family: 'Syne', sans-serif;
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 0.2px;
+          color: rgba(255,255,255,0.45);
+          background: transparent;
+          border: none;
+          border-radius: 100px;
+          padding: 8px 18px;
+          cursor: pointer;
+          transition: color 0.2s, background 0.2s;
+        }
+        .login-topnav-tab:hover { color: rgba(255,255,255,0.75); }
+        .login-topnav-tab-activo {
+          color: #052e16;
+          background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        }
+        .login-topnav-tab-activo:hover { color: #052e16; }
+        .login-topnav-spacer { width: 30px; }
+
+        @media (max-width: 640px) {
+          .login-topnav { padding: 0 16px; }
+          .login-topnav-tab { padding: 8px 12px; font-size: 12px; }
+          .login-topnav-spacer { display: none; }
+        }
+
+        .login-body { flex: 1; display: flex; min-height: 0; }
 
         .login-left {
           flex: 1.1;
@@ -68,6 +141,26 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
           padding: 60px 80px;
           overflow: hidden;
         }
+
+        /* ── Panel "Conducir" / "Quiénes somos" — reemplaza el formulario cuando la
+           pestaña activa no es "Viajar" ── */
+        .login-info-panel { width: 100%; max-width: 360px; position: relative; z-index: 1; }
+        .login-info-list { list-style: none; margin: 24px 0 32px; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+        .login-info-item { position: relative; padding-left: 16px; font-size: 13px; color: rgba(255,255,255,0.55); line-height: 1.6; }
+        .login-info-item::before {
+          content: '';
+          position: absolute;
+          left: 0; top: 7px;
+          width: 5px; height: 5px;
+          border-radius: 50%;
+          background: #22c55e;
+        }
+        .login-info-back {
+          background: none; border: none; cursor: pointer;
+          color: #22c55e; font-size: 13px; font-weight: 600;
+          padding: 0; margin-top: 4px;
+        }
+        .login-info-back:hover { color: #4ade80; }
 
         .login-left-bg {
           position: absolute;
@@ -271,13 +364,15 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
           background: none;
           border: none;
           cursor: pointer;
-          color: rgba(255,255,255,0.3);
-          font-size: 16px;
+          color: rgba(255,255,255,0.35);
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.3px;
           padding: 0;
           line-height: 1;
           transition: color 0.2s;
         }
-        .pw-toggle:hover { color: rgba(255,255,255,0.65); }
+        .pw-toggle:hover { color: #4ade80; }
 
         .login-error {
           display: flex;
@@ -378,80 +473,147 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
       `}</style>
 
       <div className="login-root">
-        <div className="login-left">
-          <div className="login-left-bg" />
-          <div className="login-left-overlay" />
-          <div className="login-lines" />
-          <div className="login-left-content">
-            <img src={logoTurify} alt="Turify" className="login-logo" />
-            <h1 className="login-tagline">
-              Tu viaje,<br />
-              <span>tus condiciones.</span>
-            </h1>
-            <p className="login-desc">
-              Conectamos pasajeros y conductores con tarifas justas, negociadas en tiempo real.
-            </p>
-            <div className="login-badge">
-              <div className="login-badge-dot" />
-              Sistema activo · Medellín y región
-            </div>
+        <nav className="login-topnav">
+          <img src={logoTurify} alt="Turify" className="login-topnav-logo" />
+          <div className="login-topnav-tabs">
+            <button type="button" onClick={() => setVista('viajar')}
+              className={`login-topnav-tab ${vista === 'viajar' ? 'login-topnav-tab-activo' : ''}`}>
+              Viajar
+            </button>
+            <button type="button" onClick={() => setVista('conducir')}
+              className={`login-topnav-tab ${vista === 'conducir' ? 'login-topnav-tab-activo' : ''}`}>
+              Conducir
+            </button>
+            <button type="button" onClick={() => setVista('quienes')}
+              className={`login-topnav-tab ${vista === 'quienes' ? 'login-topnav-tab-activo' : ''}`}>
+              Quiénes somos
+            </button>
           </div>
-          <p className="login-copy">© 2026 Turify Transport. All rights reserved.</p>
-        </div>
+          <div className="login-topnav-spacer" />
+        </nav>
 
-        <div className="login-right">
-          <div className="login-form-wrap">
-            <p className="login-eyebrow">Bienvenido de nuevo</p>
-            <h2 className="login-title">Inicia sesión</h2>
-            <p className="login-subtitle">Accede a tu cuenta para continuar.</p>
-
-            <form onSubmit={handleSubmit}>
-              <div className="login-field">
-                <label className="login-label">Correo electrónico</label>
-                <div className="login-input-wrap">
-                  <input type="email" name="email" placeholder="tu@correo.com"
-                    value={formData.email} onChange={handleChange}
-                    className="login-input" disabled={isLoading} autoComplete="email" />
-                </div>
+        <div className="login-body">
+          <div className="login-left">
+            <div className="login-left-bg" />
+            <div className="login-left-overlay" />
+            <div className="login-lines" />
+            <div className="login-left-content">
+              <h1 className="login-tagline">{copy.tagline}</h1>
+              <p className="login-desc">{copy.desc}</p>
+              <div className="login-badge">
+                <div className="login-badge-dot" />
+                Sistema activo · Medellín y región
               </div>
-
-              <div className="login-field">
-                <label className="login-label">Contraseña</label>
-                <div className="login-input-wrap">
-                  <input type={showPassword ? 'text' : 'password'} name="password"
-                    placeholder="••••••••" value={formData.password} onChange={handleChange}
-                    className="login-input login-input-pw" disabled={isLoading} autoComplete="current-password" />
-                  <button type="button" className="pw-toggle"
-                    onClick={() => setShowPassword(p => !p)} tabIndex={-1}>
-                    {showPassword ? '🙈' : '👁️'}
-                  </button>
-                </div>
-              </div>
-
-              {errorBackend && (
-                <div className="login-error">
-                  <span>⚠️</span> {errorBackend}
-                </div>
-              )}
-
-              <button type="submit" disabled={!isFormValid || isLoading}
-                className={`login-btn ${isFormValid && !isLoading ? 'login-btn-active' : 'login-btn-disabled'}`}>
-                {isLoading ? (
-                  <div className="login-loading-dots"><span /><span /><span /></div>
-                ) : 'Ingresar'}
-              </button>
-            </form>
-
-            <div className="login-divider">
-              <div className="login-divider-line" />
-              <span className="login-divider-text">¿nuevo aquí?</span>
-              <div className="login-divider-line" />
             </div>
+            <p className="login-copy">© 2026 Turify Transport. All rights reserved.</p>
+          </div>
 
-            <p className="login-register-link">
-              ¿No tienes cuenta?{' '}
-              <a onClick={irARegistro}>Regístrate gratis</a>
-            </p>
+          <div className="login-right">
+            {vista === 'viajar' && (
+              <div className="login-form-wrap">
+                <p className="login-eyebrow">Bienvenido de nuevo</p>
+                <h2 className="login-title">Inicia sesión</h2>
+                <p className="login-subtitle">Accede a tu cuenta para continuar.</p>
+
+                <form onSubmit={handleSubmit}>
+                  <div className="login-field">
+                    <label className="login-label">Correo electrónico</label>
+                    <div className="login-input-wrap">
+                      <input type="email" name="email" placeholder="tu@correo.com"
+                        value={formData.email} onChange={handleChange}
+                        className="login-input" disabled={isLoading} autoComplete="email" />
+                    </div>
+                  </div>
+
+                  <div className="login-field">
+                    <label className="login-label">Contraseña</label>
+                    <div className="login-input-wrap">
+                      <input type={showPassword ? 'text' : 'password'} name="password"
+                        placeholder="••••••••" value={formData.password} onChange={handleChange}
+                        className="login-input login-input-pw" disabled={isLoading} autoComplete="current-password" />
+                      <button type="button" className="pw-toggle"
+                        onClick={() => setShowPassword(p => !p)} tabIndex={-1}>
+                        {showPassword ? 'Ocultar' : 'Mostrar'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {errorBackend && (
+                    <div className="login-error">
+                      {errorBackend}
+                    </div>
+                  )}
+
+                  <button type="submit" disabled={!isFormValid || isLoading}
+                    className={`login-btn ${isFormValid && !isLoading ? 'login-btn-active' : 'login-btn-disabled'}`}>
+                    {isLoading ? (
+                      <div className="login-loading-dots"><span /><span /><span /></div>
+                    ) : 'Ingresar'}
+                  </button>
+                </form>
+
+                <div className="login-divider">
+                  <div className="login-divider-line" />
+                  <span className="login-divider-text">¿nuevo aquí?</span>
+                  <div className="login-divider-line" />
+                </div>
+
+                <p className="login-register-link">
+                  ¿No tienes cuenta?{' '}
+                  <a onClick={irARegistro}>Regístrate gratis</a>
+                </p>
+              </div>
+            )}
+
+            {vista === 'conducir' && (
+              <div className="login-info-panel">
+                <p className="login-eyebrow">Gana con tu vehículo</p>
+                <h2 className="login-title">Conduce con Turify</h2>
+                <p className="login-subtitle">Tú decides cuándo conducir y qué ofertas aceptar.</p>
+
+                <ul className="login-info-list">
+                  <li className="login-info-item">Cada viaje llega con un precio sugerido, calculado según la ruta y la distancia — tú decides si lo aceptas o propones uno distinto.</li>
+                  <li className="login-info-item">Recibe solicitudes de pasajeros de tu zona, incluso en veredas y municipios pequeños.</li>
+                  <li className="login-info-item">Consulta tus ganancias por semana y por mes, y tus rutas más frecuentes, desde tu panel.</li>
+                </ul>
+
+                <button type="button" onClick={irARegistro} className="login-btn login-btn-active">
+                  Crear cuenta y empezar
+                </button>
+
+                <div className="login-divider">
+                  <div className="login-divider-line" />
+                  <span className="login-divider-text">o</span>
+                  <div className="login-divider-line" />
+                </div>
+
+                <p className="login-register-link">
+                  ¿Ya tienes cuenta?{' '}
+                  <a onClick={() => setVista('viajar')}>Inicia sesión</a>
+                </p>
+              </div>
+            )}
+
+            {vista === 'quienes' && (
+              <div className="login-info-panel">
+                <p className="login-eyebrow">Nuestra misión</p>
+                <h2 className="login-title">Quiénes somos</h2>
+                <p className="login-subtitle" style={{ marginBottom: '20px' }}>
+                  Turify nació en Antioquia para resolver algo muy concreto: llegar a los lugares donde el
+                  transporte convencional no tiene cobertura.
+                </p>
+
+                <ul className="login-info-list">
+                  <li className="login-info-item">Enfocados en transporte especial y rural — fincas, veredas y cabeceras municipales.</li>
+                  <li className="login-info-item">Precios sugeridos de forma transparente según la ruta y la distancia, sin intermediarios ocultos.</li>
+                  <li className="login-info-item">Un equipo de Medellín construyendo movilidad para toda la región.</li>
+                </ul>
+
+                <button type="button" className="login-info-back" onClick={() => setVista('viajar')}>
+                  ← Volver a inicio de sesión
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

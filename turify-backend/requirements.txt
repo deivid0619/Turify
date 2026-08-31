@@ -33,3 +33,4 @@ uvicorn==0.48.0
 psycopg2-binary==2.9.10
 email-validator==2.2.0
 supabase==2.15.1
+reportlab==5.0.1

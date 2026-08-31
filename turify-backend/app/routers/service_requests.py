@@ -1,5 +1,11 @@
+import io
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import cm
+from reportlab.pdfgen import canvas
 from app.database import get_db
 from app import models, schemas, security # Tu lógica de seguridad
 from ..security import get_current_user
@@ -175,7 +181,63 @@ def get_pending_requests(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener solicitudes pendientes: {str(e)}"
         )
-        
+
+
+# HU06 — Zonas de demanda agregadas (SCRUM-164). A diferencia de /pending, esto NO
+# requiere que el conductor esté conectado (is_online): el objetivo es que pueda ver
+# dónde hay más flujo de solicitudes y decidir dónde posicionarse ANTES de conectarse.
+# Por privacidad no se exponen ubicaciones exactas de pasajeros individuales, solo
+# centroides agrupados por zona (grilla ~3km) con un conteo.
+def _etiqueta_zona(origin: str) -> str:
+    """Heurística simple para sacar un nombre de zona legible del texto de origen
+    (formato típico de Google Places: 'Calle X, Vereda Y, El Retiro, Antioquia, Colombia')."""
+    partes = [p.strip() for p in (origin or "").split(",") if p.strip()]
+    partes = [p for p in partes if p.lower() not in ("colombia", "antioquia")]
+    if not partes:
+        return "Zona sin nombre"
+    return partes[-1]
+
+
+@router.get("/demand-zones")
+def get_demand_zones(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    if current_user.role != "DRIVER":
+        raise HTTPException(status_code=403, detail="Solo los conductores pueden ver las zonas de demanda.")
+
+    solicitudes = db.query(
+        models.ServiceRequest.origin,
+        models.ServiceRequest.origin_lat,
+        models.ServiceRequest.origin_lng,
+    ).filter(
+        models.ServiceRequest.status == "PENDING",
+        models.ServiceRequest.origin_lat.isnot(None),
+        models.ServiceRequest.origin_lng.isnot(None),
+    ).all()
+
+    # Grilla de ~0.03° (≈3km) para agrupar solicitudes cercanas en una sola zona
+    zonas = {}
+    for s in solicitudes:
+        lat, lng = float(s.origin_lat), float(s.origin_lng)
+        clave = (round(lat / 0.03), round(lng / 0.03))
+        if clave not in zonas:
+            zonas[clave] = {"lats": [], "lngs": [], "label": _etiqueta_zona(s.origin), "count": 0}
+        zonas[clave]["lats"].append(lat)
+        zonas[clave]["lngs"].append(lng)
+        zonas[clave]["count"] += 1
+
+    return [
+        {
+            "lat": sum(z["lats"]) / len(z["lats"]),
+            "lng": sum(z["lngs"]) / len(z["lngs"]),
+            "count": z["count"],
+            "label": z["label"],
+        }
+        for z in zonas.values()
+    ]
+
+
 @router.post("/{request_id}/offers", status_code=status.HTTP_201_CREATED)
 async def create_driver_offer(
     request_id: int,
@@ -272,6 +334,15 @@ def get_driver_active_offers(
         viaje = db.query(models.ServiceRequest).filter(
             models.ServiceRequest.request_id == oferta.request_id
         ).first()
+
+        # HU29 — ¿el conductor ya calificó al pasajero de este viaje?
+        ya_califico = False
+        if viaje and viaje.status == 'COMPLETED':
+            ya_califico = db.query(models.Rating).filter(
+                models.Rating.request_id == oferta.request_id,
+                models.Rating.rater_id == current_user.user_id
+            ).first() is not None
+
         resultado.append({
             "offer_id": oferta.offer_id,
             "request_id": oferta.request_id,
@@ -281,7 +352,9 @@ def get_driver_active_offers(
             "offered_price": float(oferta.offered_price),
             "status": oferta.status,
             "trip_status": viaje.status if viaje else "",
-            "created_at": oferta.created_at.isoformat() if oferta.created_at else None
+            "created_at": oferta.created_at.isoformat() if oferta.created_at else None,
+            "passenger_id": viaje.passenger_id if viaje else None,
+            "ya_califico": ya_califico,
         })
 
     return resultado
@@ -375,6 +448,14 @@ def get_assigned_requests(
                     conductor_lng = float(conductor.current_lng) if conductor.current_lng is not None else None
             precio_acordado = float(oferta_aceptada.offered_price)
 
+        # HU29 — ¿el pasajero ya calificó este viaje?
+        ya_califico = False
+        if v.status == 'COMPLETED':
+            ya_califico = db.query(models.Rating).filter(
+                models.Rating.request_id == v.request_id,
+                models.Rating.rater_id == current_user.user_id
+            ).first() is not None
+
         resultado.append({
             "request_id": v.request_id,
             "origin": v.origin,
@@ -393,9 +474,108 @@ def get_assigned_requests(
             "driver_id": driver_id,
             "conductor_lat": conductor_lat,
             "conductor_lng": conductor_lng,
+            "ya_califico": ya_califico,
         })
 
     return resultado
+
+
+# HU25 — Recibo en PDF de un viaje completado (SCRUM-190)
+@router.get("/{request_id}/receipt")
+def descargar_recibo(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    viaje = db.query(models.ServiceRequest).filter(
+        models.ServiceRequest.request_id == request_id
+    ).first()
+    if not viaje:
+        raise HTTPException(status_code=404, detail="Viaje no encontrado.")
+
+    if viaje.passenger_id != current_user.user_id and current_user.role != 'ADMIN':
+        raise HTTPException(status_code=403, detail="No tienes permiso para ver el recibo de este viaje.")
+
+    if viaje.status != 'COMPLETED':
+        raise HTTPException(status_code=400, detail="El recibo solo está disponible para viajes completados.")
+
+    oferta_aceptada = db.query(models.DriverOffer).filter(
+        models.DriverOffer.request_id == request_id,
+        models.DriverOffer.status == 'ACCEPTED'
+    ).first()
+    conductor = None
+    if oferta_aceptada:
+        conductor = db.query(models.User).filter(
+            models.User.user_id == oferta_aceptada.driver_id
+        ).first()
+    pasajero = db.query(models.User).filter(
+        models.User.user_id == viaje.passenger_id
+    ).first()
+
+    # Turify no está conectado al registro oficial de FUEC (Épica futura) — este
+    # número es un identificador interno de Turify, no un FUEC gubernamental real.
+    numero_interno = f"TFY-{request_id:06d}"
+
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+
+    # Encabezado verde de marca
+    c.setFillColorRGB(0.086, 0.639, 0.290)
+    c.rect(0, height - 2.6*cm, width, 2.6*cm, fill=1, stroke=0)
+    c.setFillColorRGB(1, 1, 1)
+    c.setFont("Helvetica-Bold", 22)
+    c.drawString(2*cm, height - 1.6*cm, "Turify")
+    c.setFont("Helvetica", 11)
+    c.drawString(2*cm, height - 2.25*cm, "Recibo de viaje")
+
+    y = height - 4*cm
+    c.setFillColorRGB(0.05, 0.05, 0.05)
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(2*cm, y, f"Referencia interna N.º {numero_interno}")
+    y -= 1*cm
+
+    def campo(label, valor):
+        nonlocal y
+        c.setFont("Helvetica-Bold", 10)
+        c.setFillColorRGB(0.3, 0.3, 0.3)
+        c.drawString(2*cm, y, label)
+        c.setFont("Helvetica", 10)
+        c.setFillColorRGB(0.05, 0.05, 0.05)
+        c.drawString(6*cm, y, str(valor))
+        y -= 0.75*cm
+
+    campo("Pasajero:", pasajero.full_name if pasajero else "-")
+    campo("Conductor:", conductor.full_name if conductor else "No disponible")
+    campo("Origen:", viaje.origin)
+    campo("Destino:", viaje.destination)
+    campo("Fecha de salida:", viaje.departure_time.strftime('%d/%m/%Y %H:%M') if viaje.departure_time else "-")
+    campo("Tipo de viaje:", "Ida y vuelta" if viaje.trip_type == 'ROUND_TRIP' else "Solo ida")
+    campo("Pasajeros:", (viaje.adults_count or 0) + (viaje.children_count or 0))
+    precio = float(oferta_aceptada.offered_price) if oferta_aceptada else 0
+    campo("Precio pagado:", f"${precio:,.0f} COP")
+
+    y -= 0.6*cm
+    c.setStrokeColorRGB(0.85, 0.85, 0.85)
+    c.line(2*cm, y, width - 2*cm, y)
+    y -= 0.7*cm
+
+    c.setFont("Helvetica-Oblique", 8)
+    c.setFillColorRGB(0.5, 0.5, 0.5)
+    c.drawString(2*cm, y, "Este recibo es un comprobante interno de Turify, no un FUEC oficial ante autoridad de transporte.")
+    y -= 0.4*cm
+    c.drawString(2*cm, y, f"Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+
+    c.showPage()
+    c.save()
+    buffer.seek(0)
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="turify_recibo_{request_id}.pdf"'}
+    )
+
 
 # HU17 — PATCH /api/service-requests/{request_id}/start
 # Conductor inicia el viaje: ASSIGNED → IN_PROGRESS
@@ -423,21 +603,60 @@ def get_offers_for_request(
         models.DriverOffer.status.in_(['DRIVER_OFFERED', 'PASSENGER_COUNTER_OFFERED'])
     ).all()
 
+    pasajeros_totales = (service_request.adults_count or 0) + (service_request.children_count or 0)
+
     resultado = []
     for oferta in ofertas:
         conductor = db.query(models.User).filter(
             models.User.user_id == oferta.driver_id
         ).first()
+        # HU29 — calificación real del conductor (antes venía simulada en el frontend)
+        promedio, cantidad = _promedio_calificacion(db, oferta.driver_id)
+
+        # HU38 — comodidades, capacidad y categoría del vehículo (badges para el radar)
+        vehiculo = db.query(models.Vehicle).filter(
+            models.Vehicle.vehicle_id == oferta.vehicle_id
+        ).first()
+        comodidades = None
+        recomendado = False
+        if vehiculo:
+            capacidad = vehiculo.capacidad_real or vehiculo.capacity
+            comodidades = {
+                "categoria": _categoria_vehiculo(capacidad),
+                "capacidad": capacidad,
+                "tiene_ac": vehiculo.tiene_ac,
+                "tiene_wifi": vehiculo.tiene_wifi,
+                "tiene_bano": vehiculo.tiene_bano,
+                "tiene_musica": vehiculo.tiene_musica,
+                "tiene_maletero_amplio": vehiculo.tiene_maletero_amplio,
+                "tiene_sillas_bebe": vehiculo.tiene_sillas_bebe,
+                "acepta_mascotas": vehiculo.acepta_mascotas,
+                "cargo_mascota": float(vehiculo.cargo_mascota) if vehiculo.cargo_mascota is not None else None,
+                "acepta_menores_2_anos": vehiculo.acepta_menores_2_anos,
+            }
+            # Recomendado: capacidad suficiente para el grupo, sin sobredimensionar
+            # de forma exagerada (no le recomendamos un bus grande a 2 personas).
+            if pasajeros_totales > 0 and capacidad >= pasajeros_totales:
+                recomendado = capacidad <= max(pasajeros_totales * 3, pasajeros_totales + 3)
+            if service_request.has_pets and not vehiculo.acepta_mascotas:
+                recomendado = False
+
         resultado.append({
             "offer_id": oferta.offer_id,
             "request_id": oferta.request_id,
             "driver_id": oferta.driver_id,
             "driver_name": conductor.full_name if conductor else "Conductor",
             "driver_photo": conductor.profile_photo_url if conductor else None,
+            # HU21 — badge de conductor verificado (RUNT aprobado), visible en la oferta
+            "driver_verificado": bool(conductor.conductor_verificado) if conductor else False,
             "vehicle_id": oferta.vehicle_id,
             "offered_price": float(oferta.offered_price),
             "status": oferta.status,
-            "created_at": oferta.created_at.isoformat() if oferta.created_at else None
+            "created_at": oferta.created_at.isoformat() if oferta.created_at else None,
+            "driver_rating": promedio,
+            "driver_rating_count": cantidad,
+            "comodidades": comodidades,
+            "recomendado": recomendado,
         })
 
     return resultado
@@ -609,6 +828,34 @@ def crear_notificacion(db, user_id: int, title: str, message: str, tipo: str, of
     except Exception as e:
         db.rollback()
         print(f"[Notificación] Error: {e}")
+
+
+# HU38 — Categoría de vehículo (misma tabla de rangos que app/routers/drivers.py)
+_RANGOS_CATEGORIA_VEHICULO = [
+    (1, 4,   "SEDAN"),
+    (5, 10,  "VAN"),
+    (11, 19, "MICROBUS"),
+    (20, 35, "BUS"),
+    (36, 60, "BUS_GRANDE"),
+]
+
+
+def _categoria_vehiculo(capacidad: int) -> str:
+    for minimo, maximo, categoria in _RANGOS_CATEGORIA_VEHICULO:
+        if minimo <= capacidad <= maximo:
+            return categoria
+    return "BUS_GRANDE" if capacidad > 60 else "SEDAN"
+
+
+# HU29 — Calificaciones bidireccionales (SCRUM-194)
+def _promedio_calificacion(db, user_id: int):
+    """Promedio y cantidad de calificaciones (Rating.score) recibidas por un usuario."""
+    fila = db.query(
+        func.avg(models.Rating.score),
+        func.count(models.Rating.rating_id)
+    ).filter(models.Rating.rated_id == user_id).first()
+    promedio, cantidad = fila
+    return (round(float(promedio), 1) if promedio is not None else None), (cantidad or 0)
 
 
 # SCRUM-82 — PATCH /api/service-requests/offers/{offer_id}/resolve
@@ -936,3 +1183,83 @@ def get_ocupantes(
         }
         for o in ocupantes
     ]
+
+
+# ── HU29 — Calificaciones bidireccionales (SCRUM-194) ────────────────────────
+@router.post("/{request_id}/rating", status_code=status.HTTP_201_CREATED)
+def calificar_viaje(
+    request_id: int,
+    payload: schemas.RatingCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    """
+    Pasajero y conductor se califican mutuamente (1-5 estrellas + comentario
+    opcional) una vez el viaje está COMPLETED. Cada uno solo puede calificar
+    una vez por viaje — un segundo envío actualiza su calificación anterior.
+    """
+    viaje = db.query(models.ServiceRequest).filter(
+        models.ServiceRequest.request_id == request_id
+    ).first()
+    if not viaje:
+        raise HTTPException(status_code=404, detail="Viaje no encontrado.")
+    if viaje.status != 'COMPLETED':
+        raise HTTPException(status_code=400, detail="Solo puedes calificar viajes ya completados.")
+
+    oferta_aceptada = db.query(models.DriverOffer).filter(
+        models.DriverOffer.request_id == request_id,
+        models.DriverOffer.status == 'ACCEPTED'
+    ).first()
+    if not oferta_aceptada:
+        raise HTTPException(status_code=400, detail="Este viaje no tiene un conductor asignado.")
+
+    # Determinar quién califica a quién según el rol de quien hace la petición
+    if current_user.user_id == viaje.passenger_id:
+        rated_id = oferta_aceptada.driver_id
+    elif current_user.user_id == oferta_aceptada.driver_id:
+        rated_id = viaje.passenger_id
+    else:
+        raise HTTPException(status_code=403, detail="No participaste en este viaje.")
+
+    existente = db.query(models.Rating).filter(
+        models.Rating.request_id == request_id,
+        models.Rating.rater_id == current_user.user_id
+    ).first()
+
+    if existente:
+        existente.score = payload.score
+        existente.comment = payload.comment
+    else:
+        db.add(models.Rating(
+            request_id=request_id,
+            rater_id=current_user.user_id,
+            rated_id=rated_id,
+            score=payload.score,
+            comment=payload.comment,
+        ))
+
+    db.commit()
+
+    registrar_log(db, action="CREATE_RATING", user_id=current_user.user_id,
+        entity="Rating", entity_id=request_id,
+        detail=f"Calificación de {payload.score}★ para usuario #{rated_id} (viaje #{request_id})")
+
+    return {"message": "¡Gracias por tu calificación!", "score": payload.score}
+
+
+@router.get("/{request_id}/rating")
+def obtener_mi_calificacion(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    """Indica si el usuario autenticado ya calificó este viaje (y con qué puntaje)."""
+    mia = db.query(models.Rating).filter(
+        models.Rating.request_id == request_id,
+        models.Rating.rater_id == current_user.user_id
+    ).first()
+    return {
+        "ya_califico": mia is not None,
+        "score": mia.score if mia else None,
+        "comment": mia.comment if mia else None,
+    }

@@ -1,10 +1,12 @@
 import os
 import uuid
 from io import BytesIO
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 from supabase import create_client, Client
 
@@ -37,6 +39,31 @@ TIPOS_PERMITIDOS = {
 TAMANO_MAXIMO_MB = 5
 
 router = APIRouter(prefix="/drivers", tags=["Modo Conductor"])
+
+# ── HU38 — Categorías de vehículo y rango estándar de tarifa por km ─────────
+# Rangos en COP/km, orientativos — el conductor puede moverse dentro de su
+# categoría pero no salirse de ella (evita tarifas absurdas por error).
+RANGOS_CATEGORIA = [
+    (1, 4,   "SEDAN",      (1500, 3000)),
+    (5, 10,  "VAN",        (2000, 4000)),
+    (11, 19, "MICROBUS",   (2500, 5000)),
+    (20, 35, "BUS",        (3000, 6000)),
+    (36, 60, "BUS_GRANDE", (3500, 7000)),
+]
+
+
+def calcular_categoria(capacidad: int) -> str:
+    for minimo, maximo, categoria, _ in RANGOS_CATEGORIA:
+        if minimo <= capacidad <= maximo:
+            return categoria
+    return "BUS_GRANDE" if capacidad > 60 else "SEDAN"
+
+
+def rango_tarifa_km(categoria: str):
+    for _, _, cat, rango in RANGOS_CATEGORIA:
+        if cat == categoria:
+            return list(rango)
+    return [1500, 3000]
 
 
 def validar_archivo(file: UploadFile) -> str:
@@ -204,6 +231,71 @@ async def register_driver_info(
         raise HTTPException(status_code=500, detail=f"Error procesando el registro: {str(e)}")
 
 
+# ── HU20 — Subida de documento RUNT (SCRUM-183) ─────────────────────────────
+# A diferencia de los 5 documentos obligatorios de /register-details, el RUNT es
+# opcional y se sube DESPUÉS del registro, para declarar/verificar años de
+# experiencia. No afecta el rol DRIVER ya activo — solo habilita el badge de
+# "conductor verificado" (HU21) cuando el admin lo aprueba.
+@router.post("/upload-runt")
+async def upload_runt(
+    years_experience: int = Form(...),
+    license_categories: str = Form(None),
+    doc_runt: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if current_user.role != "DRIVER":
+        raise HTTPException(status_code=403, detail="Solo los conductores pueden subir el RUNT.")
+
+    if years_experience < 0 or years_experience > 80:
+        raise HTTPException(status_code=400, detail="Los años de experiencia declarados no son válidos.")
+
+    runt_activo = db.query(models.Document).filter(
+        models.Document.user_id == current_user.user_id,
+        models.Document.document_type == "RUNT",
+        models.Document.verification_status.in_(["PENDING", "APPROVED"])
+    ).first()
+    if runt_activo:
+        raise HTTPException(
+            status_code=400,
+            detail="Ya tienes un RUNT enviado. Espera la revisión del administrador, o a que sea rechazado para volver a enviarlo."
+        )
+
+    supabase = get_supabase()
+    base_path = f"drivers/{current_user.user_id}"
+    secure_url = await upload_to_supabase(supabase, doc_runt, "turify-documentos", f"{base_path}/runt")
+
+    runt_previo = db.query(models.Document).filter(
+        models.Document.user_id == current_user.user_id,
+        models.Document.document_type == "RUNT"
+    ).first()
+
+    if runt_previo:
+        # Era rechazado — se reenvía con el nuevo archivo y datos
+        runt_previo.file_url = secure_url
+        runt_previo.verification_status = "PENDING"
+        runt_previo.years_experience = years_experience
+        runt_previo.license_categories = license_categories
+        runt_previo.ai_extracted_data = None
+        runt_previo.ai_confidence = None
+        runt_previo.ai_observations = None
+    else:
+        db.add(models.Document(
+            user_id=current_user.user_id,
+            document_type="RUNT",
+            file_url=secure_url,
+            verification_status="PENDING",
+            years_experience=years_experience,
+            license_categories=license_categories
+        ))
+
+    db.commit()
+    return {
+        "status": "success",
+        "message": "RUNT enviado correctamente. El administrador revisará tu experiencia pronto."
+    }
+
+
 @router.get("/my-documents", response_model=List[schemas.DocumentResponse])
 def get_my_documents(
     db: Session = Depends(get_db),
@@ -282,4 +374,238 @@ def update_driver_location(
         "current_lat": float(current_user.current_lat) if current_user.current_lat is not None else None,
         "current_lng": float(current_user.current_lng) if current_user.current_lng is not None else None,
         "is_online": current_user.is_online,
+    }
+
+
+# ── HU38 — Comodidades, capacidad real y tarifas del vehículo (SCRUM-207) ───
+@router.get("/vehicle", response_model=schemas.VehicleSettingsResponse)
+def get_my_vehicle(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if current_user.role != "DRIVER":
+        raise HTTPException(status_code=403, detail="Solo los conductores tienen vehículo registrado.")
+
+    vehiculo = db.query(models.Vehicle).filter(
+        models.Vehicle.owner_id == current_user.user_id
+    ).first()
+    if not vehiculo:
+        raise HTTPException(status_code=404, detail="Aún no tienes un vehículo registrado. Completa tu registro de conductor primero.")
+
+    capacidad_para_categoria = vehiculo.capacidad_real or vehiculo.capacity
+    categoria = calcular_categoria(capacidad_para_categoria)
+
+    return {
+        "vehicle_id": vehiculo.vehicle_id,
+        "plate": vehiculo.plate,
+        "capacity": vehiculo.capacity,
+        "capacidad_real": vehiculo.capacidad_real,
+        "categoria": categoria,
+        "tarifa_km_base": float(vehiculo.tarifa_km_base) if vehiculo.tarifa_km_base is not None else None,
+        "tarifa_km_rango": rango_tarifa_km(categoria),
+        "tarifa_espera_hora": float(vehiculo.tarifa_espera_hora) if vehiculo.tarifa_espera_hora is not None else None,
+        "tarifa_dia": float(vehiculo.tarifa_dia) if vehiculo.tarifa_dia is not None else None,
+        "km_incluidos_por_dia": vehiculo.km_incluidos_por_dia,
+        "recargo_dificil_acceso": float(vehiculo.recargo_dificil_acceso) if vehiculo.recargo_dificil_acceso is not None else None,
+        "tiene_ac": vehiculo.tiene_ac,
+        "tiene_wifi": vehiculo.tiene_wifi,
+        "tiene_bano": vehiculo.tiene_bano,
+        "tiene_musica": vehiculo.tiene_musica,
+        "tiene_maletero_amplio": vehiculo.tiene_maletero_amplio,
+        "tiene_sillas_bebe": vehiculo.tiene_sillas_bebe,
+        "acepta_mascotas": vehiculo.acepta_mascotas,
+        "cargo_mascota": float(vehiculo.cargo_mascota) if vehiculo.cargo_mascota is not None else None,
+        "acepta_menores_2_anos": vehiculo.acepta_menores_2_anos,
+    }
+
+
+@router.patch("/vehicle", response_model=schemas.VehicleSettingsResponse)
+def update_my_vehicle(
+    payload: schemas.VehicleSettingsUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if current_user.role != "DRIVER":
+        raise HTTPException(status_code=403, detail="Solo los conductores pueden editar su vehículo.")
+
+    vehiculo = db.query(models.Vehicle).filter(
+        models.Vehicle.owner_id == current_user.user_id
+    ).first()
+    if not vehiculo:
+        raise HTTPException(status_code=404, detail="Aún no tienes un vehículo registrado. Completa tu registro de conductor primero.")
+
+    datos = payload.model_dump(exclude_unset=True)
+
+    if "cargo_mascota" in datos and datos["cargo_mascota"] > 0 and datos.get("acepta_mascotas", vehiculo.acepta_mascotas) is False:
+        raise HTTPException(status_code=400, detail="No puedes configurar un cargo por mascota si no aceptas mascotas.")
+
+    for campo, valor in datos.items():
+        setattr(vehiculo, campo, valor)
+
+    db.commit()
+    db.refresh(vehiculo)
+
+    return get_my_vehicle(db=db, current_user=current_user)
+
+
+# ── HU35 — Panel de ganancias del conductor (SCRUM-204) ─────────────────────
+@router.get("/earnings")
+def get_driver_earnings(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Resumen de ganancias y rendimiento del conductor autenticado: ganancias de
+    la semana y el mes (suma del precio aceptado de sus viajes COMPLETED),
+    número total de viajes completados, horarios más activos (conteo por hora
+    del día) y sus 3 rutas más frecuentes.
+
+    La "calificación promedio" del criterio de aceptación queda pendiente:
+    todavía no existe HU29 (Calificaciones bidireccionales / SCRUM-194), así
+    que el frontend debe mostrar "Próximamente" para ese dato por ahora.
+    """
+    if current_user.role != "DRIVER":
+        raise HTTPException(status_code=403, detail="Solo los conductores pueden ver su panel de ganancias.")
+
+    ahora = datetime.utcnow()
+    inicio_semana = ahora - timedelta(days=7)
+    inicio_mes = ahora - timedelta(days=30)
+
+    # Viajes completados de este conductor, con el precio que realmente se aceptó
+    # (DriverOffer.status == ACCEPTED es el precio final del viaje, no offered_price
+    # de ofertas rechazadas/contraofertadas).
+    viajes = (
+        db.query(
+            models.ServiceRequest.request_id,
+            models.ServiceRequest.origin,
+            models.ServiceRequest.destination,
+            models.ServiceRequest.departure_time,
+            models.DriverOffer.offered_price,
+        )
+        .join(models.DriverOffer, models.DriverOffer.request_id == models.ServiceRequest.request_id)
+        .filter(
+            models.ServiceRequest.status == "COMPLETED",
+            models.DriverOffer.driver_id == current_user.user_id,
+            models.DriverOffer.status == "ACCEPTED",
+        )
+        .all()
+    )
+
+    ganancias_semana = 0.0
+    ganancias_mes = 0.0
+    horarios = [0] * 24
+    rutas = {}
+
+    for v in viajes:
+        precio = float(v.offered_price or 0)
+        fecha = v.departure_time
+        if fecha and fecha >= inicio_semana:
+            ganancias_semana += precio
+        if fecha and fecha >= inicio_mes:
+            ganancias_mes += precio
+        if fecha:
+            horarios[fecha.hour] += 1
+        ruta = f"{v.origin} → {v.destination}"
+        rutas[ruta] = rutas.get(ruta, 0) + 1
+
+    top_rutas = sorted(rutas.items(), key=lambda x: x[1], reverse=True)[:3]
+
+    # HU29 — ahora que existen calificaciones reales (Rating), las usamos aquí
+    fila_rating = db.query(
+        func.avg(models.Rating.score),
+        func.count(models.Rating.rating_id)
+    ).filter(models.Rating.rated_id == current_user.user_id).first()
+    promedio_rating, cantidad_rating = fila_rating
+    calificacion_promedio = round(float(promedio_rating), 1) if promedio_rating is not None else None
+
+    return {
+        "ganancias_semana": round(ganancias_semana, 2),
+        "ganancias_mes": round(ganancias_mes, 2),
+        "viajes_completados": len(viajes),
+        "calificacion_promedio": calificacion_promedio,
+        "calificacion_cantidad": cantidad_rating or 0,
+        "horarios_activos": horarios,   # conteo de viajes por hora del día (0-23)
+        "top_rutas": [{"ruta": r, "viajes": c} for r, c in top_rutas],
+    }
+
+
+# ── HU21 — Perfil público del conductor (lo ve el pasajero desde una oferta) ─
+@router.get("/{driver_id}/public-profile")
+def get_driver_public_profile(
+    driver_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    conductor = db.query(models.User).filter(
+        models.User.user_id == driver_id,
+        models.User.role == "DRIVER"
+    ).first()
+    if not conductor:
+        raise HTTPException(status_code=404, detail="Conductor no encontrado.")
+
+    fila_rating = db.query(
+        func.avg(models.Rating.score),
+        func.count(models.Rating.rating_id)
+    ).filter(models.Rating.rated_id == driver_id).first()
+    promedio, cantidad = fila_rating
+    rating_avg = round(float(promedio), 1) if promedio is not None else None
+
+    viajes_completados = (
+        db.query(models.ServiceRequest.request_id)
+        .join(models.DriverOffer, models.DriverOffer.request_id == models.ServiceRequest.request_id)
+        .filter(
+            models.ServiceRequest.status == "COMPLETED",
+            models.DriverOffer.driver_id == driver_id,
+            models.DriverOffer.status == "ACCEPTED",
+        )
+        .count()
+    )
+
+    vehiculo = db.query(models.Vehicle).filter(models.Vehicle.owner_id == driver_id).first()
+    vehiculo_out = None
+    if vehiculo:
+        capacidad = vehiculo.capacidad_real or vehiculo.capacity
+        vehiculo_out = {
+            "plate": vehiculo.plate,
+            "capacity": capacidad,
+            "categoria": calcular_categoria(capacidad),
+            "tiene_ac": vehiculo.tiene_ac,
+            "tiene_wifi": vehiculo.tiene_wifi,
+            "tiene_bano": vehiculo.tiene_bano,
+            "tiene_musica": vehiculo.tiene_musica,
+            "tiene_maletero_amplio": vehiculo.tiene_maletero_amplio,
+            "tiene_sillas_bebe": vehiculo.tiene_sillas_bebe,
+            "acepta_mascotas": vehiculo.acepta_mascotas,
+        }
+
+    empresa = None
+    if conductor.affiliated_company:
+        emp = db.query(models.AffiliatedCompany).filter(
+            models.AffiliatedCompany.company_id == conductor.affiliated_company
+        ).first()
+        if emp:
+            empresa = {"name": emp.name}
+
+    # El dato solo se expone si el RUNT está aprobado — es lo que respalda el sello
+    years_experience = None
+    if conductor.conductor_verificado:
+        runt = db.query(models.Document).filter(
+            models.Document.user_id == driver_id,
+            models.Document.document_type == "RUNT",
+            models.Document.verification_status == "APPROVED"
+        ).first()
+        if runt:
+            years_experience = runt.years_experience
+
+    return {
+        "user_id": conductor.user_id,
+        "full_name": conductor.full_name,
+        "profile_photo_url": conductor.profile_photo_url,
+        "rating_avg": rating_avg,
+        "rating_count": cantidad or 0,
+        "viajes_completados": viajes_completados,
+        "vehiculo": vehiculo_out,
+        "empresa_afiliada": empresa,
+        "conductor_verificado": bool(conductor.conductor_verificado),
+        "years_experience": years_experience,
     }

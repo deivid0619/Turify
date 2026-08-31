@@ -42,6 +42,10 @@ class User(Base):
     # Campos nuevos — calificaciones (Épica 7)
     rating_avg          = Column(Numeric(3, 2), default=0.00)
     total_ratings       = Column(Integer, default=0)
+    # HU21 — Badge de "conductor verificado": se activa cuando el admin aprueba el
+    # RUNT del conductor (experiencia declarada verificada). Es independiente del
+    # rol DRIVER/documentos obligatorios de registro — el RUNT es opcional y posterior.
+    conductor_verificado = Column(Boolean, default=False)
     created_at          = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     company     = relationship("AffiliatedCompany", back_populates="users")

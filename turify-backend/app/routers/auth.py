@@ -139,10 +139,15 @@ def get_full_profile(
                 "document_id": d.document_id,
                 "document_type": d.document_type,
                 "verification_status": d.verification_status,
-                "file_url": d.file_url
+                "file_url": d.file_url,
+                # HU20/HU21 — solo tienen valor real en el documento RUNT
+                "years_experience": d.years_experience,
+                "license_categories": d.license_categories,
             }
             for d in documentos
         ]
+        # HU21 — badge de conductor verificado (RUNT aprobado por el admin)
+        base["conductor_verificado"] = current_user.conductor_verificado or False
         base["vehiculo"] = {
             "vehicle_id": vehiculo.vehicle_id,
             "plate": vehiculo.plate,

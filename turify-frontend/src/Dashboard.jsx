@@ -5,6 +5,7 @@ import { GoogleMap, MarkerF, PolylineF, useJsApiLoader } from '@react-google-map
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './AuthContext';
 import PanelConductor from './PanelConductor';
+import AdminConductores from './Adminconductores';
 import InputDireccion from './InputDireccion';
 import PerfilDrawer from './PerfilDrawer';
 import { ToastContainer, useToast } from './Toast';
@@ -107,30 +108,59 @@ const Dashboard = () => {
   const [listaSolicitudes, setListaSolicitudes] = useState([]);
   const [viajesConfirmados, setViajesConfirmados] = useState([]);
   const [pestanaViajes, setPestanaViajes] = useState('activos'); // 'activos' | 'confirmados'
+  const [actualizandoViajes, setActualizandoViajes] = useState(false);
+
+  // HU21 — Perfil público del conductor: se abre en una pestaña nueva
+  // (página aparte), no como modal encima del dashboard.
+  const abrirPerfilConductor = (driverId) => {
+    if (!driverId) return;
+    window.open(`/conductor/${driverId}`, '_blank', 'noopener,noreferrer');
+  };
   const [viajeSeleccionado, setViajeSeleccionado] = useState(null);
   const [notificaciones, setNotificaciones] = useState([]);
   const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
-  const [mostrarPanelConductor, setMostrarPanelConductor] = useState(false);
   const [mostrarPerfil, setMostrarPerfil] = useState(false);
   const [modalFuec, setModalFuec] = useState(null); // request_id del viaje a registrar
+  // HU29 — Calificaciones bidireccionales
+  const [modalCalificar, setModalCalificar] = useState(null); // request_id del viaje a calificar
+  const [estrellasCalificar, setEstrellasCalificar] = useState(0);
+  const [comentarioCalificar, setComentarioCalificar] = useState('');
+  const [enviandoCalificacion, setEnviandoCalificacion] = useState(false);
   const [ocupantesFuec, setOcupantesFuec] = useState([{ full_name: '', document_type: 'CC', document_number: '' }]);
   const [enviandoFuec, setEnviandoFuec] = useState(false);
   const [fuecEnviado, setFuecEnviado] = useState({}); // { request_id: true } para saber cuáles ya se registraron
   const [errorDireccion, setErrorDireccion] = useState(null);
   const coordsBuffer = useRef({});
 
-  // Geocodificar texto → coords usando Google Geocoding (via el SDK de JS, sin llamadas REST directas)
+  // Bounding box aproximado de Antioquia — se usa como sesgo (no como filtro estricto) para
+  // que direcciones ambiguas como "Cl 35b" (sin ciudad/departamento) se resuelvan dentro de
+  // Antioquia en vez de en cualquier otra parte de Colombia donde exista una calle con ese
+  // mismo nombre (ej. Cali). Google respeta esto como preferencia, no descarta resultados
+  // fuera de esta zona si el texto realmente apunta a otro lugar.
+  const BOUNDS_ANTIOQUIA = { south: 5.4, west: -77.2, north: 8.9, east: -73.9 };
+
+  // Geocodificar texto → coords usando Google Geocoding (via el SDK de JS, sin llamadas REST directas).
+  // Solo Google — sin respaldo de otro proveedor. Se deja el console.warn con el status real de
+  // Google para poder diagnosticar rápido si una búsqueda puntual falla (REQUEST_DENIED, ZERO_RESULTS, etc.).
   const geocodificar = (texto) => {
     if (!mapsLoaded || !window.google) return Promise.resolve(null);
     const geocoder = new window.google.maps.Geocoder();
     return new Promise((resolve) => {
       geocoder.geocode(
-        { address: `${texto}, Colombia`, componentRestrictions: { country: 'co' } },
+        {
+          address: `${texto}, Colombia`,
+          componentRestrictions: { country: 'co' },
+          bounds: new window.google.maps.LatLngBounds(
+            { lat: BOUNDS_ANTIOQUIA.south, lng: BOUNDS_ANTIOQUIA.west },
+            { lat: BOUNDS_ANTIOQUIA.north, lng: BOUNDS_ANTIOQUIA.east }
+          ),
+        },
         (results, status) => {
           if (status === 'OK' && results?.[0]) {
             const loc = results[0].geometry.location;
             resolve({ lat: loc.lat(), lon: loc.lng() });
           } else {
+            console.warn(`[Geocoding] Google no encontró "${texto}" — status: ${status}`);
             resolve(null);
           }
         }
@@ -138,7 +168,7 @@ const Dashboard = () => {
     });
   };
 
-  // Geocodificacion inversa (coords → texto de direccion) usando Google Geocoding
+  // Geocodificacion inversa (coords → texto de direccion) usando Google Geocoding — solo Google.
   const geocodificarInverso = (lat, lng) => {
     if (!mapsLoaded || !window.google) return Promise.resolve(null);
     const geocoder = new window.google.maps.Geocoder();
@@ -147,6 +177,7 @@ const Dashboard = () => {
         if (status === 'OK' && results?.[0]) {
           resolve(results[0].formatted_address);
         } else {
+          console.warn(`[Geocoding] Google no pudo revertir (${lat},${lng}) — status: ${status}`);
           resolve(null);
         }
       });
@@ -470,6 +501,64 @@ const Dashboard = () => {
     }
   };
 
+  // HU29: Enviar calificación al conductor
+  const enviarCalificacion = async () => {
+    if (estrellasCalificar < 1) { toast.warning('Elige de 1 a 5 estrellas.'); return; }
+    setEnviandoCalificacion(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${modalCalificar}/rating`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({ score: estrellasCalificar, comment: comentarioCalificar || null })
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+      setViajesConfirmados(prev => prev.map(v => v.id === modalCalificar ? { ...v, ya_califico: true } : v));
+      setModalCalificar(null);
+      setEstrellasCalificar(0);
+      setComentarioCalificar('');
+      toast.success('✅ ¡Gracias por tu calificación!');
+    } catch (e) {
+      toast.error(`Error: ${e.message}`);
+    } finally {
+      setEnviandoCalificacion(false);
+    }
+  };
+
+  // HU25: Descargar recibo del viaje en PDF (SCRUM-190) — el endpoint requiere
+  // Authorization, así que no se puede usar un <a href> plano: se pide el PDF como
+  // blob autenticado y se dispara la descarga manualmente con un object URL.
+  const [descargandoRecibo, setDescargandoRecibo] = useState(null); // request_id en descarga
+  const descargarRecibo = async (requestId) => {
+    setDescargandoRecibo(requestId);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${requestId}/receipt`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (!res.ok) {
+        let detalle = 'No se pudo generar el recibo.';
+        try { detalle = (await res.json()).detail || detalle; } catch {}
+        throw new Error(detalle);
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.download = `turify_recibo_${requestId}.pdf`;
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error(`Error: ${e.message}`);
+    } finally {
+      setDescargandoRecibo(null);
+    }
+  };
+
   const agregarOcupante = () => {
     setOcupantesFuec(prev => [...prev, { full_name: '', document_type: 'CC', document_number: '' }]);
   };
@@ -505,11 +594,19 @@ const Dashboard = () => {
             const dataOfertas = await resOfertas.json();
             ofertas = dataOfertas.map(o => ({
               id: o.offer_id,
+              driverId: o.driver_id,
               conductor: o.driver_name || `Conductor #${o.driver_id}`,
               foto: o.driver_photo || null,
-              calificacion: 4.8,
+              // HU21 — badge de experiencia verificada (RUNT aprobado por el admin)
+              verificado: !!o.driver_verificado,
+              // HU29 — calificación real (antes venía simulada); null si el conductor aún no tiene calificaciones
+              calificacion: o.driver_rating ?? null,
+              calificacionCantidad: o.driver_rating_count || 0,
               precio: o.offered_price,
-              estado: o.status
+              estado: o.status,
+              // HU38 — comodidades y categoría del vehículo, y si es un buen ajuste para el grupo
+              comodidades: o.comodidades || null,
+              recomendado: !!o.recomendado
             }));
           }
         } catch {}
@@ -545,12 +642,25 @@ const Dashboard = () => {
             driver_id: v.driver_id || null,
             conductor_lat: v.conductor_lat ?? null,
             conductor_lng: v.conductor_lng ?? null,
+            // HU29 — calificaciones
+            ya_califico: v.ya_califico || false,
           })));
         }
       } catch {}
 
       setListaSolicitudes(viajesConOfertas);
     } catch (error) { console.error('Error al cargar los viajes:', error); }
+  };
+
+  // Botón "Actualizar" manual en "Mis Viajes" (En búsqueda / Confirmados) — refresca
+  // ambas listas de una vez, ya que cargarMisViajes las trae juntas.
+  const refrescarViajes = async () => {
+    setActualizandoViajes(true);
+    try {
+      await cargarMisViajes();
+    } finally {
+      setActualizandoViajes(false);
+    }
   };
 
   // SCRUM-81: Aceptar oferta — llama al endpoint real
@@ -706,10 +816,16 @@ const Dashboard = () => {
     return `hace ${Math.floor(diff / 86400)}d`;
   };
 
-  const headerStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 40px', backgroundColor: '#fff', borderBottom: '1px solid #eee', position: 'absolute', top: 0, width: '100%', zIndex: 1000, boxSizing: 'border-box', boxShadow: '0 1px 10px rgba(0,0,0,0.05)' };
-  const searchBarStyle = { display: 'flex', alignItems: 'center', border: '1px solid #ddd', borderRadius: '40px', padding: '5px 5px 5px 15px', backgroundColor: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' };
-  const dividerStyle = { width: '1px', height: '20px', background: '#ddd', margin: '0 10px', flexShrink: 0 };
+  // ── Estilos del sidebar (rediseño HU05 — inspirado en el layout de Uber, pero
+  // sin adoptar su paleta: el mapa deja de ser el fondo de toda la pantalla y pasa
+  // a ser un panel contenido junto a un panel fijo con el formulario de búsqueda) ──
+  const sidebarStyle = { width: '400px', minWidth: '400px', height: '100vh', backgroundColor: '#f7f5f0', borderRight: '1px solid #e8e4db', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', position: 'relative', zIndex: 500, overflowY: 'auto' };
+  const sidebarTopStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 28px 8px' };
+  const fieldBoxStyle = { display: 'flex', alignItems: 'center', border: '1px solid #e8e4db', borderRadius: '12px', padding: '11px 14px', backgroundColor: '#fff' };
+  const fieldLabelStyle = { fontSize: '10px', fontWeight: '700', color: '#8a8578', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '5px' };
+  const dividerStyle = { height: '1px', width: '100%', background: '#e8e4db', margin: '2px 0', flexShrink: 0 };
   const inputStyle = { border: 'none', outline: 'none', fontSize: '13px', backgroundColor: 'transparent' };
+  const navBtnStyle = { display: 'flex', alignItems: 'center', gap: '10px', width: '100%', textAlign: 'left', background: '#fff', border: '1px solid #e8e4db', borderRadius: '12px', padding: '11px 14px', fontWeight: '600', cursor: 'pointer', color: '#0f3d24', fontSize: '13px' };
 
   const SelectorPasajero = ({ titulo, subtitulo, tipo }) => {
     const deshabilitado = totalAsientos >= 44;
@@ -728,6 +844,23 @@ const Dashboard = () => {
     );
   };
 
+  // HU06 — Un conductor siempre ve el panel de conductor, no el dashboard de
+  // pasajero con un botón para abrirlo aparte.
+  if (usuario?.role === 'DRIVER') {
+    return (
+      <div style={{ position: 'relative', width: '100%', height: '100vh', background: '#f7f5f0', padding: '14px', boxSizing: 'border-box' }}>
+        <PanelConductor />
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+      </div>
+    );
+  }
+
+  // Un admin no necesita el mapa ni pedir un viaje — su "dashboard" es directamente
+  // el panel de verificación de documentos.
+  if (usuario?.role === 'ADMIN') {
+    return <AdminConductores />;
+  }
+
   return (
     <>
     {cargandoInicial && <SkeletonDashboard />}
@@ -739,6 +872,7 @@ const Dashboard = () => {
       }} />
     )}
     <style>{`
+      @keyframes girar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       .fuec-input {
         width: 100%;
         padding: 9px 12px;
@@ -805,123 +939,225 @@ const Dashboard = () => {
         }
       }
     `}</style>
-    <div style={{ height: '100vh', width: '100%', position: 'relative', fontFamily: 'Inter, sans-serif', overflow: 'hidden' }}>
+    <div style={{ height: '100vh', width: '100%', position: 'relative', fontFamily: 'Inter, sans-serif', overflow: 'hidden', display: 'flex' }}>
 
-      <header style={headerStyle}>
-        <img src={logoTurify} alt="Logo" style={{ height: '70px' }} />
-
-        <form onSubmit={buscarRuta} style={searchBarStyle}>
-          <div style={{ display: 'flex', gap: '4px', marginRight: '8px' }}>
-            <button type="button" onClick={() => setTipoViaje('ida')} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: tipoViaje === 'ida' ? BRAND_GREEN : 'transparent', color: tipoViaje === 'ida' ? '#fff' : '#666', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Solo ida</button>
-            <button type="button" onClick={() => setTipoViaje('redondo')} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: tipoViaje === 'redondo' ? BRAND_GREEN : 'transparent', color: tipoViaje === 'redondo' ? '#fff' : '#666', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Ida y vuelta</button>
+      <aside style={sidebarStyle}>
+        <div style={sidebarTopStyle}>
+          <img src={logoTurify} alt="Logo" style={{ height: '48px' }} />
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+              onClick={() => { setMostrarNotificaciones(true); }}
+              style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '35px', height: '35px', borderRadius: '50%', background: '#fff', border: '1px solid #e8e4db' }}>
+              <span style={{ fontSize: '18px' }}>🔔</span>
+              <AnimatePresence>
+                {notificaciones.filter(n => !n.is_read).length > 0 && (
+                  <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
+                    style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '2px solid #fff' }}>
+                    {notificaciones.filter(n => !n.is_read).length}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+              onClick={() => setMostrarPerfil(true)}
+              style={{ border: '1px solid #e8e4db', borderRadius: '20px', padding: '5px 12px', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center', background: '#fff' }}>
+              <div style={{ background: '#eee', borderRadius: '50%', width: '25px', height: '25px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {usuario?.profile_photo_url
+                  ? <img src={usuario.profile_photo_url} alt="perfil" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span>👤</span>}
+              </div>
+            </motion.div>
           </div>
-          <div style={dividerStyle} />
-          <InputDireccion name="origen" placeholder="Origen" value={busqueda.origen} onChange={handleBusqueda} esOrigen={true} onUbicacionActual={handleUbicacionActual} mapsLoaded={mapsLoaded} />
-          <div style={dividerStyle} />
-          <InputDireccion name="destino" placeholder="Destino" value={busqueda.destino} onChange={handleBusqueda} mapsLoaded={mapsLoaded} />
-          <div style={dividerStyle} />
-          <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-            <input type="datetime-local" name="departure_time" value={busqueda.departure_time} onChange={handleBusqueda} style={{ ...inputStyle, width: '130px', color: busqueda.departure_time ? '#000' : '#888' }} required />
-            <AnimatePresence>
-              {tipoViaje === 'redondo' && (
-                <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} style={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
-                  <span style={{ fontSize: '12px', color: '#888', marginRight: '5px' }}>→</span>
-                  <input type="datetime-local" name="return_time" value={busqueda.return_time} onChange={handleBusqueda} style={{ ...inputStyle, width: '130px', color: busqueda.return_time ? '#000' : '#888' }} required={tipoViaje === 'redondo'} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-          <div style={dividerStyle} />
-          <div style={{ position: 'relative' }}>
-            <div onClick={() => setMostrarPasajeros(!mostrarPasajeros)} style={{ cursor: 'pointer', padding: '5px 10px', fontSize: '14px', color: '#222', userSelect: 'none', display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontWeight: 'bold', fontSize: '12px' }}>Quién</span>
-              <span style={{ color: '#666' }}>{textoViajeros}</span>
-            </div>
-            <AnimatePresence>
-              {mostrarPasajeros && (
-                <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} transition={{ duration: 0.2 }}
-                  style={{ position: 'absolute', top: '50px', right: '-40px', background: '#fff', borderRadius: '20px', padding: '15px 25px', width: '320px', boxShadow: '0 8px 28px rgba(0,0,0,0.15)', zIndex: 2000 }}>
-                  <SelectorPasajero titulo="Adultos" subtitulo="15 años o más" tipo="adultos" />
-                  <SelectorPasajero titulo="Niños" subtitulo="Edades 0 – 14" tipo="ninos" />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid #eee' }}>
-                    <div>
-                      <div style={{ fontWeight: 'bold', fontSize: '15px', color: '#222' }}>Mascotas</div>
-                      <div style={{ fontSize: '13px', color: '#777', marginTop: '2px' }}>¿Traes mascota?</div>
-                    </div>
-                    <input type="checkbox" checked={pasajeros.mascotas} onChange={(e) => setPasajeros(prev => ({ ...prev, mascotas: e.target.checked }))} style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: BRAND_GREEN }} />
-                  </div>
-                  {totalAsientos >= 44 && <p style={{ color: '#d97706', fontSize: '12px', marginTop: '10px', textAlign: 'center' }}>Límite máximo alcanzado.</p>}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '15px' }}>
-                    <motion.button whileTap={{ scale: 0.95 }} onClick={() => setMostrarPasajeros(false)} type="button" style={{ background: BRAND_GREEN, color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Cerrar</motion.button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} type="submit" style={{ background: BRAND_GREEN, border: 'none', borderRadius: '50%', width: '40px', height: '40px', color: '#fff', cursor: 'pointer', marginLeft: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '16px' }}>
-            {cargandoMapa ? '...' : '🔍'}
-          </motion.button>
-        </form>
-
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-            onClick={() => { setMostrarNotificaciones(true); }}
-            style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '35px', height: '35px', borderRadius: '50%', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-            <span style={{ fontSize: '18px' }}>🔔</span>
-            <AnimatePresence>
-              {notificaciones.filter(n => !n.is_read).length > 0 && (
-                <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
-                  style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '2px solid #fff' }}>
-                  {notificaciones.filter(n => !n.is_read).length}
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </motion.div>
-
-          <motion.button onClick={() => { cargarMisViajes(); setMostrarMisSolicitudes(true); }}
-            style={{ background: '#fff', border: '1px solid #ddd', fontWeight: '600', cursor: 'pointer', color: '#444', fontSize: '13px', padding: '8px 15px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            Mis Viajes
-            {listaSolicitudes.length > 0 && (
-              <span style={{ background: BRAND_GREEN, color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '11px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                {listaSolicitudes.reduce((acc, v) => acc + (v.ofertas?.length || 0), 0)}
-              </span>
-            )}
-          </motion.button>
-
-          {usuario?.role === 'DRIVER' && (
-            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => setMostrarPanelConductor(true)}
-              style={{ background: BRAND_GREEN, border: 'none', fontWeight: '700', cursor: 'pointer', color: '#fff', fontSize: '13px', padding: '8px 15px', borderRadius: '20px' }}>
-              🚗 Panel Conductor
-            </motion.button>
-          )}
-
-          {usuario?.role === 'ADMIN' && (
-            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-              onClick={() => navigate('/admin/conductores')}
-              style={{ background: '#7c3aed', border: 'none', fontWeight: '700', cursor: 'pointer', color: '#fff', fontSize: '13px', padding: '8px 15px', borderRadius: '20px' }}>
-              🛡️ Panel Admin
-            </motion.button>
-          )}
-
-          {usuario?.role !== 'DRIVER' && usuario?.role !== 'ADMIN' && (
-            <motion.button onClick={() => navigate('/registro-conductor')}
-              style={{ background: BRAND_GREEN, border: 'none', fontWeight: '700', cursor: 'pointer', color: '#fff', fontSize: '13px', padding: '8px 15px', borderRadius: '20px' }}>
-              Quiero ser conductor
-            </motion.button>
-          )}
-
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-            onClick={() => setMostrarPerfil(true)}
-            style={{ border: '1px solid #ddd', borderRadius: '20px', padding: '5px 15px', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <span>☰</span>
-            <div style={{ background: '#eee', borderRadius: '50%', width: '25px', height: '25px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {usuario?.profile_photo_url
-                ? <img src={usuario.profile_photo_url} alt="perfil" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <span>👤</span>}
-            </div>
-          </motion.div>
         </div>
-      </header>
+
+        <div style={{ padding: '10px 28px 24px' }}>
+          <h2 style={{ margin: '4px 0 2px', fontSize: '20px', color: '#0f3d24', fontWeight: '700' }}>¿A dónde viajas hoy?</h2>
+          <p style={{ margin: '0 0 16px', fontSize: '12px', color: '#8a8578' }}>Publica tu viaje y te contactamos con conductores cerca.</p>
+
+          <form onSubmit={buscarRuta} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button type="button" onClick={() => setTipoViaje('ida')} style={{ flex: 1, padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: tipoViaje === 'ida' ? BRAND_GREEN : '#fff', color: tipoViaje === 'ida' ? '#fff' : '#666', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Solo ida</button>
+              <button type="button" onClick={() => setTipoViaje('redondo')} style={{ flex: 1, padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: tipoViaje === 'redondo' ? BRAND_GREEN : '#fff', color: tipoViaje === 'redondo' ? '#fff' : '#666', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Ida y vuelta</button>
+            </div>
+            <div style={dividerStyle} />
+            <div style={fieldBoxStyle}>
+              <div style={{ width: '100%' }}>
+                <div style={fieldLabelStyle}>Origen</div>
+                <InputDireccion name="origen" placeholder="¿Desde dónde sales?" value={busqueda.origen} onChange={handleBusqueda} esOrigen={true} onUbicacionActual={handleUbicacionActual} mapsLoaded={mapsLoaded} ancho="260px" />
+              </div>
+            </div>
+            <div style={fieldBoxStyle}>
+              <div style={{ width: '100%' }}>
+                <div style={fieldLabelStyle}>Destino</div>
+                <InputDireccion name="destino" placeholder="¿A dónde vas?" value={busqueda.destino} onChange={handleBusqueda} mapsLoaded={mapsLoaded} ancho="260px" />
+              </div>
+            </div>
+            <div style={{ ...fieldBoxStyle, flexDirection: 'column', alignItems: 'flex-start' }}>
+              <div style={fieldLabelStyle}>Fecha y hora</div>
+              <div style={{ display: 'flex', gap: '5px', alignItems: 'center', width: '100%' }}>
+                <input type="datetime-local" name="departure_time" value={busqueda.departure_time} onChange={handleBusqueda} style={{ ...inputStyle, width: '100%', color: busqueda.departure_time ? '#000' : '#888' }} required />
+                <AnimatePresence>
+                  {tipoViaje === 'redondo' && (
+                    <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} style={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+                      <span style={{ fontSize: '12px', color: '#888', marginRight: '5px' }}>→</span>
+                      <input type="datetime-local" name="return_time" value={busqueda.return_time} onChange={handleBusqueda} style={{ ...inputStyle, width: '130px', color: busqueda.return_time ? '#000' : '#888' }} required={tipoViaje === 'redondo'} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+            <div style={{ position: 'relative' }}>
+              <div onClick={() => setMostrarPasajeros(!mostrarPasajeros)} style={{ ...fieldBoxStyle, cursor: 'pointer', userSelect: 'none', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={fieldLabelStyle}>Quién</div>
+                  <span style={{ fontSize: '13px', color: '#222' }}>{textoViajeros}</span>
+                </div>
+                <span style={{ color: '#8a8578' }}>▾</span>
+              </div>
+              <AnimatePresence>
+                {mostrarPasajeros && (
+                  <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} transition={{ duration: 0.2 }}
+                    style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#fff', borderRadius: '16px', padding: '15px 20px', boxShadow: '0 8px 28px rgba(0,0,0,0.15)', zIndex: 2000, border: '1px solid #e8e4db' }}>
+                    <SelectorPasajero titulo="Adultos" subtitulo="15 años o más" tipo="adultos" />
+                    <SelectorPasajero titulo="Niños" subtitulo="Edades 0 – 14" tipo="ninos" />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid #eee' }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold', fontSize: '15px', color: '#222' }}>Mascotas</div>
+                        <div style={{ fontSize: '13px', color: '#777', marginTop: '2px' }}>¿Traes mascota?</div>
+                      </div>
+                      <input type="checkbox" checked={pasajeros.mascotas} onChange={(e) => setPasajeros(prev => ({ ...prev, mascotas: e.target.checked }))} style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: BRAND_GREEN }} />
+                    </div>
+                    {totalAsientos >= 44 && <p style={{ color: '#d97706', fontSize: '12px', marginTop: '10px', textAlign: 'center' }}>Límite máximo alcanzado.</p>}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '15px' }}>
+                      <motion.button whileTap={{ scale: 0.95 }} onClick={() => setMostrarPasajeros(false)} type="button" style={{ background: BRAND_GREEN, color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Cerrar</motion.button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" style={{ background: BRAND_GREEN, border: 'none', borderRadius: '12px', padding: '13px', color: '#fff', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '700', marginTop: '4px' }}>
+              {cargandoMapa ? 'Buscando ruta...' : <>🔍 Buscar ruta</>}
+            </motion.button>
+          </form>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '22px' }}>
+            <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+              onClick={() => { cargarMisViajes(); setMostrarMisSolicitudes(true); }}
+              style={navBtnStyle}>
+              <span>🧳</span>
+              <span style={{ flex: 1 }}>Mis viajes</span>
+              {listaSolicitudes.length > 0 && (
+                <span style={{ background: BRAND_GREEN, color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '11px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  {listaSolicitudes.reduce((acc, v) => acc + (v.ofertas?.length || 0), 0)}
+                </span>
+              )}
+            </motion.button>
+
+            {usuario?.role !== 'DRIVER' && usuario?.role !== 'ADMIN' && (
+              <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={() => navigate('/registro-conductor')}
+                style={{ ...navBtnStyle, background: BRAND_GREEN, border: 'none', color: '#fff' }}>
+                <span>🌱</span><span>Quiero ser conductor</span>
+              </motion.button>
+            )}
+          </div>
+        </div>
+      </aside>
+
+      <main style={{ flex: 1, position: 'relative', padding: '16px 16px 16px 0', boxSizing: 'border-box' }}>
+
+        {/* MAPA — Google Maps (@react-google-maps/api). Ya no es el fondo de toda la
+            pantalla: es un panel contenido junto al sidebar de búsqueda. */}
+        <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}>
+          {mapsLoaded ? (
+            <GoogleMap
+              mapContainerStyle={mapContainerStyle}
+              center={datosMapa.origen || centroDefaultColombia}
+              zoom={datosMapa.origen ? 15 : 6}
+              onLoad={onMapLoad}
+              onClick={(e) => {
+                // HU09 — si el pasajero activó "elegir otro punto de búsqueda", el siguiente
+                // click en el mapa define desde dónde se buscarán conductores.
+                if (!eligiendoPuntoBusqueda) return;
+                setPuntoBusqueda({ lat: e.latLng.lat(), lng: e.latLng.lng() });
+                setEligiendoPuntoBusqueda(false);
+              }}
+              options={{ disableDefaultUI: true, zoomControl: true, draggableCursor: eligiendoPuntoBusqueda ? 'crosshair' : undefined }}
+            >
+              {datosMapa.origen && <MarkerF position={datosMapa.origen} title="Origen" />}
+              {datosMapa.destino && <MarkerF position={datosMapa.destino} title="Destino" />}
+              {puntoBusqueda && (
+                <MarkerF
+                  position={puntoBusqueda}
+                  draggable
+                  onDragEnd={(e) => setPuntoBusqueda({ lat: e.latLng.lat(), lng: e.latLng.lng() })}
+                  title="Punto de búsqueda de conductores"
+                  icon={mapsLoaded ? { path: window.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: '#f59e0b', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 } : undefined}
+                />
+              )}
+              {datosMapa.ruta.length > 0 && (
+                <PolylineF path={datosMapa.ruta} options={{ strokeColor: BRAND_GREEN, strokeWeight: 4 }} />
+              )}
+            </GoogleMap>
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', color: '#94a3b8', fontSize: '14px' }}>
+              Cargando mapa...
+            </div>
+          )}
+
+          {/* MODAL RESUMEN VIAJE — centrado sobre el panel del mapa, no sobre toda la pantalla */}
+          <AnimatePresence>
+            {infoRuta && (
+              <motion.div initial={{ opacity: 0, y: 50, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: 50, x: '-50%' }}
+                style={{ position: 'absolute', bottom: '24px', left: '50%', backgroundColor: '#fff', padding: '20px 25px', borderRadius: '15px', zIndex: 1000, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', textAlign: 'center', width: '380px', maxWidth: 'calc(100% - 32px)' }}>
+                <p style={{ margin: 0, color: '#666', fontSize: '13px' }}>Resumen del viaje</p>
+                <h3 style={{ margin: '8px 0 4px', color: '#222' }}>{infoRuta.tiempo} · {infoRuta.distancia}</h3>
+                {infoRuta.distancia === 'No disponible' && (
+                  <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#f59e0b' }}>
+                    ⚠️ No se pudo trazar la ruta exacta, pero el viaje se publicará con las direcciones ingresadas.
+                  </p>
+                )}
+
+                {/* HU09 — Rango de búsqueda de conductores */}
+                <div style={{ textAlign: 'left', margin: '4px 0 14px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+                  <p style={{ margin: '0 0 6px', fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Buscar conductores en un radio de
+                  </p>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                    {[5, 10, 15, 20, 30].map(km => (
+                      <button key={km} onClick={() => setRadioBusqueda(km)}
+                        style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: '600', backgroundColor: radioBusqueda === km ? BRAND_GREEN : '#e2e8f0', color: radioBusqueda === km ? '#fff' : '#475569' }}>
+                        {km} km
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ margin: '0 0 6px', fontSize: '12px', color: '#64748b' }}>
+                    {puntoBusqueda
+                      ? '📍 Buscando desde el punto que elegiste en el mapa (arrástralo para ajustarlo).'
+                      : '📍 Por defecto se busca desde tu origen. Si vives en una zona con pocos conductores cerca (ej. una finca), puedes elegir otro punto.'}
+                  </p>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => setEligiendoPuntoBusqueda(true)}
+                      style={{ flex: 1, background: eligiendoPuntoBusqueda ? BRAND_GREEN : '#fff', color: eligiendoPuntoBusqueda ? '#fff' : BRAND_GREEN, border: `1px solid ${BRAND_GREEN}`, padding: '7px', borderRadius: '8px', fontWeight: '600', fontSize: '11px', cursor: 'pointer' }}>
+                      {eligiendoPuntoBusqueda ? 'Toca el mapa...' : (puntoBusqueda ? 'Cambiar punto' : 'Elegir otro punto en el mapa')}
+                    </button>
+                    {puntoBusqueda && (
+                      <button onClick={() => { setPuntoBusqueda(null); setEligiendoPuntoBusqueda(false); }}
+                        style={{ background: '#fff', color: '#ef4444', border: '1px solid #fecaca', padding: '7px 10px', borderRadius: '8px', fontWeight: '600', fontSize: '11px', cursor: 'pointer' }}>
+                        Usar mi origen
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <button onClick={crearViaje} disabled={enviandoSolicitud}
+                  style={{ background: enviandoSolicitud ? '#9ca3af' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: enviandoSolicitud ? 'not-allowed' : 'pointer', fontWeight: 'bold', width: '100%' }}>
+                  {enviandoSolicitud ? 'Procesando...' : 'Confirmar y Publicar Viaje'}
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </main>
 
       {/* MODAL ERROR DIRECCIÓN */}
       <AnimatePresence>
@@ -974,59 +1210,6 @@ const Dashboard = () => {
         )}
       </AnimatePresence>
 
-      {/* MODAL RESUMEN VIAJE */}
-      <AnimatePresence>
-        {infoRuta && (
-          <motion.div initial={{ opacity: 0, y: 50, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: 50, x: '-50%' }}
-            style={{ position: 'absolute', bottom: '40px', left: '50%', backgroundColor: '#fff', padding: '20px 25px', borderRadius: '15px', zIndex: 1000, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', textAlign: 'center', width: '380px' }}>
-            <p style={{ margin: 0, color: '#666', fontSize: '13px' }}>Resumen del viaje</p>
-            <h3 style={{ margin: '8px 0 4px', color: '#222' }}>{infoRuta.tiempo} · {infoRuta.distancia}</h3>
-            {infoRuta.distancia === 'No disponible' && (
-              <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#f59e0b' }}>
-                ⚠️ No se pudo trazar la ruta exacta, pero el viaje se publicará con las direcciones ingresadas.
-              </p>
-            )}
-
-            {/* HU09 — Rango de búsqueda de conductores */}
-            <div style={{ textAlign: 'left', margin: '4px 0 14px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-              <p style={{ margin: '0 0 6px', fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Buscar conductores en un radio de
-              </p>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                {[5, 10, 15, 20, 30].map(km => (
-                  <button key={km} onClick={() => setRadioBusqueda(km)}
-                    style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: '600', backgroundColor: radioBusqueda === km ? BRAND_GREEN : '#e2e8f0', color: radioBusqueda === km ? '#fff' : '#475569' }}>
-                    {km} km
-                  </button>
-                ))}
-              </div>
-              <p style={{ margin: '0 0 6px', fontSize: '12px', color: '#64748b' }}>
-                {puntoBusqueda
-                  ? '📍 Buscando desde el punto que elegiste en el mapa (arrástralo para ajustarlo).'
-                  : '📍 Por defecto se busca desde tu origen. Si vives en una zona con pocos conductores cerca (ej. una finca), puedes elegir otro punto.'}
-              </p>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={() => setEligiendoPuntoBusqueda(true)}
-                  style={{ flex: 1, background: eligiendoPuntoBusqueda ? BRAND_GREEN : '#fff', color: eligiendoPuntoBusqueda ? '#fff' : BRAND_GREEN, border: `1px solid ${BRAND_GREEN}`, padding: '7px', borderRadius: '8px', fontWeight: '600', fontSize: '11px', cursor: 'pointer' }}>
-                  {eligiendoPuntoBusqueda ? 'Toca el mapa...' : (puntoBusqueda ? 'Cambiar punto' : 'Elegir otro punto en el mapa')}
-                </button>
-                {puntoBusqueda && (
-                  <button onClick={() => { setPuntoBusqueda(null); setEligiendoPuntoBusqueda(false); }}
-                    style={{ background: '#fff', color: '#ef4444', border: '1px solid #fecaca', padding: '7px 10px', borderRadius: '8px', fontWeight: '600', fontSize: '11px', cursor: 'pointer' }}>
-                    Usar mi origen
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <button onClick={crearViaje} disabled={enviandoSolicitud}
-              style={{ background: enviandoSolicitud ? '#9ca3af' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: enviandoSolicitud ? 'not-allowed' : 'pointer', fontWeight: 'bold', width: '100%' }}>
-              {enviandoSolicitud ? 'Procesando...' : 'Confirmar y Publicar Viaje'}
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* PANEL LATERAL MIS VIAJES */}
       <AnimatePresence>
         {mostrarMisSolicitudes && (
@@ -1060,6 +1243,10 @@ const Dashboard = () => {
                       {tab.count > 0 && <span style={{ marginLeft: '5px', background: 'rgba(0,0,0,0.15)', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '10px' }}>{tab.count}</span>}
                     </button>
                   ))}
+                  <button onClick={refrescarViajes} disabled={actualizandoViajes} title="Actualizar"
+                    style={{ flexShrink: 0, width: '32px', padding: '7px 0', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', cursor: actualizandoViajes ? 'default' : 'pointer', fontSize: '13px', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ display: 'inline-block', animation: actualizandoViajes ? 'girar 0.8s linear infinite' : 'none' }}>↻</span>
+                  </button>
                 </div>
               )}
               <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
@@ -1190,14 +1377,18 @@ const Dashboard = () => {
                         );
                       })()}
                       {/* Info conductor */}
-                      <div style={{ backgroundColor: '#fff', borderRadius: '8px', padding: '10px 12px', border: `1px solid ${cfg.border}33`, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div onClick={() => viaje.driver_id && abrirPerfilConductor(viaje.driver_id)}
+                        title={viaje.driver_id ? 'Ver perfil del conductor' : undefined}
+                        style={{ backgroundColor: '#fff', borderRadius: '8px', padding: '10px 12px', border: `1px solid ${cfg.border}33`, display: 'flex', alignItems: 'center', gap: '10px', cursor: viaje.driver_id ? 'pointer' : 'default' }}>
                         <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#e2e8f0', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0 }}>
                           {viaje.conductor_foto
                             ? <img src={viaje.conductor_foto} alt="conductor" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             : '🚗'}
                         </div>
                         <div>
-                          <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: '#1e293b' }}>{viaje.conductor_nombre}</p>
+                          <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: '#1e293b', textDecoration: viaje.driver_id ? 'underline' : 'none', textDecorationColor: '#e2e8f0', textUnderlineOffset: '3px' }}>
+                            {viaje.conductor_nombre}
+                          </p>
                           {viaje.precio_acordado > 0 && (
                             <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
                               Precio acordado: <strong style={{ color: BRAND_GREEN }}>${Number(viaje.precio_acordado).toLocaleString()}</strong>
@@ -1247,6 +1438,40 @@ const Dashboard = () => {
                         {fuecEnviado[viaje.id] ? '✅ Ocupantes registrados — Actualizar' : '📋 Registrar ocupantes del viaje'}
                       </button>
                     )}
+
+                    {/* Botón calificar — HU29 (SCRUM-194) */}
+                    {viaje.trip_status === 'COMPLETED' && (
+                      <button
+                        disabled={viaje.ya_califico}
+                        onClick={() => { setEstrellasCalificar(0); setComentarioCalificar(''); setModalCalificar(viaje.id); }}
+                        style={{
+                          marginTop: '10px', width: '100%', padding: '10px',
+                          background: viaje.ya_califico ? 'rgba(148,163,184,0.1)' : 'rgba(234,179,8,0.1)',
+                          border: `1px solid ${viaje.ya_califico ? '#cbd5e1' : '#eab308'}`,
+                          borderRadius: '8px',
+                          color: viaje.ya_califico ? '#94a3b8' : '#a16207',
+                          fontSize: '12px', fontWeight: '700', cursor: viaje.ya_califico ? 'default' : 'pointer', transition: 'all 0.2s'
+                        }}>
+                        {viaje.ya_califico ? '✅ Ya calificaste este viaje' : '⭐ Calificar viaje'}
+                      </button>
+                    )}
+
+                    {/* Botón descargar recibo — HU25 (SCRUM-190) */}
+                    {viaje.trip_status === 'COMPLETED' && (
+                      <button
+                        disabled={descargandoRecibo === viaje.id}
+                        onClick={() => descargarRecibo(viaje.id)}
+                        style={{
+                          marginTop: '8px', width: '100%', padding: '10px',
+                          background: 'rgba(37,99,235,0.08)',
+                          border: '1px solid rgba(37,99,235,0.3)',
+                          borderRadius: '8px',
+                          color: '#1e40af',
+                          fontSize: '12px', fontWeight: '700', cursor: descargandoRecibo === viaje.id ? 'default' : 'pointer', transition: 'all 0.2s'
+                        }}>
+                        {descargandoRecibo === viaje.id ? 'Generando recibo…' : '🧾 Descargar recibo (PDF)'}
+                      </button>
+                    )}
                     </div>
                   );
                 })}
@@ -1270,15 +1495,54 @@ const Dashboard = () => {
                       return viajeActualizado.ofertas.map(oferta => (
                         <div key={oferta.id} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '15px', marginBottom: '15px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <div style={{ width: '40px', height: '40px', backgroundColor: '#e2e8f0', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '18px' }}>👤</div>
+                            <div onClick={() => abrirPerfilConductor(oferta.driverId)}
+                              style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+                              title="Ver perfil del conductor">
+                              <div style={{ width: '40px', height: '40px', backgroundColor: '#e2e8f0', borderRadius: '50%', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '18px' }}>
+                                {oferta.foto ? <img src={oferta.foto} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '👤'}
+                              </div>
                               <div>
-                                <div style={{ fontWeight: 'bold', fontSize: '15px' }}>{oferta.conductor} <span style={{ color: '#eab308', fontSize: '13px' }}>★ {oferta.calificacion}</span></div>
+                                <div style={{ fontWeight: 'bold', fontSize: '15px', textDecoration: 'underline', textDecorationColor: '#e2e8f0', textUnderlineOffset: '3px' }}>
+                                  {oferta.conductor}{' '}
+                                  {oferta.verificado && (
+                                    <span title="Experiencia verificada" style={{ color: '#a16207', fontSize: '12px', fontWeight: '700', marginRight: '4px' }}>🎓</span>
+                                  )}
+                                  {oferta.calificacion != null
+                                    ? <span style={{ color: '#eab308', fontSize: '13px' }}>★ {oferta.calificacion} <span style={{ color: '#94a3b8' }}>({oferta.calificacionCantidad})</span></span>
+                                    : <span style={{ color: '#94a3b8', fontSize: '12px' }}>Sin calificaciones aún</span>}
+                                </div>
                                 <div style={{ fontSize: '12px', color: '#64748b' }}>{oferta.vehiculo}</div>
                               </div>
                             </div>
                             <div style={{ fontWeight: 'bold', fontSize: '18px', color: BRAND_GREEN }}>${oferta.precio.toLocaleString()}</div>
                           </div>
+
+                          {oferta.comodidades && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+                              {oferta.recomendado && (
+                                <span style={{ background: '#f0fdf4', color: BRAND_GREEN, border: `1px solid ${BRAND_GREEN}`, borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '700' }}>
+                                  Buen ajuste para tu grupo
+                                </span>
+                              )}
+                              <span style={{ background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '600' }}>
+                                {oferta.comodidades.categoria} · hasta {oferta.comodidades.capacidad} pasajeros
+                              </span>
+                              {[
+                                [oferta.comodidades.tiene_ac, 'Aire acondicionado'],
+                                [oferta.comodidades.tiene_wifi, 'WiFi'],
+                                [oferta.comodidades.tiene_bano, 'Baño'],
+                                [oferta.comodidades.tiene_musica, 'Música'],
+                                [oferta.comodidades.tiene_maletero_amplio, 'Maletero amplio'],
+                                [oferta.comodidades.tiene_sillas_bebe, 'Sillas para bebé'],
+                                [oferta.comodidades.acepta_mascotas, 'Acepta mascotas'],
+                              ].filter(([activo]) => activo).map(([, etiqueta]) => (
+                                <span key={etiqueta} style={{ background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '600' }}>
+                                  {etiqueta}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
                           {oferta.created_at && (
                             <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>🕐 Oferta enviada {tiempoRelativo(oferta.created_at)}</div>
                           )}
@@ -1293,30 +1557,6 @@ const Dashboard = () => {
                   </div>
                 )}
               </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* PANEL CONDUCTOR DRAWER */}
-      <AnimatePresence>
-        {mostrarPanelConductor && usuario?.role === 'DRIVER' && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setMostrarPanelConductor(false)}
-              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 2000 }} />
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.3 }}
-              style={{ position: 'absolute', top: 0, right: 0, width: '420px', maxWidth: '100%', height: '100vh', zIndex: 2001, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ position: 'absolute', top: '16px', left: '-44px', zIndex: 1 }}>
-                <motion.button whileTap={{ scale: 0.9 }} onClick={() => setMostrarPanelConductor(false)}
-                  style={{ background: '#fff', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  ×
-                </motion.button>
-              </div>
-              <PanelConductor onVerRuta={(origen, destino) => {
-                trazarRutaConductor(origen, destino);
-                setMostrarPanelConductor(false);
-              }} />
             </motion.div>
           </>
         )}
@@ -1508,47 +1748,48 @@ const Dashboard = () => {
         )}
       </AnimatePresence>
 
+      {/* MODAL CALIFICAR VIAJE — HU29 (SCRUM-194) */}
+      <AnimatePresence>
+        {modalCalificar && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setModalCalificar(null)}
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
+            <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
+              style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: '#fff', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '360px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: 'Inter, sans-serif' }}>
+              <h3 style={{ margin: '0 0 6px', color: '#1e293b', fontSize: '17px' }}>⭐ ¿Cómo estuvo tu viaje?</h3>
+              <p style={{ margin: '0 0 18px', color: '#64748b', fontSize: '13px' }}>Tu calificación ayuda a otros pasajeros a elegir mejor.</p>
+
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '16px' }}>
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button key={n} type="button" onClick={() => setEstrellasCalificar(n)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '30px', padding: 0, color: n <= estrellasCalificar ? '#eab308' : '#e2e8f0', transition: 'color 0.15s' }}>
+                    ★
+                  </button>
+                ))}
+              </div>
+
+              <textarea value={comentarioCalificar} onChange={e => setComentarioCalificar(e.target.value)}
+                placeholder="Cuéntanos más (opcional)" rows={3}
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', boxSizing: 'border-box', outline: 'none', resize: 'none', fontFamily: 'inherit', marginBottom: '16px' }} />
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={() => setModalCalificar(null)}
+                  style={{ flex: 1, background: '#f1f5f9', color: '#475569', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
+                  Cancelar
+                </button>
+                <button onClick={enviarCalificacion} disabled={enviandoCalificacion || estrellasCalificar < 1}
+                  style={{ flex: 1, background: (enviandoCalificacion || estrellasCalificar < 1) ? '#9ca3af' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: (enviandoCalificacion || estrellasCalificar < 1) ? 'not-allowed' : 'pointer' }}>
+                  {enviandoCalificacion ? 'Enviando...' : 'Enviar calificación'}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* PERFIL DRAWER — HU16 */}
       <PerfilDrawer abierto={mostrarPerfil} onCerrar={() => setMostrarPerfil(false)} />
-
-      {/* MAPA — Google Maps (@react-google-maps/api) */}
-      <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 }}>
-        {mapsLoaded ? (
-          <GoogleMap
-            mapContainerStyle={mapContainerStyle}
-            center={datosMapa.origen || centroDefaultColombia}
-            zoom={datosMapa.origen ? 15 : 6}
-            onLoad={onMapLoad}
-            onClick={(e) => {
-              // HU09 — si el pasajero activó "elegir otro punto de búsqueda", el siguiente
-              // click en el mapa define desde dónde se buscarán conductores.
-              if (!eligiendoPuntoBusqueda) return;
-              setPuntoBusqueda({ lat: e.latLng.lat(), lng: e.latLng.lng() });
-              setEligiendoPuntoBusqueda(false);
-            }}
-            options={{ disableDefaultUI: true, zoomControl: true, draggableCursor: eligiendoPuntoBusqueda ? 'crosshair' : undefined }}
-          >
-            {datosMapa.origen && <MarkerF position={datosMapa.origen} title="Origen" />}
-            {datosMapa.destino && <MarkerF position={datosMapa.destino} title="Destino" />}
-            {puntoBusqueda && (
-              <MarkerF
-                position={puntoBusqueda}
-                draggable
-                onDragEnd={(e) => setPuntoBusqueda({ lat: e.latLng.lat(), lng: e.latLng.lng() })}
-                title="Punto de búsqueda de conductores"
-                icon={mapsLoaded ? { path: window.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: '#f59e0b', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 } : undefined}
-              />
-            )}
-            {datosMapa.ruta.length > 0 && (
-              <PolylineF path={datosMapa.ruta} options={{ strokeColor: BRAND_GREEN, strokeWeight: 4 }} />
-            )}
-          </GoogleMap>
-        ) : (
-          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', color: '#94a3b8', fontSize: '14px' }}>
-            Cargando mapa...
-          </div>
-        )}
-      </div>
     </div>
     <ToastContainer toasts={toasts} onRemove={removeToast} />
     </>
