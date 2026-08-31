@@ -138,14 +138,17 @@ def get_pending_requests(
 ):
     """
     Retorna la lista de viajes con estado 'PENDING' ordenados por fecha de creación.
-    - Conductores: Ven las solicitudes pendientes cuyo punto/radio de búsqueda
-      (elegido por el PASAJERO al publicar, HU09) alcanza la ubicación actual
-      del conductor. Si el conductor no ha compartido ubicación (current_lat/lng
-      nulos, ej. aún no activó "Disponible"), ve todas las pendientes para no
-      dejarlo sin nada que ver mientras se conecta.
+    - Conductores: si NO están disponibles (is_online = false), no ven ninguna
+      solicitud — el radar queda vacío hasta que se conecten. Si están
+      disponibles, ven las solicitudes pendientes cuyo punto/radio de búsqueda
+      (elegido por el PASAJERO al publicar, HU09) alcanza su ubicación actual.
     - Pasajeros: Ven SOLO sus propias solicitudes pendientes (sin filtro geográfico).
     """
     try:
+        # Conductor desconectado → radar vacío, ni siquiera consultamos la BD
+        if current_user.role == "DRIVER" and not current_user.is_online:
+            return []
+
         # Iniciamos la consulta base buscando los PENDING
         query = db.query(models.ServiceRequest).filter(models.ServiceRequest.status == "PENDING")
         
@@ -157,7 +160,7 @@ def get_pending_requests(
         pending_requests = query.order_by(models.ServiceRequest.created_at.desc()).all()
 
         # Filtro geográfico (HU09) — el radio lo definió el PASAJERO al publicar el viaje.
-        # Solo aplica si el conductor ya compartió su ubicación (activó "Disponible").
+        # El conductor ya está disponible (is_online = true) en este punto.
         if current_user.role == "DRIVER" and current_user.current_lat is not None and current_user.current_lng is not None:
             pending_requests = [
                 sr for sr in pending_requests

@@ -87,7 +87,7 @@ const PanelConductor = ({ onVerRuta }) => {
   // HU09 — Envía current_lat/current_lng/is_online al backend
   const actualizarUbicacionBackend = async (payload) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/drivers/location`, {
+      const res = await fetch(`${API_BASE_URL}/drivers/location`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
         body: JSON.stringify(payload)
@@ -546,12 +546,25 @@ const PanelConductor = ({ onVerRuta }) => {
                   <line x1="23" y1="45" x2="17" y2="45" stroke="#22c55e" strokeWidth="2" strokeLinecap="round"/>
                   <line x1="87" y1="45" x2="93" y2="45" stroke="#22c55e" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
-                <p style={{ margin: '0 0 6px', fontWeight: '700', color: '#1e293b', fontSize: '14px' }}>Radar sin señal</p>
-                <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '13px', lineHeight: '1.5' }}>No hay viajes en tu zona por ahora.<br/>Vuelve a verificar en un momento.</p>
-                <motion.button whileTap={{ scale: 0.97 }} onClick={cargarSolicitudes}
-                  style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
-                  🔄 Verificar de nuevo
-                </motion.button>
+                <p style={{ margin: '0 0 6px', fontWeight: '700', color: '#1e293b', fontSize: '14px' }}>
+                  {disponible ? 'Radar sin señal' : 'Estás desconectado'}
+                </p>
+                <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '13px', lineHeight: '1.5' }}>
+                  {disponible
+                    ? <>No hay viajes en tu zona por ahora.<br/>Vuelve a verificar en un momento.</>
+                    : <>Actívate como "Disponible" (arriba) para<br/>empezar a ver viajes cerca de ti.</>}
+                </p>
+                {disponible ? (
+                  <motion.button whileTap={{ scale: 0.97 }} onClick={cargarSolicitudes}
+                    style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
+                    🔄 Verificar de nuevo
+                  </motion.button>
+                ) : (
+                  <motion.button whileTap={{ scale: 0.97 }} onClick={toggleDisponibilidad}
+                    style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
+                    📡 Conectarme
+                  </motion.button>
+                )}
               </motion.div>
             )}
             {/* ESTADO VACÍO CUANDO HAY VIAJES PERO NINGUNO PASA FILTROS */}
