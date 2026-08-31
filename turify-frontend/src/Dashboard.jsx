@@ -540,7 +540,11 @@ const Dashboard = () => {
             conductor_nombre: v.conductor_nombre || 'Conductor asignado',
             conductor_foto: v.conductor_foto || null,
             precio_acordado: v.precio_acordado || 0,
-            trip_status: v.trip_status || v.status || 'ASSIGNED'
+            trip_status: v.trip_status || v.status || 'ASSIGNED',
+            // HU26 — tracking en tiempo real
+            driver_id: v.driver_id || null,
+            conductor_lat: v.conductor_lat ?? null,
+            conductor_lng: v.conductor_lng ?? null,
           })));
         }
       } catch {}
@@ -650,6 +654,47 @@ const Dashboard = () => {
       return () => clearInterval(intervaloViajes);
     }
   }, [token, usuario]);
+
+  // HU26 — Tracking en tiempo real del conductor mientras el viaje está IN_PROGRESS.
+  // Se suscribe (Supabase Realtime) a los cambios de ubicación del conductor asignado
+  // y actualiza solo esa tarjeta, sin recargar toda la lista de viajes.
+  useEffect(() => {
+    const driverIdsEnCurso = viajesConfirmados
+      .filter(v => v.trip_status === 'IN_PROGRESS' && v.driver_id)
+      .map(v => v.driver_id);
+    if (driverIdsEnCurso.length === 0) return;
+
+    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+    const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+
+    let cancelado = false;
+    let canales = [];
+    import('@supabase/supabase-js').then(({ createClient }) => {
+      if (cancelado) return;
+      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      canales = driverIdsEnCurso.map(driverId =>
+        supabase
+          .channel(`tracking-conductor-${driverId}`)
+          .on('postgres_changes', {
+            event: 'UPDATE', schema: 'public', table: 'User',
+            filter: `user_id=eq.${driverId}`
+          }, (payload) => {
+            const { current_lat, current_lng } = payload.new || {};
+            if (current_lat == null || current_lng == null) return;
+            setViajesConfirmados(prev => prev.map(v =>
+              v.driver_id === driverId ? { ...v, conductor_lat: current_lat, conductor_lng: current_lng } : v
+            ));
+          })
+          .subscribe()
+      );
+    });
+
+    return () => {
+      cancelado = true;
+      canales.forEach(ch => ch && ch.unsubscribe && ch.unsubscribe());
+    };
+  }, [JSON.stringify(viajesConfirmados.filter(v => v.trip_status === 'IN_PROGRESS').map(v => v.driver_id))]);
 
   // Tiempo relativo para ofertas
   const tiempoRelativo = (fechaStr) => {
@@ -1160,6 +1205,29 @@ const Dashboard = () => {
                           )}
                         </div>
                       </div>
+
+                      {/* HU26 — Tracking en tiempo real del conductor */}
+                      {esEnCurso && viaje.conductor_lat && viaje.conductor_lng && mapsLoaded && (
+                        <div style={{ marginTop: '10px', borderRadius: '8px', overflow: 'hidden', border: `1px solid ${cfg.border}33`, height: '160px' }}>
+                          <GoogleMap
+                            mapContainerStyle={{ width: '100%', height: '100%' }}
+                            center={{ lat: viaje.conductor_lat, lng: viaje.conductor_lng }}
+                            zoom={15}
+                            options={{ disableDefaultUI: true, gestureHandling: 'none', zoomControl: false }}
+                          >
+                            <MarkerF
+                              position={{ lat: viaje.conductor_lat, lng: viaje.conductor_lng }}
+                              title="Tu conductor"
+                              icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#2563eb', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }}
+                            />
+                          </GoogleMap>
+                        </div>
+                      )}
+                      {esEnCurso && (!viaje.conductor_lat || !viaje.conductor_lng) && (
+                        <p style={{ margin: '10px 0 0', fontSize: '11px', color: '#94a3b8', textAlign: 'center' }}>
+                          📡 Esperando la ubicación del conductor...
+                        </p>
+                      )}
 
                     {/* Botón FUEC */}
                     {(viaje.trip_status === 'ASSIGNED' || viaje.trip_status === 'IN_PROGRESS') && (

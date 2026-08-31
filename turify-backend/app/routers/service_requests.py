@@ -138,14 +138,17 @@ def get_pending_requests(
 ):
     """
     Retorna la lista de viajes con estado 'PENDING' ordenados por fecha de creación.
-    - Conductores: Ven las solicitudes pendientes cuyo punto/radio de búsqueda
-      (elegido por el PASAJERO al publicar, HU09) alcanza la ubicación actual
-      del conductor. Si el conductor no ha compartido ubicación (current_lat/lng
-      nulos, ej. aún no activó "Disponible"), ve todas las pendientes para no
-      dejarlo sin nada que ver mientras se conecta.
+    - Conductores: si NO están disponibles (is_online = false), no ven ninguna
+      solicitud — el radar queda vacío hasta que se conecten. Si están
+      disponibles, ven las solicitudes pendientes cuyo punto/radio de búsqueda
+      (elegido por el PASAJERO al publicar, HU09) alcanza su ubicación actual.
     - Pasajeros: Ven SOLO sus propias solicitudes pendientes (sin filtro geográfico).
     """
     try:
+        # Conductor desconectado → radar vacío, ni siquiera consultamos la BD
+        if current_user.role == "DRIVER" and not current_user.is_online:
+            return []
+
         # Iniciamos la consulta base buscando los PENDING
         query = db.query(models.ServiceRequest).filter(models.ServiceRequest.status == "PENDING")
         
@@ -157,7 +160,7 @@ def get_pending_requests(
         pending_requests = query.order_by(models.ServiceRequest.created_at.desc()).all()
 
         # Filtro geográfico (HU09) — el radio lo definió el PASAJERO al publicar el viaje.
-        # Solo aplica si el conductor ya compartió su ubicación (activó "Disponible").
+        # El conductor ya está disponible (is_online = true) en este punto.
         if current_user.role == "DRIVER" and current_user.current_lat is not None and current_user.current_lng is not None:
             pending_requests = [
                 sr for sr in pending_requests
@@ -354,14 +357,22 @@ def get_assigned_requests(
         conductor_nombre = 'Conductor asignado'
         conductor_foto = None
         precio_acordado = 0
+        driver_id = None
+        conductor_lat = None
+        conductor_lng = None
 
         if oferta_aceptada:
+            driver_id = oferta_aceptada.driver_id
             conductor = db.query(models.User).filter(
                 models.User.user_id == oferta_aceptada.driver_id
             ).first()
             if conductor:
                 conductor_nombre = conductor.full_name
                 conductor_foto = conductor.profile_photo_url
+                # HU26 — ubicación en vivo del conductor, solo tiene sentido mientras el viaje está en curso
+                if v.status == 'IN_PROGRESS':
+                    conductor_lat = float(conductor.current_lat) if conductor.current_lat is not None else None
+                    conductor_lng = float(conductor.current_lng) if conductor.current_lng is not None else None
             precio_acordado = float(oferta_aceptada.offered_price)
 
         resultado.append({
@@ -378,7 +389,10 @@ def get_assigned_requests(
             "created_at": v.created_at.isoformat() if v.created_at else None,
             "conductor_nombre": conductor_nombre,
             "conductor_foto": conductor_foto,
-            "precio_acordado": precio_acordado
+            "precio_acordado": precio_acordado,
+            "driver_id": driver_id,
+            "conductor_lat": conductor_lat,
+            "conductor_lng": conductor_lng,
         })
 
     return resultado

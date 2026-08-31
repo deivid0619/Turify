@@ -87,7 +87,7 @@ const PanelConductor = ({ onVerRuta }) => {
   // HU09 — Envía current_lat/current_lng/is_online al backend
   const actualizarUbicacionBackend = async (payload) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/drivers/location`, {
+      const res = await fetch(`${API_BASE_URL}/drivers/location`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
         body: JSON.stringify(payload)
@@ -185,6 +185,34 @@ const PanelConductor = ({ onVerRuta }) => {
   useEffect(() => {
     if (token && pestanaActiva === 'activos') cargarViajesActivos();
   }, [token, pestanaActiva]);
+
+  // HU26 — Sondeo ligero en segundo plano (independiente de la pestaña activa) para
+  // saber si el conductor tiene un viaje EN CURSO y así activar el tracking cada 3s.
+  useEffect(() => {
+    if (!token) return;
+    cargarViajesActivos();
+    const intervalo = setInterval(cargarViajesActivos, 15000);
+    return () => clearInterval(intervalo);
+  }, [token]);
+
+  const viajeEnCurso = viajesActivos.some(v => v.trip_status === 'IN_PROGRESS');
+
+  // HU26 — Mientras haya un viaje IN_PROGRESS, reporta la ubicación cada 3 segundos
+  // (más frecuente que el reporte de disponibilidad, para que el pasajero vea al
+  // conductor moverse en tiempo real durante el viaje).
+  useEffect(() => {
+    if (!viajeEnCurso || !navigator.geolocation) return;
+    const reportar = () => {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const { latitude, longitude } = pos.coords;
+        setUbicacionActual({ lat: latitude, lng: longitude });
+        actualizarUbicacionBackend({ current_lat: latitude, current_lng: longitude });
+      });
+    };
+    reportar();
+    const intervalo = setInterval(reportar, 3000);
+    return () => clearInterval(intervalo);
+  }, [viajeEnCurso, token]);
 
   // SCRUM-82: Conductor responde a contraoferta
   const [resolviendoOferta, setResolviendoOferta] = useState(null);
@@ -518,12 +546,25 @@ const PanelConductor = ({ onVerRuta }) => {
                   <line x1="23" y1="45" x2="17" y2="45" stroke="#22c55e" strokeWidth="2" strokeLinecap="round"/>
                   <line x1="87" y1="45" x2="93" y2="45" stroke="#22c55e" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
-                <p style={{ margin: '0 0 6px', fontWeight: '700', color: '#1e293b', fontSize: '14px' }}>Radar sin señal</p>
-                <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '13px', lineHeight: '1.5' }}>No hay viajes en tu zona por ahora.<br/>Vuelve a verificar en un momento.</p>
-                <motion.button whileTap={{ scale: 0.97 }} onClick={cargarSolicitudes}
-                  style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
-                  🔄 Verificar de nuevo
-                </motion.button>
+                <p style={{ margin: '0 0 6px', fontWeight: '700', color: '#1e293b', fontSize: '14px' }}>
+                  {disponible ? 'Radar sin señal' : 'Estás desconectado'}
+                </p>
+                <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '13px', lineHeight: '1.5' }}>
+                  {disponible
+                    ? <>No hay viajes en tu zona por ahora.<br/>Vuelve a verificar en un momento.</>
+                    : <>Actívate como "Disponible" (arriba) para<br/>empezar a ver viajes cerca de ti.</>}
+                </p>
+                {disponible ? (
+                  <motion.button whileTap={{ scale: 0.97 }} onClick={cargarSolicitudes}
+                    style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
+                    🔄 Verificar de nuevo
+                  </motion.button>
+                ) : (
+                  <motion.button whileTap={{ scale: 0.97 }} onClick={toggleDisponibilidad}
+                    style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
+                    📡 Conectarme
+                  </motion.button>
+                )}
               </motion.div>
             )}
             {/* ESTADO VACÍO CUANDO HAY VIAJES PERO NINGUNO PASA FILTROS */}
