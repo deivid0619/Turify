@@ -30,6 +30,13 @@ for archivo in sorted(glob.glob((sys.argv[1] if len(sys.argv)>1 else '.') + '/*.
             parte = parte.split(':')[-1].strip()     # quita el renombrado
             if re.fullmatch(r'\w+', parte or ''): disponibles.add(parte)
 
+    # Desestructuración de array, en asignaciones y en parámetros:
+    #   const [a, b] = ...        .map(([campo, etiqueta, Ico]) => ...
+    for m in re.finditer(r'\[([^\[\]]*)\]\s*(?:=[^=]|\)\s*=>)', src):
+        for parte in m.group(1).split(','):
+            parte = parte.strip().split('=')[0].strip().lstrip('.')
+            if re.fullmatch(r'\w+', parte or ''): disponibles.add(parte)
+
     usados = set(re.findall(r'<([A-Z]\w+)', src))
     usados |= set(re.findall(r'\b(?:Ico|icon|Componente)\s*:\s*([A-Z]\w+)', src))
     usados -= {'React'}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useContext } from 'react';
+import { IconEstrella } from './diseno';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from './AuthContext';
 import API_BASE_URL from './api';
@@ -10,7 +11,7 @@ const BRAND_GREEN = 'var(--t-ruta)';
 // HU21 — Perfil público del conductor como página completa (no una tarjeta
 // flotando sobre fondo gris): la cabecera ocupa todo el ancho como en cualquier
 // página del sitio, y el contenido corre debajo en una columna editorial.
-// Sin emojis decorativos — solo tipografía, el check ✓ como símbolo, y el
+// Sin emojis decorativos — solo tipografía, iconos de trazo, y el
 // dorado reservado para lo verificado.
 const ETIQUETAS_COMODIDAD = [
   ['tiene_ac', 'Aire acondicionado'],
@@ -114,7 +115,7 @@ const PerfilConductorPagina = () => {
                 )}
                 {datos.rating_avg != null ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginTop: '12px', fontSize: '15px', fontWeight: 700, color: 'var(--t-chiva-linea)' }}>
-                    ★ {Number(datos.rating_avg).toFixed(1)}
+                    <IconEstrella size={15} style={{ fill: 'currentColor' }} />{Number(datos.rating_avg).toFixed(1)}
                     <span style={{ color: 'rgba(240,253,244,0.55)', fontWeight: 500 }}>· {datos.rating_count} calificaciones</span>
                   </div>
                 ) : (

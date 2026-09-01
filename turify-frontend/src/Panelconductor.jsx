@@ -1,5 +1,16 @@
 import { useState, useEffect, useContext, useRef } from 'react';
-import { T, TableroRuta } from './diseno';
+import {
+  T, TableroRuta, Icono, Rotulo,
+  IconReloj, IconVisto, IconEquis, IconBandera, IconAuto, IconCalendario,
+  IconPersonas, IconPersona, IconRadar, IconPin, IconEstrella, IconClipboard,
+  IconAlerta, IconCampana, IconPrecio, IconIntercambio, IconRecibo,
+} from './diseno';
+
+const IconGirar   = (p) => <Icono {...p}><path d="M4 4v5h5" /><path d="M20 20v-5h-5" /><path d="M5.5 15A7.5 7.5 0 0 0 19 9.5" /><path d="M18.5 9A7.5 7.5 0 0 0 5 14.5" /></Icono>;
+const IconFiltros = (p) => <Icono {...p}><path d="M3.5 6.5h17M6.5 12h11M10 17.5h4" /></Icono>;
+const IconMascota = (p) => <Icono {...p}><ellipse cx="8" cy="9" rx="1.8" ry="2.4" /><ellipse cx="16" cy="9" rx="1.8" ry="2.4" /><ellipse cx="4.6" cy="13.6" rx="1.6" ry="2.1" /><ellipse cx="19.4" cy="13.6" rx="1.6" ry="2.1" /><path d="M12 13.2c2.6 0 4.6 2.1 4.6 4.2 0 1.6-1.3 2.4-2.8 2.4-1 0-1.3-.4-1.8-.4s-.8.4-1.8.4c-1.5 0-2.8-.8-2.8-2.4 0-2.1 2-4.2 4.6-4.2Z" /></Icono>;
+const IconGrafico = (p) => <Icono {...p}><path d="M4 20V4M4 20h16" /><path d="M8 16.5v-4M12.5 16.5V8M17 16.5v-6.5" /></Icono>;
+const IconMapa    = (p) => <Icono {...p}><path d="M9 4.5 3.5 6.8v12.7L9 17.2l6 2.3 5.5-2.3V4.5L15 6.8Z" /><path d="M9 4.5v12.7M15 6.8v12.7" /></Icono>;
 import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleMap, MarkerF, CircleF, OverlayViewF, useJsApiLoader } from '@react-google-maps/api';
 import { AuthContext } from './AuthContext';
@@ -98,7 +109,7 @@ const PanelConductor = ({ onVerRuta }) => {
       setModalCalificar(null);
       setEstrellasCalificar(0);
       setComentarioCalificar('');
-      toast.success('✅ ¡Gracias por calificar a tu pasajero!');
+      toast.success('Gracias por calificar a tu pasajero.');
     } catch (e) {
       toast.error(`Error: ${e.message}`);
     } finally {
@@ -533,8 +544,8 @@ const PanelConductor = ({ onVerRuta }) => {
   };
 
   const estadoConfig = (estado) => {
-    const m = { ESPERANDO: { bg: 'var(--t-chiva-suave)', color: 'var(--t-chiva-texto)', label: '⏳ Esperando respuesta del pasajero' }, CONTRAOFERTA: { bg: 'var(--t-cielo-suave)', color: 'var(--t-cielo-texto)', label: '🔄 Contraoferta recibida' }, RECHAZADO: { bg: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', label: '❌ Rechazado' }, ACEPTADO: { bg: 'var(--t-musgo)', color: 'var(--t-musgo-texto)', label: '✅ Aceptado' } };
-    return m[estado] || { bg: 'var(--t-niebla-2)', color: 'var(--t-piedra)', label: estado };
+    const m = { ESPERANDO: { bg: 'var(--t-chiva-suave)', color: 'var(--t-chiva-texto)', Ico: IconReloj, label: 'Esperando respuesta del pasajero' }, CONTRAOFERTA: { bg: 'var(--t-cielo-suave)', color: 'var(--t-cielo-texto)', Ico: IconIntercambio, label: 'Contraoferta recibida' }, RECHAZADO: { bg: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', Ico: IconEquis, Ico: IconEquis, label: 'Rechazado' }, ACEPTADO: { bg: 'var(--t-musgo)', color: 'var(--t-musgo-texto)', Ico: IconVisto, label: 'Aceptado' } };
+    return m[estado] || { bg: T.niebla2, color: T.piedra, Ico: IconReloj, label: estado };
   };
 
   const solicitudesFiltradas = solicitudes.filter(sol => {
@@ -602,12 +613,12 @@ const PanelConductor = ({ onVerRuta }) => {
             {/* Perfil — desde acá el conductor sube su RUNT (pestaña "Mis Docs") */}
             <button onClick={() => setMostrarPerfil(true)} title="Mi perfil"
               style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '14px' }}>
-              👤
+              <IconPersona size={15} />
             </button>
             {/* Campana de notificaciones */}
             <div onClick={() => setMostrarNotifPanel(true)}
               style={{ position: 'relative', cursor: 'pointer', width: '30px', height: '30px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: '14px' }}>🔔</span>
+              <IconCampana size={15} color="rgba(234,242,236,.8)" />
               {notificaciones.filter(n => !n.is_read).length > 0 && (
                 <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: '#C2410C', color: '#fff', borderRadius: '50%', width: '15px', height: '15px', fontSize: '9px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '2px solid var(--t-monte)' }}>
                   {notificaciones.filter(n => !n.is_read).length}
@@ -646,10 +657,10 @@ const PanelConductor = ({ onVerRuta }) => {
 
       {/* PESTAÑAS */}
       <div style={{ display: 'flex', gap: '6px', padding: '0 20px 16px' }}>
-        {[{ id: 'radar', label: '📡 Radar', count: solicitudes.length }, { id: 'activos', label: '📋 Mis Ofertas', count: viajesActivos.length }, { id: 'ganancias', label: '💰 Ganancias', count: 0 }, { id: 'vehiculo', label: 'Mi vehículo', count: 0 }].map(tab => (
+        {[{ id: 'radar', Ico: IconRadar, label: 'Radar', count: solicitudes.length }, { id: 'activos', Ico: IconClipboard, label: 'Mis ofertas', count: viajesActivos.length }, { id: 'ganancias', Ico: IconGrafico, label: 'Ganancias', count: 0 }, { id: 'vehiculo', Ico: IconAuto, label: 'Mi vehículo', count: 0 }].map(tab => (
           <button key={tab.id} onClick={() => setPestanaActiva(tab.id)}
-            style={{ flex: 1, padding: '7px 8px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '11px', transition: 'all 0.2s', backgroundColor: pestanaActiva === tab.id ? '#fff' : 'rgba(255,255,255,0.08)', color: pestanaActiva === tab.id ? BRAND_GREEN : 'rgba(255,255,255,0.7)' }}>
-            {tab.label}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 8px', borderRadius: '9px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '11px', fontFamily: T.ui, transition: 'background-color .18s, color .18s', backgroundColor: pestanaActiva === tab.id ? '#fff' : 'rgba(255,255,255,0.08)', color: pestanaActiva === tab.id ? T.monte : 'rgba(255,255,255,0.7)' }}>
+            <tab.Ico size={13} />{tab.label}
             {tab.count > 0 && <span style={{ background: pestanaActiva === tab.id ? BRAND_GREEN : 'rgba(255,255,255,0.25)', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', marginLeft: '4px' }}>{tab.count}</span>}
           </button>
         ))}
@@ -663,7 +674,7 @@ const PanelConductor = ({ onVerRuta }) => {
         {alertaExito && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
             style={{ margin: '12px 16px 0', backgroundColor: 'var(--t-musgo)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '8px', padding: '10px 14px', color: BRAND_GREEN, fontSize: '13px', fontWeight: '600', textAlign: 'center' }}>
-            ✅ ¡Oferta enviada al pasajero! Esperando su aceptación.
+            <IconVisto size={14} style={{ verticalAlign: '-2px', marginRight: '7px' }} />Oferta enviada. Esperando la respuesta del pasajero.
           </motion.div>
         )}
       </AnimatePresence>
@@ -675,14 +686,14 @@ const PanelConductor = ({ onVerRuta }) => {
             style={{ margin: '12px 16px 0', backgroundColor: 'var(--t-niebla)', border: '1px solid var(--t-linea)', borderRadius: '12px', padding: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
               <div>
-                <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: 'var(--t-tinta)' }}>📍 {solicitudModal.origin}</p>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: T.tinta, display: 'flex', alignItems: 'flex-start', gap: '7px' }}><IconPin size={14} style={{ flexShrink: 0, marginTop: '2px' }} />{solicitudModal.origin}</p>
                 <p style={{ margin: '2px 0', fontWeight: '700', fontSize: '13px', color: BRAND_GREEN }}>→ {solicitudModal.destination}</p>
-                <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'var(--t-piedra)' }}>👥 {(solicitudModal.adults_count || 1) + (solicitudModal.children_count || 0)} pasajero(s){solicitudModal.has_pets ? ' · 🐾' : ''}</p>
+                <p style={{ margin: '4px 0 0', fontSize: '11px', color: T.piedra, display: 'flex', alignItems: 'center', gap: '6px' }}><IconPersonas size={13} />{(solicitudModal.adults_count || 1) + (solicitudModal.children_count || 0)} pasajero(s){solicitudModal.has_pets && <> · <IconMascota size={12} /></>}</p>
               </div>
               <button onClick={() => { setSolicitudModal(null); setPrecio(''); setErrorPrecio(''); }}
                 style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--t-piedra-clara)' }}>×</button>
             </div>
-            <p style={{ margin: '0 0 8px', fontSize: '12px', color: 'var(--t-piedra)', fontWeight: '600' }}>💰 ¿Cuánto cobrarías por este viaje?</p>
+            <p style={{ margin: '0 0 8px', fontSize: '12px', color: 'var(--t-piedra)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '7px' }}><IconPrecio size={14} />¿Cuánto cobrarías por este viaje?</p>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ position: 'relative' }}>
@@ -713,8 +724,8 @@ const PanelConductor = ({ onVerRuta }) => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: mostrarFiltros ? '10px' : '0' }}>
                 <button onClick={() => setMostrarFiltros(f => !f)}
                   style={{ display: 'flex', alignItems: 'center', gap: '6px', background: filtrosActivos ? 'var(--t-musgo)' : 'var(--t-niebla)', border: `1px solid ${filtrosActivos ? BRAND_GREEN : 'var(--t-linea)'}`, borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', color: filtrosActivos ? BRAND_GREEN : 'var(--t-piedra)', cursor: 'pointer' }}>
-                  <span>⚙️</span> Filtros
-                  {filtrosActivos && <span style={{ background: BRAND_GREEN, color: '#fff', borderRadius: '50%', width: '16px', height: '16px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>}
+                  <IconFiltros size={14} /> Filtros
+                  {filtrosActivos && <span style={{ background: BRAND_GREEN, color: '#fff', borderRadius: '50%', width: '16px', height: '16px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconVisto size={10} color="#fff" grosor={2.6} /></span>}
                 </button>
                 {filtrosActivos && (
                   <button onClick={() => setFiltros({ tipo: 'todos', pasajeros: 'todos', mascotas: false })}
@@ -753,7 +764,7 @@ const PanelConductor = ({ onVerRuta }) => {
 
                     {/* Mascotas */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Solo con mascotas 🐾</p>
+                      <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>Solo con mascotas <IconMascota size={13} /></p>
                       <div onClick={() => setFiltros(f => ({ ...f, mascotas: !f.mascotas }))}
                         style={{ width: '36px', height: '20px', borderRadius: '10px', backgroundColor: filtros.mascotas ? BRAND_GREEN : 'var(--t-linea)', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
                         <div style={{ position: 'absolute', top: '2px', left: filtros.mascotas ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: 'var(--t-papel)', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
@@ -780,7 +791,7 @@ const PanelConductor = ({ onVerRuta }) => {
             )}
             {!cargando && error && (
               <div style={{ textAlign: 'center', padding: '20px', color: '#C2410C', fontSize: '13px' }}>
-                ⚠️ {error}<br />
+                <IconAlerta size={14} style={{ verticalAlign: '-2px', marginRight: '7px' }} />{error}<br />
                 <button onClick={cargarSolicitudes} style={{ marginTop: '8px', background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>Reintentar</button>
               </div>
             )}
@@ -808,12 +819,12 @@ const PanelConductor = ({ onVerRuta }) => {
                 {disponible ? (
                   <motion.button whileTap={{ scale: 0.97 }} onClick={cargarSolicitudes}
                     style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
-                    🔄 Verificar de nuevo
+                    <IconGirar size={14} />Verificar de nuevo
                   </motion.button>
                 ) : (
                   <motion.button whileTap={{ scale: 0.97 }} onClick={toggleDisponibilidad}
                     style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
-                    📡 Conectarme
+                    <IconRadar size={14} />Conectarme
                   </motion.button>
                 )}
               </motion.div>
@@ -821,7 +832,7 @@ const PanelConductor = ({ onVerRuta }) => {
             {/* ESTADO VACÍO CUANDO HAY VIAJES PERO NINGUNO PASA FILTROS */}
             {!cargando && !error && solicitudes.length > 0 && solicitudesFiltradas.length === 0 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ textAlign: 'center', padding: '30px 20px' }}>
-                <div style={{ fontSize: '32px', marginBottom: '10px' }}>🔍</div>
+                <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: T.musgo, border: `1px solid ${T.musgoLinea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: T.musgoTexto }}><IconRadar size={22} /></div>
                 <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '14px' }}>Sin resultados con estos filtros</p>
                 <p style={{ margin: '0 0 12px', color: 'var(--t-piedra)', fontSize: '13px' }}>Hay {solicitudes.length} viaje(s) disponibles, pero ninguno coincide.</p>
                 <button onClick={() => setFiltros({ tipo: 'todos', pasajeros: 'todos', mascotas: false })}
@@ -847,8 +858,8 @@ const PanelConductor = ({ onVerRuta }) => {
                       </span>
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--t-piedra)', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                      <span>🗓️ {formatearFecha(sol.departure_time)}</span>
-                      <span>👥 {(sol.adults_count || 1) + (sol.children_count || 0)} pasajero(s){sol.has_pets ? ' 🐾' : ''}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconCalendario size={12} />{formatearFecha(sol.departure_time)}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconPersonas size={12} />{(sol.adults_count || 1) + (sol.children_count || 0)} pasajero(s){sol.has_pets && <IconMascota size={12} />}</span>
                     </div>
                     {/* HU38 — filtro flexible de comodidades: el viaje se ve igual aunque tu
                         vehículo no cumpla todo, pero te avisamos qué te falta para que decidas
@@ -856,14 +867,14 @@ const PanelConductor = ({ onVerRuta }) => {
                     {sol.comodidades_exigidas > 0 && (
                       <div style={{ marginTop: '6px', fontSize: '11px', fontWeight: '600', color: sol.comodidades_faltantes?.length ? 'var(--t-chiva-texto)' : BRAND_GREEN }}>
                         {sol.comodidades_faltantes?.length
-                          ? `⚠️ El pasajero pidió comodidades que te faltan: ${sol.comodidades_faltantes.join(', ')}`
-                          : `✓ Cumples las ${sol.comodidades_exigidas} comodidad(es) que pidió el pasajero`}
+                          ? `El pasajero pidió comodidades que te faltan: ${sol.comodidades_faltantes.join(', ')}`
+                          : `Cumplís las ${sol.comodidades_exigidas} comodidad(es) que pidió el pasajero`}
                       </div>
                     )}
                     {estaSeleccionada && (
                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                         style={{ marginTop: '8px', fontSize: '11px', color: BRAND_GREEN, fontWeight: '600' }}>
-                        🗺️ Ruta trazada en el mapa — haz clic para ocultar
+                        <IconMapa size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Ruta trazada en el mapa — hacé clic para ocultarla
                       </motion.div>
                     )}
                   </div>
@@ -872,7 +883,7 @@ const PanelConductor = ({ onVerRuta }) => {
                     <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                       onClick={(e) => { e.stopPropagation(); setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); }}
                       style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
-                      💰 Hacer oferta
+                      <IconPrecio size={15} />Hacer oferta
                     </motion.button>
                   </div>
                 </motion.div>
@@ -888,13 +899,13 @@ const PanelConductor = ({ onVerRuta }) => {
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
               <button onClick={cargarViajesActivos}
                 style={{ background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, padding: '5px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
-                🔄 Actualizar
+                <IconGirar size={14} />Actualizar
               </button>
             </div>
 
             {viajesActivos.length === 0 && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', padding: '40px 20px' }}>
-                <div style={{ fontSize: '48px', marginBottom: '12px' }}>📭</div>
+                <div style={{ width: '54px', height: '54px', borderRadius: '50%', background: T.niebla2, border: `1px solid ${T.linea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: T.piedraClara }}><IconClipboard size={23} /></div>
                 <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '15px' }}>Aún no has enviado ofertas</p>
                 <p style={{ margin: 0, color: 'var(--t-piedra)', fontSize: '13px' }}>Cuando hagas una oferta aparecerá aquí con su estado.</p>
               </motion.div>
@@ -906,16 +917,16 @@ const PanelConductor = ({ onVerRuta }) => {
               const esRechazado = viaje.status === 'REJECTED';
 
               const cfgEstado = {
-                DRIVER_OFFERED:           { bg: 'var(--t-chiva-suave)', color: 'var(--t-chiva-texto)', label: '⏳ Esperando respuesta del pasajero' },
-                PASSENGER_COUNTER_OFFERED:{ bg: 'var(--t-cielo-suave)', color: 'var(--t-cielo-texto)', label: '🔄 Contraoferta recibida — ¡Responde!' },
-                ACCEPTED:                 { bg: 'var(--t-musgo)', color: 'var(--t-musgo-texto)', label: '✅ Confirmado — Listo para iniciar' },
-                REJECTED:                 { bg: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', label: '❌ Rechazado' },
+                DRIVER_OFFERED:           { bg: 'var(--t-chiva-suave)', color: 'var(--t-chiva-texto)', Ico: IconReloj, label: 'Esperando respuesta del pasajero' },
+                PASSENGER_COUNTER_OFFERED:{ bg: 'var(--t-cielo-suave)', color: 'var(--t-cielo-texto)', Ico: IconIntercambio, label: 'Contraoferta recibida — respondé' },
+                ACCEPTED:                 { bg: 'var(--t-musgo)', color: 'var(--t-musgo-texto)', Ico: IconVisto, label: 'Confirmado — listo para iniciar' },
+                REJECTED:                 { bg: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', Ico: IconEquis, label: 'Rechazado' },
               };
               // Estado real del viaje (viene del trip_status)
               const cfgViaje = {
-                ASSIGNED:    { bg: 'var(--t-musgo)', color: 'var(--t-musgo-texto)', label: '✅ Viaje confirmado' },
-                IN_PROGRESS: { bg: 'var(--t-cielo-suave)', color: 'var(--t-cielo-texto)', label: '🚗 Viaje en curso' },
-                COMPLETED:   { bg: '#e0e7ff', color: 'var(--t-cielo-texto)', label: '🏁 Viaje completado' },
+                ASSIGNED:    { bg: 'var(--t-musgo)', color: 'var(--t-musgo-texto)', Ico: IconVisto, label: 'Viaje confirmado' },
+                IN_PROGRESS: { bg: 'var(--t-cielo-suave)', color: 'var(--t-cielo-texto)', Ico: IconAuto, label: 'Viaje en curso' },
+                COMPLETED:   { bg: '#e0e7ff', color: 'var(--t-cielo-texto)', Ico: IconBandera, label: 'Viaje completado' },
               };
               const estadoViaje = viaje.trip_status;
               const est = cfgEstado[viaje.status] || { bg: 'var(--t-niebla-2)', color: 'var(--t-piedra)', label: viaje.status };
@@ -938,8 +949,8 @@ const PanelConductor = ({ onVerRuta }) => {
                     </div>
                   </div>
 
-                  <span style={{ display: 'inline-block', backgroundColor: est.bg, color: est.color, borderRadius: '20px', padding: '4px 10px', fontSize: '11px', fontWeight: '700', marginBottom: esContraoferta ? '10px' : '0' }}>
-                    {est.label}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: est.bg, color: est.color, borderRadius: '20px', padding: '4px 11px', fontSize: '11px', fontWeight: 700, marginBottom: esContraoferta ? '10px' : '0' }}>
+                    {est.Ico && <est.Ico size={12} />}{est.label}
                   </span>
 
                   {/* SCRUM-84: Botones para responder contraoferta */}
@@ -949,13 +960,13 @@ const PanelConductor = ({ onVerRuta }) => {
                         onClick={() => resolverContraoferta(viaje.offer_id, 'ACCEPT')}
                         disabled={resolviendoOferta === viaje.offer_id + 'ACCEPT'}
                         style={{ flex: 1, background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
-                        {resolviendoOferta === viaje.offer_id + 'ACCEPT' ? '...' : '✅ Aceptar precio'}
+                        {resolviendoOferta === viaje.offer_id + 'ACCEPT' ? '...' : <><IconVisto size={14} />Aceptar precio</>}
                       </motion.button>
                       <motion.button whileTap={{ scale: 0.96 }}
                         onClick={() => resolverContraoferta(viaje.offer_id, 'REJECT')}
                         disabled={resolviendoOferta === viaje.offer_id + 'REJECT'}
                         style={{ flex: 1, background: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
-                        {resolviendoOferta === viaje.offer_id + 'REJECT' ? '...' : '❌ Rechazar'}
+                        {resolviendoOferta === viaje.offer_id + 'REJECT' ? '...' : <><IconEquis size={14} />Rechazar</>}
                       </motion.button>
                     </div>
                   )}
@@ -969,20 +980,20 @@ const PanelConductor = ({ onVerRuta }) => {
                         setModalOcupantesId(viaje.request_id);
                       }}
                       style={{ marginTop: '10px', width: '100%', padding: '9px', background: 'var(--t-musgo)', border: '1px solid var(--t-ruta)', borderRadius: '8px', color: 'var(--t-musgo-texto)', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>
-                      👥 Ver ocupantes del viaje
+                      <IconPersonas size={15} />Ver ocupantes del viaje
                     </button>
                   )}
 
                   {esAceptado && estadoViaje === 'ASSIGNED' && (
                     <div style={{ marginTop: '10px' }}>
                       <div style={{ backgroundColor: 'var(--t-musgo)', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '12px', color: 'var(--t-musgo-texto)', fontWeight: '600' }}>
-                        🎉 Viaje confirmado — cuando recojas al pasajero, inicia el viaje
+                        <IconVisto size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Viaje confirmado. Cuando recojas al pasajero, iniciá el viaje.
                       </div>
                       <motion.button whileTap={{ scale: 0.96 }}
                         onClick={() => gestionarViaje(viaje.request_id, 'start')}
                         disabled={gestionandoViaje === viaje.request_id + 'start'}
                         style={{ width: '100%', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
-                        {gestionandoViaje === viaje.request_id + 'start' ? '...' : '🚗 Iniciar viaje'}
+                        {gestionandoViaje === viaje.request_id + 'start' ? '...' : <><IconAuto size={15} />Iniciar viaje</>}
                       </motion.button>
                     </div>
                   )}
@@ -990,20 +1001,20 @@ const PanelConductor = ({ onVerRuta }) => {
                   {esAceptado && estadoViaje === 'IN_PROGRESS' && (
                     <div style={{ marginTop: '10px' }}>
                       <div style={{ backgroundColor: 'var(--t-cielo-suave)', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '12px', color: 'var(--t-cielo-texto)', fontWeight: '600' }}>
-                        🚗 Viaje en curso — finaliza cuando llegues al destino
+                        <IconAuto size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Viaje en curso. Finalizá cuando llegues al destino.
                       </div>
                       <motion.button whileTap={{ scale: 0.96 }}
                         onClick={() => gestionarViaje(viaje.request_id, 'complete')}
                         disabled={gestionandoViaje === viaje.request_id + 'complete'}
                         style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
-                        {gestionandoViaje === viaje.request_id + 'complete' ? '...' : '🏁 Finalizar viaje'}
+                        {gestionandoViaje === viaje.request_id + 'complete' ? '...' : <><IconBandera size={15} />Finalizar viaje</>}
                       </motion.button>
                     </div>
                   )}
 
                   {esAceptado && estadoViaje === 'COMPLETED' && (
                     <div style={{ marginTop: '10px', backgroundColor: 'var(--t-cielo-suave)', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: 'var(--t-cielo-texto)', fontWeight: '600', textAlign: 'center' }}>
-                      🏁 Viaje completado — ¡Buen trabajo!
+                      <IconBandera size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Viaje completado.
                     </div>
                   )}
 
@@ -1020,7 +1031,7 @@ const PanelConductor = ({ onVerRuta }) => {
                         color: viaje.ya_califico ? 'var(--t-piedra-clara)' : 'var(--t-chiva-texto)',
                         fontSize: '12px', fontWeight: '700', cursor: viaje.ya_califico ? 'default' : 'pointer'
                       }}>
-                      {viaje.ya_califico ? '✅ Ya calificaste a este pasajero' : '⭐ Calificar pasajero'}
+                      {viaje.ya_califico ? <><IconVisto size={14} />Ya calificaste a este pasajero</> : <><IconEstrella size={14} />Calificar pasajero</>}
                     </button>
                   )}
                 </motion.div>
@@ -1040,7 +1051,7 @@ const PanelConductor = ({ onVerRuta }) => {
               <div style={{ textAlign: 'center', padding: '30px 20px' }}>
                 <p style={{ color: '#C2410C', fontSize: '13px', marginBottom: '10px' }}>{errorGanancias}</p>
                 <button onClick={cargarGanancias} style={{ background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
-                  🔄 Reintentar
+                  <IconGirar size={14} />Reintentar
                 </button>
               </div>
             )}
@@ -1065,7 +1076,9 @@ const PanelConductor = ({ onVerRuta }) => {
                   </div>
                   <div style={{ flex: 1, background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
                     <p style={{ margin: '0 0 2px', fontSize: '18px', fontWeight: '800', color: 'var(--t-tinta)' }}>
-                      {ganancias.calificacion_promedio != null ? `★ ${ganancias.calificacion_promedio}` : '—'}
+                      {ganancias.calificacion_promedio != null
+                        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><IconEstrella size={16} style={{ fill: 'currentColor' }} />{ganancias.calificacion_promedio}</span>
+                        : '—'}
                     </p>
                     <p style={{ margin: 0, fontSize: '11px', color: 'var(--t-piedra)' }}>
                       {ganancias.calificacion_promedio != null ? 'Calificación' : 'Calificación (próximamente)'}
@@ -1075,7 +1088,7 @@ const PanelConductor = ({ onVerRuta }) => {
 
                 {ganancias.viajes_completados === 0 ? (
                   <div style={{ textAlign: 'center', padding: '30px 20px' }}>
-                    <div style={{ fontSize: '40px', marginBottom: '10px' }}>📊</div>
+                    <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: T.niebla2, border: `1px solid ${T.linea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: T.piedraClara }}><IconGrafico size={22} /></div>
                     <p style={{ margin: 0, color: 'var(--t-piedra)', fontSize: '13px' }}>Aún no tienes viajes completados. Cuando finalices tu primer viaje, aquí verás tus ganancias y estadísticas.</p>
                   </div>
                 ) : (
@@ -1292,7 +1305,7 @@ const PanelConductor = ({ onVerRuta }) => {
               {/* Header notif */}
               <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--t-linea)', backgroundColor: 'var(--t-niebla)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: 'var(--t-tinta)' }}>🔔 Notificaciones</h3>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: T.tinta, fontFamily: T.display, letterSpacing: '-.01em' }}>Notificaciones</h3>
                   <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>
                     {notificaciones.filter(n => !n.is_read).length} sin leer
                   </p>
@@ -1300,12 +1313,13 @@ const PanelConductor = ({ onVerRuta }) => {
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {notificaciones.filter(n => !n.is_read).length > 0 && (
                     <button onClick={marcarTodasLeidas}
-                      style={{ background: 'none', border: '1px solid var(--t-linea)', borderRadius: '6px', padding: '4px 9px', fontSize: '11px', fontWeight: '600', color: 'var(--t-piedra)', cursor: 'pointer' }}>
-                      ✓ Leer todas
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: T.papel, border: `1px solid ${T.linea}`, borderRadius: '8px', padding: '6px 10px', fontSize: '11px', fontWeight: '600', color: 'var(--t-piedra)', cursor: 'pointer' }}>
+                      <IconVisto size={12} />Leer todas
                     </button>
                   )}
                   <button onClick={() => setMostrarNotifPanel(false)}
-                    style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: 'var(--t-piedra)' }}>×</button>
+                    title="Cerrar"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.piedraClara, width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconEquis size={17} /></button>
                 </div>
               </div>
 
@@ -1313,28 +1327,30 @@ const PanelConductor = ({ onVerRuta }) => {
               <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
                 {notificaciones.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--t-piedra-clara)' }}>
-                    <div style={{ fontSize: '36px', marginBottom: '10px' }}>🔕</div>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: T.niebla2, border: `1px solid ${T.linea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: T.piedraClara }}><IconCampana size={20} /></div>
                     <p style={{ margin: 0, fontWeight: '600', color: 'var(--t-piedra)' }}>Sin notificaciones</p>
                     <p style={{ margin: '4px 0 0', fontSize: '13px' }}>Aquí verás cuando el pasajero responda.</p>
                   </div>
                 )}
                 {notificaciones.map((notif) => {
                   const cfg = {
-                    NEW_OFFER:      { icono: '💰', color: 'var(--t-cielo-texto)', bg: '#f5f3ff' },
-                    COUNTER_OFFER:  { icono: '🔄', color: 'var(--t-cielo-texto)', bg: 'var(--t-cielo-suave)' },
-                    TRIP_ACCEPTED:  { icono: '✅', color: 'var(--t-musgo-texto)', bg: 'var(--t-musgo)' },
-                    TRIP_REJECTED:  { icono: '❌', color: '#C2410C', bg: 'var(--t-alerta-suave)' },
-                    TRIP_STARTED:   { icono: '🚗', color: 'var(--t-cielo-texto)', bg: 'var(--t-cielo-suave)' },
-                    TRIP_COMPLETED: { icono: '🏁', color: 'var(--t-cielo-texto)', bg: '#eef2ff' },
-                    SYSTEM:         { icono: '📢', color: 'var(--t-piedra)', bg: 'var(--t-niebla)' },
-                  }[notif.type] || { icono: '📢', color: 'var(--t-piedra)', bg: 'var(--t-niebla)' };
+                    NEW_OFFER:      { Ico: IconPrecio,       color: T.musgoTexto,  bg: T.musgo },
+                    COUNTER_OFFER:  { Ico: IconIntercambio, color: T.chivaTexto,  bg: T.chivaSuave },
+                    TRIP_ACCEPTED:  { Ico: IconVisto,       color: T.musgoTexto,  bg: T.musgo },
+                    TRIP_REJECTED:  { Ico: IconEquis,       color: T.alertaTexto, bg: T.alertaSuave },
+                    TRIP_STARTED:   { Ico: IconAuto,        color: T.cieloTexto,  bg: T.cieloSuave },
+                    TRIP_COMPLETED: { Ico: IconBandera,     color: T.cieloTexto,  bg: T.cieloSuave },
+                    SYSTEM:         { Ico: IconCampana,     color: T.piedra,      bg: T.niebla2 },
+                  }[notif.type] || { Ico: IconCampana, color: T.piedra, bg: T.niebla2 };
 
                   return (
                     <div key={notif.notification_id}
                       onClick={() => !notif.is_read && marcarLeida(notif.notification_id)}
                       style={{ backgroundColor: notif.is_read ? '#fff' : cfg.bg, borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', border: `1px solid ${notif.is_read ? 'var(--t-linea)' : cfg.color + '33'}`, cursor: notif.is_read ? 'default' : 'pointer', transition: 'all 0.2s' }}>
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                        <span style={{ fontSize: '18px', flexShrink: 0 }}>{cfg.icono}</span>
+                        <span style={{ flexShrink: 0, width: '28px', height: '28px', borderRadius: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: notif.is_read ? T.niebla2 : 'rgba(255,255,255,.16)', color: notif.is_read ? T.piedraClara : cfg.color }}>
+                          <cfg.Ico size={15} />
+                        </span>
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <p style={{ margin: 0, fontWeight: notif.is_read ? '600' : '700', fontSize: '13px', color: notif.is_read ? 'var(--t-piedra)' : 'var(--t-tinta)' }}>
@@ -1366,7 +1382,7 @@ const PanelConductor = ({ onVerRuta }) => {
               style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9000 }} />
             <div style={{ position: 'fixed', inset: 0, zIndex: 9001, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              style={{ pointerEvents: 'all', width: '440px', maxWidth: '95vw', maxHeight: '80vh', backgroundColor: '#0f1a0f', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', sans-serif" }}>
+              style={{ pointerEvents: 'all', width: '440px', maxWidth: '95vw', maxHeight: '80vh', backgroundColor: T.monteAlto, border: '1px solid rgba(34,197,94,0.2)', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', sans-serif" }}>
               <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <p style={{ margin: '0 0 2px', fontSize: '11px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: BRAND_GREEN }}>Documento de viaje</p>
@@ -1378,7 +1394,7 @@ const PanelConductor = ({ onVerRuta }) => {
               <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
                 {!ocupantesPorViaje[modalOcupantesId] || ocupantesPorViaje[modalOcupantesId].length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '30px 0' }}>
-                    <div style={{ fontSize: '32px', marginBottom: '8px' }}>👥</div>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: T.niebla2, border: `1px solid ${T.linea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: T.piedraClara }}><IconPersonas size={20} /></div>
                     <p style={{ margin: 0, color: 'rgba(255,255,255,0.45)', fontSize: '13px' }}>El pasajero aún no ha registrado los ocupantes.</p>
                   </div>
                 ) : (
@@ -1416,14 +1432,17 @@ const PanelConductor = ({ onVerRuta }) => {
               style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
             <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
               style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '360px', maxWidth: '90vw', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-              <h3 style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px' }}>⭐ ¿Cómo estuvo tu pasajero?</h3>
+              <h3 style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px', fontFamily: T.display, fontWeight: 800, letterSpacing: '-.01em', display: 'flex', alignItems: 'center', gap: '8px' }}><IconEstrella size={17} color={T.chiva} />¿Cómo estuvo tu pasajero?</h3>
               <p style={{ margin: '0 0 18px', color: 'var(--t-piedra)', fontSize: '13px' }}>Tu calificación queda registrada en su perfil.</p>
 
               <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '16px' }}>
                 {[1, 2, 3, 4, 5].map(n => (
                   <button key={n} type="button" onClick={() => setEstrellasCalificar(n)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '30px', padding: 0, color: n <= estrellasCalificar ? 'var(--t-chiva)' : 'var(--t-linea)' }}>
-                    ★
+                    title={`${n} de 5`} aria-label={`Calificar con ${n} de 5`}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'flex',
+                             color: n <= estrellasCalificar ? T.chiva : T.linea, transition: 'color .15s, transform .15s',
+                             transform: n <= estrellasCalificar ? 'scale(1)' : 'scale(.94)' }}>
+                    <IconEstrella size={30} grosor={1.5} style={{ fill: n <= estrellasCalificar ? 'currentColor' : 'none' }} />
                   </button>
                 ))}
               </div>

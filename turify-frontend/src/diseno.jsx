@@ -153,6 +153,16 @@ export const IconCampana     = (p) => <Icono {...p}><path d="M18 15.5V11a6 6 0 1
 export const IconPrecio      = (p) => <Icono {...p}><circle cx="12" cy="12" r="8.6" /><path d="M14.4 9.4c-.5-.8-1.4-1.2-2.4-1.2-1.4 0-2.4.8-2.4 1.9 0 2.6 5 1.4 5 4 0 1.2-1.1 2-2.6 2-1.1 0-2-.4-2.5-1.2" /><path d="M12 6.6v10.8" /></Icono>;
 export const IconIntercambio = (p) => <Icono {...p}><path d="M4 8.5h13l-3-3M20 15.5H7l3 3" /></Icono>;
 export const IconIdea        = (p) => <Icono {...p}><path d="M9.5 17.5h5M10.5 20.5h3" /><path d="M12 3.5a5.5 5.5 0 0 1 3.3 9.9c-.5.4-.8 1-.8 1.6H9.5c0-.6-.3-1.2-.8-1.6A5.5 5.5 0 0 1 12 3.5Z" /></Icono>;
+// ── Comodidades del vehículo ──
+export const IconAire    = (p) => <Icono {...p}><path d="M12 3v18M12 8.5 8.2 6.3M12 8.5l3.8-2.2M12 15.5l-3.8 2.2M12 15.5l3.8 2.2" /><path d="M4.2 7.6l15.6 8.8M4.2 16.4l15.6-8.8" /></Icono>;
+export const IconWifi    = (p) => <Icono {...p}><path d="M8.5 15.5a5 5 0 0 1 7 0" /><path d="M5.6 12.3a9 9 0 0 1 12.8 0" /><path d="M2.8 9.2a13 13 0 0 1 18.4 0" /><path d="M12 19h.01" /></Icono>;
+export const IconBano    = (p) => <Icono {...p}><path d="M4 11.5h16v1.8a5.5 5.5 0 0 1-5.5 5.5h-5A5.5 5.5 0 0 1 4 13.3Z" /><path d="M7 11.5V6.4A2.4 2.4 0 0 1 9.4 4c1.1 0 2 .7 2.3 1.7" /><path d="M8 18.8 7 21M16 18.8 17 21" /></Icono>;
+export const IconMusica  = (p) => <Icono {...p}><circle cx="7" cy="17.5" r="2.6" /><circle cx="18" cy="15.5" r="2.6" /><path d="M9.6 17.5V6.4l11-2v11.1" /><path d="M9.6 9.6l11-2" /></Icono>;
+export const IconMaleta  = (p) => <Icono {...p}><rect x="3.5" y="7.5" width="17" height="12.5" rx="2.4" /><path d="M8.5 7.5V5.6A1.6 1.6 0 0 1 10.1 4h3.8a1.6 1.6 0 0 1 1.6 1.6v1.9" /><path d="M9 11v5.5M15 11v5.5" /></Icono>;
+export const IconBebe    = (p) => <Icono {...p}><path d="M9.5 3.5h5l-.6 3.2h-3.8Z" /><path d="M10.4 6.7 8.6 13.4a3.6 3.6 0 0 0 3.4 4.6h0a3.6 3.6 0 0 0 3.4-4.6l-1.8-6.7" /><path d="M8.4 20.5h7.2" /></Icono>;
+export const IconMascota = (p) => <Icono {...p}><ellipse cx="8" cy="9" rx="1.8" ry="2.4" /><ellipse cx="16" cy="9" rx="1.8" ry="2.4" /><ellipse cx="4.6" cy="13.6" rx="1.6" ry="2.1" /><ellipse cx="19.4" cy="13.6" rx="1.6" ry="2.1" /><path d="M12 13.2c2.6 0 4.6 2.1 4.6 4.2 0 1.6-1.3 2.4-2.8 2.4-1 0-1.3-.4-1.8-.4s-.8.4-1.8.4c-1.5 0-2.8-.8-2.8-2.4 0-2.1 2-4.2 4.6-4.2Z" /></Icono>;
+export const IconEmpresa = (p) => <Icono {...p}><path d="M4 20.5V6.5l7-3v17M11 20.5h9V10l-9-3.2" /><path d="M14.5 12.5h2M14.5 16h2M7 10h1M7 13.5h1" /></Icono>;
+
 export const IconSenal      = (p) => <Icono {...p}><path d="M4 17.5v-2M8.6 17.5v-5M13.2 17.5v-8M17.8 17.5v-11" /></Icono>;
 
 // ─────────────────────────────────────────────────────────────────────────────

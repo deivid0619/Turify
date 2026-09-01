@@ -1,4 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import { T, IconPersona, IconEstrella, IconVisto, IconGorro, IconEmpresa,
+         IconAire, IconWifi, IconBano, IconMusica, IconMaleta, IconBebe, IconMascota } from './diseno';
 
 const FOREST = 'var(--t-monte)';
 const GOLD = 'var(--t-chiva)';
@@ -8,13 +10,13 @@ const GOLD = 'var(--t-chiva)';
 // ser una app de transporte) — sello dorado para experiencia verificada, distinto
 // del verde de "conectado/aprobado" que ya usa el resto de la app.
 const ETIQUETAS_COMODIDAD = [
-  ['tiene_ac', '❄️ Aire acondicionado'],
-  ['tiene_wifi', '📶 WiFi'],
-  ['tiene_bano', '🚻 Baño'],
-  ['tiene_musica', '🎵 Música'],
-  ['tiene_maletero_amplio', '🧳 Maletero amplio'],
-  ['tiene_sillas_bebe', '🍼 Sillas para bebé'],
-  ['acepta_mascotas', '🐾 Acepta mascotas'],
+  ['tiene_ac', 'Aire acondicionado', IconAire],
+  ['tiene_wifi', 'WiFi', IconWifi],
+  ['tiene_bano', 'Baño', IconBano],
+  ['tiene_musica', 'Música', IconMusica],
+  ['tiene_maletero_amplio', 'Maletero amplio', IconMaleta],
+  ['tiene_sillas_bebe', 'Sillas para bebé', IconBebe],
+  ['acepta_mascotas', 'Acepta mascotas', IconMascota],
 ];
 
 const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
@@ -55,7 +57,7 @@ const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
                     <div style={{ width: '84px', height: '84px', borderRadius: '50%', flexShrink: 0, background: 'rgba(255,255,255,0.12)', border: '3px solid rgba(240,253,244,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '34px', overflow: 'hidden' }}>
                       {datos.profile_photo_url
                         ? <img src={datos.profile_photo_url} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        : '👤'}
+                        : <IconPersona size={38} color="rgba(240,253,244,.7)" />}
                     </div>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: '27px', fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1.15 }}>{datos.full_name}</div>
@@ -66,7 +68,7 @@ const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
                       )}
                       {datos.rating_avg != null ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', fontSize: '14px', fontWeight: 700, color: 'var(--t-chiva-linea)' }}>
-                          ★ {Number(datos.rating_avg).toFixed(1)}
+                          <IconEstrella size={15} style={{ fill: 'currentColor' }} />{Number(datos.rating_avg).toFixed(1)}
                           <span style={{ color: 'rgba(240,253,244,0.55)', fontWeight: 500 }}>· {datos.rating_count} calificaciones</span>
                         </div>
                       ) : (
@@ -83,7 +85,7 @@ const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
                       boxShadow: '0 10px 22px rgba(161,98,7,0.4), 0 0 0 5px #fff', transform: 'rotate(-11deg)', zIndex: 2
                     }}>
                       <div style={{ fontSize: '10.5px', fontWeight: 800, lineHeight: 1.15, color: '#4a2c00', letterSpacing: '0.02em' }}>
-                        <span style={{ fontSize: '20px', display: 'block', marginBottom: '1px' }}>✓</span>VERIFI-<br />CADO
+                        <IconVisto size={19} color="#4a2c00" grosor={2.4} style={{ display: 'block', margin: '0 auto 1px' }} />VERIFI-<br />CADO
                       </div>
                     </div>
                   )}
@@ -96,7 +98,7 @@ const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
                   {datos.empresa_afiliada && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px dashed var(--t-linea)' }}>
                       <span style={{ fontSize: '11.5px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--t-piedra-clara)' }}>Empresa afiliada</span>
-                      <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--t-tinta)' }}>🏢 {datos.empresa_afiliada.name}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: 700, color: T.tinta }}><IconEmpresa size={15} color={T.piedra} />{datos.empresa_afiliada.name}</span>
                     </div>
                   )}
 
@@ -114,9 +116,9 @@ const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
 
                   {datos.vehiculo && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '20px' }}>
-                      {ETIQUETAS_COMODIDAD.filter(([campo]) => datos.vehiculo[campo]).map(([campo, etiqueta]) => (
-                        <span key={campo} style={{ fontSize: '12.5px', fontWeight: 600, padding: '6px 13px', borderRadius: '100px', background: 'var(--t-niebla)', border: '1px solid var(--t-linea)', color: 'var(--t-tinta)' }}>
-                          {etiqueta}
+                      {ETIQUETAS_COMODIDAD.filter(([campo]) => datos.vehiculo[campo]).map(([campo, etiqueta, Ico]) => (
+                        <span key={campo} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', fontWeight: 600, padding: '6px 13px', borderRadius: '100px', background: 'var(--t-niebla)', border: '1px solid var(--t-linea)', color: 'var(--t-tinta)' }}>
+                          <Ico size={13} />{etiqueta}
                         </span>
                       ))}
                     </div>
@@ -124,7 +126,7 @@ const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
 
                   {datos.conductor_verificado && (
                     <div style={{ marginTop: '24px', display: 'flex', gap: '12px', alignItems: 'flex-start', background: 'var(--t-chiva-suave)', border: '1px solid var(--t-chiva-linea)', borderRadius: '12px', padding: '15px 17px' }}>
-                      <span style={{ fontSize: '21px' }}>🎓</span>
+                      <span style={{ display: 'flex', flexShrink: 0, color: T.chivaTexto }}><IconGorro size={19} /></span>
                       <div>
                         <b style={{ display: 'block', fontSize: '14px', color: 'var(--t-chiva-texto)', marginBottom: '3px' }}>Experiencia verificada por Turify</b>
                         <span style={{ fontSize: '12.5px', color: '#92702f', lineHeight: 1.55 }}>El administrador confirmó los años de experiencia de este conductor a partir de su RUNT.</span>
