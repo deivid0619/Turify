@@ -4,7 +4,7 @@ import {
   IconReloj, IconVisto, IconEquis, IconBandera, IconAuto, IconCalendario,
   IconPersonas, IconPersona, IconRadar, IconPin, IconEstrella, IconClipboard,
   IconAlerta, IconCampana, IconPrecio, IconIntercambio, IconRecibo,
-  LogoWordmark, BotonTema, useTema,
+  LogoWordmark, BotonTema, useTema, MAPA_OSCURO, FIJO,
 } from './diseno';
 
 const IconGirar   = (p) => <Icono {...p}><path d="M4 4v5h5" /><path d="M20 20v-5h-5" /><path d="M5.5 15A7.5 7.5 0 0 0 19 9.5" /><path d="M18.5 9A7.5 7.5 0 0 0 5 14.5" /></Icono>;
@@ -1249,7 +1249,7 @@ const PanelConductor = ({ onVerRuta }) => {
             mapContainerStyle={mapContainerStyle}
             center={ubicacionActual || centroDefaultAntioquia}
             zoom={ubicacionActual ? 12 : 9}
-            options={{ disableDefaultUI: true, zoomControl: true }}
+            options={{ disableDefaultUI: true, zoomControl: true, styles: tema === 'oscuro' ? MAPA_OSCURO : undefined }}
           >
             {zonasDemanda.map((zona, i) => (
               <CircleF key={i}
@@ -1274,7 +1274,7 @@ const PanelConductor = ({ onVerRuta }) => {
 
             {ubicacionActual && (
               <MarkerF position={ubicacionActual} title="Tu posición"
-                icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: BRAND_GREEN, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 }} />
+                icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: FIJO.ruta, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 }} />
             )}
 
             {disponible && solicitudesConUbicacion.map(sol => (

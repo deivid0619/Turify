@@ -19,7 +19,7 @@ import {
   IconRadar, IconRecibo, IconEstrella, IconClipboard, IconEquis, IconFlecha,
   IconAlerta, IconGorro, IconPin, IconPersona,
   IconCampana, IconPrecio, IconIntercambio, IconIdea,
-  MarcaTurify, LogoWordmark, BotonTema, useTema,
+  MarcaTurify, LogoWordmark, BotonTema, useTema, MAPA_OSCURO, FIJO,
 } from './diseno';
 
 // Librerias de Google Maps que necesitamos: 'places' para el autocompletar de InputDireccion,
@@ -29,28 +29,6 @@ import {
 const GOOGLE_MAPS_LIBRARIES = ['places', 'geometry'];
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  MAPA EN MODO OSCURO — no es el "dark" genérico de Google: el suelo y el agua
-//  se llevan al verde monte de la marca, y las vías quedan apenas más claras que
-//  el fondo para que la ruta verde siga siendo lo que más resalta.
-// ─────────────────────────────────────────────────────────────────────────────
-const MAPA_OSCURO = [
-  { elementType: 'geometry', stylers: [{ color: '#0B1F16' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0B1F16' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#7E9187' }] },
-  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#22402F' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#A8BBAF' }] },
-  { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#102A1E' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1B3527' }] },
-  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8DA396' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#274534' }] },
-  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#12291F' }] },
-  { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#07160F' }] },
-  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3F5A4B' }] },
-];
 
 const mapContainerStyle = { width: '100%', height: '100%' };
 const centroDefaultColombia = { lat: 4.6097, lng: -74.0817 };
@@ -1266,7 +1244,7 @@ const Dashboard = () => {
               {datosMapa.origen && <MarkerF position={datosMapa.origen} title="Origen" />}
               {datosMapa.destino && <MarkerF position={datosMapa.destino} title="Destino" />}
               {datosMapa.ruta.length > 0 && (
-                <PolylineF path={datosMapa.ruta} options={{ strokeColor: BRAND_GREEN, strokeWeight: 4 }} />
+                <PolylineF path={datosMapa.ruta} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
               )}
             </GoogleMap>
           ) : (

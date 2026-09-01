@@ -50,6 +50,30 @@ export const T = {
 // porque un verde de marca distinto al de los botones se lee como un error.
 export const FIJO = { ruta: '#16A34A', chiva: '#E9A13B', monte: '#0E2A1E', tinta: '#131A16' };
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  MAPA EN MODO OSCURO — no es el "dark" genérico de Google: el suelo y el agua
+//  se llevan al verde monte de la marca, y las vías quedan apenas más claras que
+//  el fondo para que la ruta verde siga siendo lo que más resalta.
+//  Los valores van fijos a propósito: Google Maps recibe JSON, no lee variables CSS.
+// ─────────────────────────────────────────────────────────────────────────────
+export const MAPA_OSCURO = [
+  { elementType: 'geometry', stylers: [{ color: '#0B1F16' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#0B1F16' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#7E9187' }] },
+  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#22402F' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#A8BBAF' }] },
+  { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#102A1E' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1B3527' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8DA396' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#274534' }] },
+  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#12291F' }] },
+  { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#07160F' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3F5A4B' }] },
+];
+
 export const FUENTES_URL =
   "https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap";
 
