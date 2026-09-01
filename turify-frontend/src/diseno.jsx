@@ -189,6 +189,39 @@ export const IconEmpresa = (p) => <Icono {...p}><path d="M4 20.5V6.5l7-3v17M11 2
 
 export const IconSenal      = (p) => <Icono {...p}><path d="M4 17.5v-2M8.6 17.5v-5M13.2 17.5v-8M17.8 17.5v-11" /></Icono>;
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  CENTRAR EL MAPA — flota sobre el mapa, arriba de los controles de zoom, que
+//  es donde el ojo ya lo busca. Cada pantalla decide qué significa "centrar":
+//  el pasajero encuadra su ruta, el conductor vuelve a su posición.
+// ─────────────────────────────────────────────────────────────────────────────
+export const IconCentrar = (p) => (
+  <Icono {...p}>
+    <circle cx="12" cy="12" r="3.4" />
+    <circle cx="12" cy="12" r="7.6" />
+    <path d="M12 1.6v2.8M12 19.6v2.8M22.4 12h-2.8M4.4 12H1.6" />
+  </Icono>
+);
+
+export const BotonCentrarMapa = ({ onClick, titulo = 'Centrar el mapa', deshabilitado = false, style }) => (
+  <button type="button" onClick={onClick} disabled={deshabilitado} className="t-foco"
+    title={titulo} aria-label={titulo}
+    style={{
+      position: 'absolute', right: '10px', bottom: '96px', zIndex: 5,
+      width: '40px', height: '40px', borderRadius: '10px',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: T.papel, border: `1px solid ${T.linea}`,
+      boxShadow: '0 2px 6px rgba(0,0,0,.18)',
+      color: deshabilitado ? T.piedraClara : T.tinta,
+      cursor: deshabilitado ? 'not-allowed' : 'pointer',
+      opacity: deshabilitado ? 0.55 : 1,
+      transition: 'color .18s, border-color .18s',
+      ...style,
+    }}>
+    <IconCentrar size={19} />
+  </button>
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  TABLERO DE RUTA — elemento firma.
 //  El cartón del parabrisas: origen y destino en mayúsculas, una línea que los une.

@@ -19,7 +19,7 @@ import {
   IconRadar, IconRecibo, IconEstrella, IconClipboard, IconEquis, IconFlecha,
   IconAlerta, IconGorro, IconPin, IconPersona,
   IconCampana, IconPrecio, IconIntercambio, IconIdea,
-  MarcaTurify, LogoWordmark, BotonTema, useTema, MAPA_OSCURO, FIJO,
+  MarcaTurify, LogoWordmark, BotonTema, useTema, MAPA_OSCURO, FIJO, BotonCentrarMapa,
 } from './diseno';
 
 // Librerias de Google Maps que necesitamos: 'places' para el autocompletar de InputDireccion,
@@ -105,7 +105,7 @@ const Dashboard = () => {
 
   // Equivalente al viejo <AjustarCamara> de Leaflet: cuando hay origen y destino, encuadra ambos;
   // si solo hay origen (ej. geolocalizacion inicial), centra ahi con zoom de calle.
-  useEffect(() => {
+  const encuadrarMapa = useCallback(() => {
     if (!mapRef.current || !window.google) return;
     if (datosMapa.origen && datosMapa.destino) {
       const bounds = new window.google.maps.LatLngBounds();
@@ -115,8 +115,17 @@ const Dashboard = () => {
     } else if (datosMapa.origen) {
       mapRef.current.panTo(datosMapa.origen);
       mapRef.current.setZoom(15);
+    } else if (navigator.geolocation) {
+      // Sin viaje armado todavía: centrar donde está la persona.
+      navigator.geolocation.getCurrentPosition((pos) => {
+        if (!mapRef.current) return;
+        mapRef.current.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        mapRef.current.setZoom(14);
+      });
     }
   }, [datosMapa.origen, datosMapa.destino]);
+
+  useEffect(() => { encuadrarMapa(); }, [encuadrarMapa]);
   const [enviandoSolicitud, setEnviandoSolicitud] = useState(false);
   const [mostrarMisSolicitudes, setMostrarMisSolicitudes] = useState(false);
   const [listaSolicitudes, setListaSolicitudes] = useState([]);
@@ -1234,6 +1243,7 @@ const Dashboard = () => {
             pantalla: es un panel contenido junto al sidebar de búsqueda. */}
         <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}>
           {mapsLoaded ? (
+            <>
             <GoogleMap
               mapContainerStyle={mapContainerStyle}
               center={datosMapa.origen || centroDefaultColombia}
@@ -1247,6 +1257,9 @@ const Dashboard = () => {
                 <PolylineF path={datosMapa.ruta} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
               )}
             </GoogleMap>
+            <BotonCentrarMapa onClick={encuadrarMapa}
+              titulo={datosMapa.origen && datosMapa.destino ? 'Ver la ruta completa' : 'Centrar en mi ubicación'} />
+            </>
           ) : (
             <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--t-niebla-2)', color: 'var(--t-piedra-clara)', fontSize: '14px' }}>
               Cargando mapa...

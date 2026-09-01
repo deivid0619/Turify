@@ -1,10 +1,10 @@
-import { useState, useEffect, useContext, useRef } from 'react';
+import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import {
   T, TableroRuta, Icono, Rotulo,
   IconReloj, IconVisto, IconEquis, IconBandera, IconAuto, IconCalendario,
   IconPersonas, IconPersona, IconRadar, IconPin, IconEstrella, IconClipboard,
   IconAlerta, IconCampana, IconPrecio, IconIntercambio, IconRecibo,
-  LogoWordmark, BotonTema, useTema, MAPA_OSCURO, FIJO,
+  LogoWordmark, BotonTema, useTema, MAPA_OSCURO, FIJO, BotonCentrarMapa,
 } from './diseno';
 
 const IconGirar   = (p) => <Icono {...p}><path d="M4 4v5h5" /><path d="M20 20v-5h-5" /><path d="M5.5 15A7.5 7.5 0 0 0 19 9.5" /><path d="M18.5 9A7.5 7.5 0 0 0 5 14.5" /></Icono>;
@@ -85,6 +85,24 @@ const PanelConductor = ({ onVerRuta }) => {
   // HU09 — Disponibilidad y rango geográfico del conductor
   const [disponible, setDisponible] = useState(false);
   const [ubicacionActual, setUbicacionActual] = useState(null); // { lat, lng }
+  // Referencia al mapa: hace falta para centrarlo sin pelear con la prop `center`,
+  // que si se fuerza en cada render impide que el conductor lo mueva a mano.
+  const mapaRef = useRef(null);
+
+  const centrarEnMiUbicacion = useCallback(() => {
+    if (!mapaRef.current) return;
+    if (ubicacionActual) {
+      mapaRef.current.panTo(ubicacionActual);
+      mapaRef.current.setZoom(12);
+      return;
+    }
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const punto = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      setUbicacionActual(punto);
+      if (mapaRef.current) { mapaRef.current.panTo(punto); mapaRef.current.setZoom(12); }
+    });
+  }, [ubicacionActual]);
 
   // HU29 — Calificaciones bidireccionales
   const [modalCalificar, setModalCalificar] = useState(null); // request_id del viaje a calificar
@@ -1245,10 +1263,12 @@ const PanelConductor = ({ onVerRuta }) => {
     <main style={{ flex: 1, position: 'relative' }}>
       <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}>
         {mapsLoaded ? (
+          <>
           <GoogleMap
             mapContainerStyle={mapContainerStyle}
             center={ubicacionActual || centroDefaultAntioquia}
             zoom={ubicacionActual ? 12 : 9}
+            onLoad={(mapa) => { mapaRef.current = mapa; }}
             options={{ disableDefaultUI: true, zoomControl: true, styles: tema === 'oscuro' ? MAPA_OSCURO : undefined }}
           >
             {zonasDemanda.map((zona, i) => (
@@ -1284,6 +1304,9 @@ const PanelConductor = ({ onVerRuta }) => {
                 icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: '#f59e0b', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
             ))}
           </GoogleMap>
+          <BotonCentrarMapa onClick={centrarEnMiUbicacion}
+            titulo={ubicacionActual ? 'Centrar en mi ubicación' : 'Buscar mi ubicación'} />
+          </>
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--t-niebla-2)', color: 'var(--t-piedra-clara)', fontSize: '14px' }}>
             Cargando mapa...
