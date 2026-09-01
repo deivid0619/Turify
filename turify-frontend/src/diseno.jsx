@@ -207,7 +207,7 @@ export const BotonCentrarMapa = ({ onClick, titulo = 'Centrar el mapa', deshabil
   <button type="button" onClick={onClick} disabled={deshabilitado} className="t-foco"
     title={titulo} aria-label={titulo}
     style={{
-      position: 'absolute', right: '10px', bottom: '96px', zIndex: 5,
+      position: 'absolute', right: '10px', bottom: '96px', zIndex: 20,
       width: '40px', height: '40px', borderRadius: '10px',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: T.papel, border: `1px solid ${T.linea}`,

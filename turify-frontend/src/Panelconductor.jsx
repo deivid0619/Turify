@@ -620,9 +620,19 @@ const PanelConductor = ({ onVerRuta }) => {
         min-width: 0;
       }
       .fuec-select option { background: var(--t-monte-alto); color: var(--t-musgo); }
+
+      /* ── Responsividad ──
+         El panel medía 420 px fijos y el mapa tomaba el resto. En una ventana
+         angosta el mapa quedaba con ancho cero y no se veía: ni el mapa ni el
+         botón de centrar. Por debajo de 1000 px se apilan. */
+      @media (max-width: 1000px) {
+        .pc-raiz { flex-direction: column; height: auto; min-height: 100%; }
+        .pc-lateral { width: 100% !important; max-width: 100% !important; }
+        .pc-mapa { min-height: 340px; flex: none !important; }
+      }
     `}</style>
-    <div style={{ display: 'flex', gap: '14px', height: '100%', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-    <aside style={{ width: '420px', flexShrink: 0, background: 'var(--t-monte)', borderRadius: '16px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="pc-raiz" style={{ display: 'flex', gap: '14px', height: '100%', fontFamily: T.ui }}>
+    <aside className="pc-lateral" style={{ width: '420px', flexShrink: 0, background: 'var(--t-monte)', borderRadius: '16px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
 
       {/* CABECERA OSCURA — marca, saludo y el control de conexión, que es
           lo único que el conductor toca antes de empezar a trabajar. */}
@@ -1260,7 +1270,7 @@ const PanelConductor = ({ onVerRuta }) => {
     {/* MAPA — zonas de demanda + tu posición. Mientras estás desconectado no se ven
         solicitudes puntuales (eso solo aparece al conectarte), pero sí las zonas
         con más flujo de pedidos, para que decidas dónde posicionarte. */}
-    <main style={{ flex: 1, position: 'relative' }}>
+    <main className="pc-mapa" style={{ flex: 1, position: 'relative', minWidth: 0 }}>
       <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}>
         {mapsLoaded ? (
           <>

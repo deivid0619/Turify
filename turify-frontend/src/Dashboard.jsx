@@ -921,7 +921,7 @@ const Dashboard = () => {
   // pasajero con un botón para abrirlo aparte.
   if (usuario?.role === 'DRIVER') {
     return (
-      <div style={{ position: 'relative', width: '100%', height: '100vh', background: 'var(--t-niebla)', padding: '14px', boxSizing: 'border-box' }}>
+      <div style={{ position: 'relative', width: '100%', height: '100vh', overflowY: 'auto', background: 'var(--t-niebla)', padding: '14px', boxSizing: 'border-box' }}>
         <PanelConductor />
         <ToastContainer toasts={toasts} onRemove={removeToast} />
       </div>
