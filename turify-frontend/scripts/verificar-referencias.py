@@ -21,9 +21,13 @@ for archivo in sorted(glob.glob((sys.argv[1] if len(sys.argv)>1 else '.') + '/*.
                 if parte: disponibles.add(parte.split(' as ')[-1].strip())
     for m in re.finditer(r'(?:const|let|var|function|class)\s+(\w+)', src):
         disponibles.add(m.group(1))
-    for m in re.finditer(r'\{([^}]*)\}\s*=', src):        # desestructuración
+    # Desestructuración: en asignaciones ({ a, b } = obj) y también en
+    # parámetros de función con valor por defecto ({ a, Ico = X }) => ...
+    for m in re.finditer(r'\{([^{}]*)\}\s*(?:=|\)\s*=>)', src):
         for parte in m.group(1).split(','):
-            parte = parte.strip().split(':')[-1].strip()
+            parte = parte.strip()
+            parte = parte.split('=')[0].strip()      # quita el valor por defecto
+            parte = parte.split(':')[-1].strip()     # quita el renombrado
             if re.fullmatch(r'\w+', parte or ''): disponibles.add(parte)
 
     usados = set(re.findall(r'<([A-Z]\w+)', src))

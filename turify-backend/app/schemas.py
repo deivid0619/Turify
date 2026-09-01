@@ -14,6 +14,11 @@ class UserResponse(BaseModel):
     full_name: str
     email: EmailStr
     role: str
+    # El telefono se declara aca a proposito: response_model descarta todo campo
+    # que no este en el esquema, y el formulario de conductor lo necesita para
+    # precargarse. Optional porque hay usuarios antiguos sin el dato.
+    phone_number: Optional[str] = None
+    profile_photo_url: Optional[str] = None
 
     class Config:
         from_attributes = True
