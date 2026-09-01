@@ -1,5 +1,4 @@
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
-const IconIdea = (p) => <IconTrazo {...p}><path d="M9.5 17.5h5M10.5 20.5h3" /><path d="M12 3.5a5.5 5.5 0 0 1 3.3 9.9c-.5.4-.8 1-.8 1.6H9.5c0-.6-.3-1.2-.8-1.6A5.5 5.5 0 0 1 12 3.5Z" /></IconTrazo>;
 import { motion, AnimatePresence } from 'framer-motion';
 import logoTurify from './logo.png';
 import { GoogleMap, MarkerF, PolylineF, useJsApiLoader } from '@react-google-maps/api';
@@ -19,7 +18,8 @@ import {
   T, EstilosBase, TableroRuta, Icono,
   IconReloj, IconVisto, IconBandera, IconAuto, IconCalendario, IconPersonas,
   IconRadar, IconRecibo, IconEstrella, IconClipboard, IconEquis, IconFlecha,
-  IconAlerta, IconGorro, IconPin, IconPersona, IconRecibo as _IconRecibo,
+  IconAlerta, IconGorro, IconPin, IconPersona,
+  IconCampana, IconPrecio, IconIntercambio, IconIdea,
   MarcaTurify, LogoWordmark, BotonTema, useTema,
 } from './diseno';
 

@@ -149,6 +149,10 @@ export const IconAlerta     = (p) => <Icono {...p}><path d="M12 4l9 15.5H3Z" /><
 export const IconGorro      = (p) => <Icono {...p}><path d="M12 5 3 9.2 12 13l9-3.8L12 5Z" /><path d="M7 11.3V15c0 1.4 2.2 2.6 5 2.6s5-1.2 5-2.6v-3.7" /></Icono>;
 export const IconOjo        = (p) => <Icono {...p}><path d="M2.5 12S6 5.8 12 5.8 21.5 12 21.5 12 18 18.2 12 18.2 2.5 12 2.5 12Z" /><circle cx="12" cy="12" r="2.8" /></Icono>;
 export const IconOjoTachado = (p) => <Icono {...p}><path d="M4 4l16 16" /><path d="M9.6 9.7a2.8 2.8 0 0 0 3.9 3.9" /><path d="M6.6 6.8C4.2 8.4 2.5 12 2.5 12s3.5 6.2 9.5 6.2c1.5 0 2.8-.4 4-.9" /><path d="M17.6 15.1c2-1.5 3.4-3.8 3.4-3.8S17.5 5.8 12 5.8c-.6 0-1.2.1-1.8.2" /></Icono>;
+export const IconCampana     = (p) => <Icono {...p}><path d="M18 15.5V11a6 6 0 1 0-12 0v4.5L4.5 18h15L18 15.5Z" /><path d="M10 20.5a2.2 2.2 0 0 0 4 0" /></Icono>;
+export const IconPrecio      = (p) => <Icono {...p}><circle cx="12" cy="12" r="8.6" /><path d="M14.4 9.4c-.5-.8-1.4-1.2-2.4-1.2-1.4 0-2.4.8-2.4 1.9 0 2.6 5 1.4 5 4 0 1.2-1.1 2-2.6 2-1.1 0-2-.4-2.5-1.2" /><path d="M12 6.6v10.8" /></Icono>;
+export const IconIntercambio = (p) => <Icono {...p}><path d="M4 8.5h13l-3-3M20 15.5H7l3 3" /></Icono>;
+export const IconIdea        = (p) => <Icono {...p}><path d="M9.5 17.5h5M10.5 20.5h3" /><path d="M12 3.5a5.5 5.5 0 0 1 3.3 9.9c-.5.4-.8 1-.8 1.6H9.5c0-.6-.3-1.2-.8-1.6A5.5 5.5 0 0 1 12 3.5Z" /></Icono>;
 export const IconSenal      = (p) => <Icono {...p}><path d="M4 17.5v-2M8.6 17.5v-5M13.2 17.5v-8M17.8 17.5v-11" /></Icono>;
 
 // ─────────────────────────────────────────────────────────────────────────────
