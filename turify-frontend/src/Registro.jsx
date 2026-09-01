@@ -1,7 +1,6 @@
 import API_BASE_URL from './api';
 import { useState } from 'react';
-import logoTurify from './logo.png';
-import { T, EstilosBase, Boton, Rotulo, TableroRuta, IconAlerta, IconVisto, IconOjo, IconOjoTachado } from './diseno';
+import { T, EstilosBase, Boton, Rotulo, TableroRuta, LogoWordmark, IconAlerta, IconVisto, IconOjo, IconOjoTachado } from './diseno';
 
 const Registro = ({ irALogin }) => {
   const [formData, setFormData] = useState({
@@ -161,7 +160,7 @@ const Registro = ({ irALogin }) => {
             </g>
           </svg>
 
-          <img src={logoTurify} alt="Turify" style={{ position: 'relative', height: '32px', alignSelf: 'flex-start' }} />
+          <span style={{ position: 'relative', alignSelf: 'flex-start' }}><LogoWordmark alto={14} oscuro /></span>
 
           <div style={{ position: 'relative' }}>
             <h2 style={{

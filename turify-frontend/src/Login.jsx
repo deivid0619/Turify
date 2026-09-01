@@ -1,10 +1,9 @@
 import API_BASE_URL from './api';
 import { useState, useEffect, useRef } from 'react';
-import logoTurify from './logo.png';
 import { T, EstilosBase, Boton, Rotulo, TableroRuta, IconAlerta, IconOjo, IconOjoTachado,
          LogoWordmark, LogoMonograma, LogoBifurcacion } from './diseno';
 
-// Propuesta de logo en uso. Alternativas: LogoMonograma | LogoBifurcacion
+// Logo en uso. Alternativas: LogoMonograma | LogoBifurcacion
 const LOGO = LogoWordmark;
 
 // Copy del panel izquierdo — cambia según la pestaña activa, para que el mensaje
@@ -178,9 +177,7 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
             {/* Cabecera: logo grande + navegación */}
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '24px', flexWrap: 'wrap' }}>
               {/* Hay ancho de sobra: va el logo con nombre, no la marca compacta. */}
-              {LOGO
-                ? <LOGO alto={24} oscuro />
-                : <img src={logoTurify} alt="Turify" style={{ height: '52px' }} />}
+              <LOGO alto={24} oscuro />
               <nav style={{ display: 'flex', gap: '20px' }}>
                 {[
                   { id: 'viajar', label: 'Viajar' },

@@ -4,6 +4,7 @@ import {
   IconReloj, IconVisto, IconEquis, IconBandera, IconAuto, IconCalendario,
   IconPersonas, IconPersona, IconRadar, IconPin, IconEstrella, IconClipboard,
   IconAlerta, IconCampana, IconPrecio, IconIntercambio, IconRecibo,
+  LogoWordmark, BotonTema, useTema,
 } from './diseno';
 
 const IconGirar   = (p) => <Icono {...p}><path d="M4 4v5h5" /><path d="M20 20v-5h-5" /><path d="M5.5 15A7.5 7.5 0 0 0 19 9.5" /><path d="M18.5 9A7.5 7.5 0 0 0 5 14.5" /></Icono>;
@@ -17,7 +18,6 @@ import { AuthContext } from './AuthContext';
 import { ToastContainer, useToast } from './Toast';
 import { SkeletonTarjetaViaje } from './Skeleton';
 import PerfilDrawer from './PerfilDrawer';
-import logoTurify from './logo.png';
 
 const BRAND_GREEN = 'var(--t-ruta)';
 import API_BASE_URL from './api';
@@ -61,6 +61,7 @@ const PanelConductor = ({ onVerRuta }) => {
   };
 
   const [pestanaActiva, setPestanaActiva] = useState('radar');
+  const [tema, alternarTema] = useTema();
   const [solicitudes, setSolicitudes] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
@@ -605,61 +606,73 @@ const PanelConductor = ({ onVerRuta }) => {
     <div style={{ display: 'flex', gap: '14px', height: '100%', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
     <aside style={{ width: '420px', flexShrink: 0, background: 'var(--t-monte)', borderRadius: '16px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
 
-      {/* CHROME OSCURO — logo, saludo y control de conexión (protagonista) */}
+      {/* CABECERA OSCURA — marca, saludo y el control de conexión, que es
+          lo único que el conductor toca antes de empezar a trabajar. */}
       <div style={{ padding: '18px 20px 16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-          <img src={logoTurify} alt="Turify" style={{ height: '24px' }} />
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+          <LogoWordmark alto={13} oscuro />
+          <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
+            <BotonTema tema={tema} alternar={alternarTema} compacto />
             {/* Perfil — desde acá el conductor sube su RUNT (pestaña "Mis Docs") */}
-            <button onClick={() => setMostrarPerfil(true)} title="Mi perfil"
-              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '14px' }}>
+            <button onClick={() => setMostrarPerfil(true)} title="Mi perfil" className="t-foco"
+              style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${T.monteLinea}`, borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(234,242,236,.8)', flexShrink: 0 }}>
               <IconPersona size={15} />
             </button>
             {/* Campana de notificaciones */}
-            <div onClick={() => setMostrarNotifPanel(true)}
-              style={{ position: 'relative', cursor: 'pointer', width: '30px', height: '30px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button onClick={() => setMostrarNotifPanel(true)} title="Notificaciones" className="t-foco"
+              style={{ position: 'relative', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: `1px solid ${T.monteLinea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <IconCampana size={15} color="rgba(234,242,236,.8)" />
               {notificaciones.filter(n => !n.is_read).length > 0 && (
-                <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: '#C2410C', color: '#fff', borderRadius: '50%', width: '15px', height: '15px', fontSize: '9px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '2px solid var(--t-monte)' }}>
+                <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: T.alerta, color: '#fff', borderRadius: '50%', minWidth: '16px', height: '16px', fontSize: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${T.monte}`, padding: '0 3px' }}>
                   {notificaciones.filter(n => !n.is_read).length}
                 </span>
               )}
-            </div>
-            <motion.button whileTap={{ scale: 0.9 }} onClick={cargarSolicitudes} disabled={cargando}
-              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: 'rgba(255,255,255,0.7)', padding: '6px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>
-              {cargando ? '···' : 'Actualizar'}
-            </motion.button>
+            </button>
           </div>
         </div>
 
-        <p style={{ margin: '0 0 12px', color: 'rgba(255,255,255,0.45)', fontSize: '12px' }}>Hola, {usuario?.full_name?.split(' ')[0] || 'Conductor'}</p>
+        {/* Saludo: el nombre es lo que se lee, el resto es contexto */}
+        <div style={{ marginBottom: '13px' }}>
+          <p style={{ margin: 0, fontFamily: T.display, fontWeight: 800, fontSize: '19px', letterSpacing: '-.01em', color: '#fff' }}>
+            Hola, {usuario?.full_name?.split(' ')[0] || 'Conductor'}
+          </p>
+          <p style={{ margin: '2px 0 0', fontFamily: T.dato, fontSize: '10.5px', letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(234,242,236,.42)' }}>
+            {disponible ? 'En línea' : 'Desconectado'}
+          </p>
+        </div>
 
-        {/* CONTROL PRINCIPAL — conectarse, no "pedir viajes" */}
-        <button onClick={toggleDisponibilidad}
+        {/* CONTROL PRINCIPAL — conectarse, no "pedir viajes". El estado se lee
+            en el color y en el punto, no solo en el texto. */}
+        <button onClick={toggleDisponibilidad} className="t-foco"
           style={{
-            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '9px',
-            padding: '13px', borderRadius: '12px', border: disponible ? 'none' : '1px solid rgba(255,255,255,0.18)',
-            cursor: 'pointer', fontFamily: "'Syne', sans-serif", fontSize: '14px', fontWeight: '700',
-            background: disponible ? `linear-gradient(135deg, var(--t-ruta), ${BRAND_GREEN})` : 'rgba(255,255,255,0.05)',
-            color: disponible ? 'var(--t-monte)' : 'var(--t-musgo)',
-            boxShadow: disponible ? '0 4px 16px rgba(34,197,94,0.3)' : 'none',
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+            padding: '14px', borderRadius: T.rTarjeta, cursor: 'pointer',
+            fontFamily: T.display, fontSize: '14.5px', fontWeight: 700,
+            border: disponible ? 'none' : `1px solid ${T.monteLinea}`,
+            background: disponible ? BRAND_GREEN : 'rgba(255,255,255,0.05)',
+            color: disponible ? '#08210F' : '#EAF2EC',
+            transition: 'background .2s, color .2s',
           }}>
-          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: disponible ? 'var(--t-monte)' : 'var(--t-piedra)' }} />
-          {disponible ? 'Estás conectado — toca para desconectarte' : 'Conectarme'}
+          <span className={disponible ? 't-anim' : undefined} style={{
+            width: '9px', height: '9px', borderRadius: '50%',
+            background: disponible ? '#08210F' : 'rgba(234,242,236,.45)',
+            animation: disponible ? 't-latido 1.8s infinite' : 'none',
+          }} />
+          {disponible ? 'Estás conectado' : 'Conectarme'}
         </button>
 
-        <p style={{ margin: '10px 0 0', color: 'rgba(255,255,255,0.4)', fontSize: '11px', textAlign: 'center' }}>
+        <p style={{ margin: '10px 0 0', color: 'rgba(234,242,236,.42)', fontSize: '11.5px', textAlign: 'center', lineHeight: 1.5 }}>
           {disponible
-            ? `Viendo solicitudes cerca de ti · ${viajesActivos.length} viaje(s) activo(s)`
-            : 'Conéctate para empezar a recibir solicitudes de tu zona'}
+            ? <>Viendo solicitudes cerca tuyo{viajesActivos.length > 0 && <> · {viajesActivos.length} viaje{viajesActivos.length > 1 ? 's' : ''} activo{viajesActivos.length > 1 ? 's' : ''}</>}<br /><span style={{ opacity: .75 }}>Tocá de nuevo para desconectarte</span></>
+            : 'Conectate para empezar a recibir solicitudes de tu zona'}
         </p>
       </div>
 
       {/* PESTAÑAS */}
-      <div style={{ display: 'flex', gap: '6px', padding: '0 20px 16px' }}>
-        {[{ id: 'radar', Ico: IconRadar, label: 'Radar', count: solicitudes.length }, { id: 'activos', Ico: IconClipboard, label: 'Mis ofertas', count: viajesActivos.length }, { id: 'ganancias', Ico: IconGrafico, label: 'Ganancias', count: 0 }, { id: 'vehiculo', Ico: IconAuto, label: 'Mi vehículo', count: 0 }].map(tab => (
+      <div style={{ display: 'flex', gap: '5px', padding: '0 20px 16px' }}>
+        {[{ id: 'radar', Ico: IconRadar, label: 'Radar', count: solicitudes.length }, { id: 'activos', Ico: IconClipboard, label: 'Ofertas', count: viajesActivos.length }, { id: 'ganancias', Ico: IconGrafico, label: 'Ganancias', count: 0 }, { id: 'vehiculo', Ico: IconAuto, label: 'Vehículo', count: 0 }].map(tab => (
           <button key={tab.id} onClick={() => setPestanaActiva(tab.id)}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 8px', borderRadius: '9px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '11px', fontFamily: T.ui, transition: 'background-color .18s, color .18s', backgroundColor: pestanaActiva === tab.id ? '#fff' : 'rgba(255,255,255,0.08)', color: pestanaActiva === tab.id ? T.monte : 'rgba(255,255,255,0.7)' }}>
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 6px', borderRadius: '9px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '11px', fontFamily: T.ui, whiteSpace: 'nowrap', minWidth: 0, transition: 'background-color .18s, color .18s', backgroundColor: pestanaActiva === tab.id ? '#fff' : 'rgba(255,255,255,0.08)', color: pestanaActiva === tab.id ? T.monte : 'rgba(255,255,255,0.7)' }}>
             <tab.Ico size={13} />{tab.label}
             {tab.count > 0 && <span style={{ background: pestanaActiva === tab.id ? BRAND_GREEN : 'rgba(255,255,255,0.25)', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', marginLeft: '4px' }}>{tab.count}</span>}
           </button>
