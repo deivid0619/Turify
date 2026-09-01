@@ -1,11 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { T, Icono, IconVisto, IconEquis, IconAlerta } from './diseno';
+const IconInfo = (p) => <Icono {...p}><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></Icono>;
 
 // ── Tipos de toast ──
 const CONFIG = {
-  success: { bg: 'var(--t-musgo)', border: 'var(--t-ruta)', color: 'var(--t-musgo-texto)', icon: '✅', barColor: 'var(--t-ruta)' },
-  error:   { bg: 'var(--t-alerta-suave)', border: '#C2410C', color: '#7f1d1d', icon: '❌', barColor: '#C2410C' },
-  warning: { bg: 'var(--t-chiva-suave)', border: '#f59e0b', color: '#78350f', icon: '⚠️', barColor: '#f59e0b' },
-  info:    { bg: 'var(--t-cielo-suave)', border: '#3b82f6', color: 'var(--t-cielo-texto)', icon: 'ℹ️', barColor: '#3b82f6' },
+  success: { bg: T.musgo,       border: T.ruta,       color: T.musgoTexto,  Ico: IconVisto,  barColor: T.ruta },
+  error:   { bg: T.alertaSuave, border: T.alerta,     color: T.alertaTexto, Ico: IconEquis,  barColor: T.alerta },
+  warning: { bg: T.chivaSuave,  border: T.chivaLinea, color: T.chivaTexto,  Ico: IconAlerta, barColor: T.chiva },
+  info:    { bg: T.cieloSuave,  border: T.cieloLinea, color: T.cieloTexto,  Ico: IconInfo,   barColor: T.cielo },
 };
 
 // ── Toast individual ──
@@ -54,7 +56,7 @@ const ToastItem = ({ id, type, message, duration, onRemove }) => {
       position: 'relative',
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-        <span style={{ fontSize: '16px', flexShrink: 0, marginTop: '1px' }}>{cfg.icon}</span>
+        <span style={{ fontSize: '16px', flexShrink: 0, marginTop: '1px' }}><cfg.Ico size={15} /></span>
         <p style={{ margin: 0, fontSize: '13px', color: cfg.color, fontWeight: '500', lineHeight: '1.4', flex: 1 }}>
           {message}
         </p>

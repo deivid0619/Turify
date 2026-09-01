@@ -138,7 +138,11 @@ export const ErrorConexion = ({ onReintentar }) => (
       maxWidth: 420,
       boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
     }}>
-      <div style={{ fontSize: 48, marginBottom: 16 }}>🔌</div>
+      <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--t-alerta-suave)', border: '1px solid var(--t-alerta-linea)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: 'var(--t-alerta-texto)' }}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 3l18 18" /><path d="M8.5 16.5a5 5 0 0 1 7 0" /><path d="M5 13a10 10 0 0 1 4-2.4M19 13a10 10 0 0 0-7.5-2.9" /><path d="M2 9.5A15 15 0 0 1 6.5 6.7M22 9.5a15 15 0 0 0-9-3.4" /><path d="M12 20h.01" />
+        </svg>
+      </div>
       <h2 style={{ margin: '0 0 10px', color: 'var(--t-musgo)', fontSize: 20, fontWeight: 800, fontFamily: "'Syne', sans-serif" }}>
         Sin conexión al servidor
       </h2>
@@ -156,7 +160,7 @@ export const ErrorConexion = ({ onReintentar }) => (
             cursor: 'pointer', fontFamily: "'Syne', sans-serif",
             boxShadow: '0 4px 14px rgba(34,197,94,0.3)',
           }}>
-          🔄 Reintentar
+          Reintentar
         </button>
       )}
     </div>

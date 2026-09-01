@@ -1,20 +1,30 @@
 import { useState, useEffect, useContext } from 'react';
+const IconIdea    = (p) => <Icono {...p}><path d="M9.5 17.5h5M10.5 20.5h3" /><path d="M12 3.5a5.5 5.5 0 0 1 3.3 9.9c-.5.4-.8 1-.8 1.6H9.5c0-.6-.3-1.2-.8-1.6A5.5 5.5 0 0 1 12 3.5Z" /></Icono>;
+const IconEmpresa = (p) => <Icono {...p}><path d="M4 20.5V6.5l7-3v17M11 20.5h9V10l-9-3.2" /><path d="M14.5 12.5h2M14.5 16h2M7 10h1M7 13.5h1" /></Icono>;
 import { motion, AnimatePresence } from 'framer-motion';
 import { AuthContext } from './AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const BRAND_GREEN = 'var(--t-ruta)';
 import API_BASE_URL from './api';
+import { T, Icono, IconPersona, IconAuto, IconReloj, IconVisto, IconBandera, IconEquis,
+         IconCalendario, IconClipboard, IconGorro, IconRecibo, IconAlerta, IconEstrella, TableroRuta } from './diseno';
+
+const IconEscudo  = (p) => <Icono {...p}><path d="M12 3.2 5 6v5.6c0 4.3 3 7.7 7 9.2 4-1.5 7-4.9 7-9.2V6l-7-2.8Z" /><path d="M9 12l2.2 2.2L15.4 10" /></Icono>;
+const IconTarjeta = (p) => <Icono {...p}><rect x="3" y="6" width="18" height="12" rx="2.4" /><path d="M3 10h18M6.5 14h4" /></Icono>;
+const IconLlave   = (p) => <Icono {...p}><circle cx="8.5" cy="12" r="3.6" /><path d="M12.1 12H20M17 12v3M20 12v2.4" /></Icono>;
+const IconCandado = (p) => <Icono {...p}><rect x="4.5" y="10.5" width="15" height="10" rx="2.4" /><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7" /></Icono>;
+const IconLapiz   = (p) => <Icono {...p}><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z" /><path d="M15.5 6.5 17.5 8.5" /></Icono>;
+const IconSalir   = (p) => <Icono {...p}><path d="M14 4h4.5a1.5 1.5 0 0 1 1.5 1.5v13a1.5 1.5 0 0 1-1.5 1.5H14" /><path d="M10 8l-4 4 4 4M6 12h9" /></Icono>;
 
 const ICONO_DOC = {
-  'SOAT': '🛡️',
-  'Licencia de Conduccion': '🪪',
-  'Tarjeta de operacion': '📋',
-  'Tecnomecanica': '🔧',
-  'Seguros Contractual y extracontractual': '📄',
-  'RUNT': '🎓',
+  'SOAT': IconEscudo,
+  'Licencia de Conduccion': IconTarjeta,
+  'Tarjeta de operacion': IconClipboard,
+  'Tecnomecanica': IconLlave,
+  'Seguros Contractual y extracontractual': IconRecibo,
+  'RUNT': IconGorro,
 };
-
 const LABEL_DOC = {
   'SOAT': 'SOAT Vigente',
   'Licencia de Conduccion': 'Licencia de Conducción',
@@ -25,18 +35,16 @@ const LABEL_DOC = {
 };
 
 const ESTADO_DOC = {
-  PENDING:  { bg: 'var(--t-chiva-suave)', color: 'var(--t-chiva-texto)', label: '⏳ Pendiente' },
-  APPROVED: { bg: 'var(--t-musgo)', color: 'var(--t-musgo-texto)', label: '✅ Aprobado' },
-  REJECTED: { bg: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', label: '❌ Rechazado' },
+  PENDING:  { bg: T.chivaSuave,  color: T.chivaTexto,  Ico: IconReloj, label: 'Pendiente' },
+  APPROVED: { bg: T.musgo,       color: T.musgoTexto,  Ico: IconVisto, label: 'Aprobado' },
+  REJECTED: { bg: T.alertaSuave, color: T.alertaTexto, Ico: IconEquis, label: 'Rechazado' },
 };
-
 const ESTADO_VIAJE = {
-  PENDING:   { color: 'var(--t-chiva-texto)', label: '⏳ Buscando conductor' },
-  ASSIGNED:  { color: BRAND_GREEN, label: '✅ Confirmado' },
-  COMPLETED: { color: 'var(--t-cielo)', label: '🏁 Completado' },
-  CANCELLED: { color: '#C2410C', label: '❌ Cancelado' },
+  PENDING:   { color: T.chivaTexto,  Ico: IconReloj,   label: 'Buscando conductor' },
+  ASSIGNED:  { color: T.musgoTexto,  Ico: IconVisto,   label: 'Confirmado' },
+  COMPLETED: { color: T.cieloTexto,  Ico: IconBandera, label: 'Completado' },
+  CANCELLED: { color: T.alertaTexto, Ico: IconEquis,   label: 'Cancelado' },
 };
-
 const PerfilDrawer = ({ abierto, onCerrar }) => {
   const { token, usuario, cerrarSesion } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -170,49 +178,78 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
           <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.3 }}
             style={{ position: 'fixed', top: 0, right: 0, width: '400px', maxWidth: '100%', height: '100vh', backgroundColor: 'var(--t-papel)', zIndex: 2001, boxShadow: '-5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
 
-            {/* HEADER */}
-            <div style={{ background: `linear-gradient(135deg, ${BRAND_GREEN}, var(--t-musgo-texto))`, padding: '24px 20px 16px', flexShrink: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {/* CABECERA — monte, igual que la entrada y el panel del conductor */}
+            <div style={{ background: T.monte, padding: '24px 20px 0', flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
+              <svg viewBox="0 0 400 160" preserveAspectRatio="none" aria-hidden="true"
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.14 }}>
+                <g fill="none" stroke="#86EFAC" strokeWidth="1">
+                  <path d="M-10 120 C 60 96, 130 140, 200 116 S 340 84, 410 108" />
+                  <path d="M-10 142 C 60 118, 130 162, 200 138 S 340 106, 410 130" />
+                  <path d="M-10 98 C 60 76, 130 118, 200 94 S 340 62, 410 88" />
+                </g>
+              </svg>
+
+              <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
+                  <div style={{ width: '52px', height: '52px', borderRadius: '50%', overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.08)', border: `1px solid ${T.monteLinea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'rgba(234,242,236,.65)' }}>
                     {perfil?.profile_photo_url
                       ? <img src={perfil.profile_photo_url} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <span style={{ fontSize: '24px' }}>👤</span>}
+                      : <IconPersona size={24} />}
                   </div>
-                  <div>
-                    <p style={{ margin: 0, fontWeight: '800', fontSize: '16px', color: '#fff' }}>{perfil?.full_name || usuario?.full_name}</p>
-                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'rgba(255,255,255,0.8)' }}>{perfil?.email || usuario?.email}</p>
-                    <span style={{ display: 'inline-block', marginTop: '5px', backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff', borderRadius: '20px', padding: '2px 10px', fontSize: '11px', fontWeight: '700' }}>
-                      {perfil?.role === 'DRIVER' ? '🚗 Conductor' : perfil?.role === 'ADMIN' ? '🛡️ Admin' : '👤 Pasajero'}
-                    </span>
-                    {perfil?.role === 'DRIVER' && perfil?.conductor_verificado && (
-                      <span style={{ display: 'inline-block', marginTop: '5px', marginLeft: '6px', backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff', borderRadius: '20px', padding: '2px 10px', fontSize: '11px', fontWeight: '700' }}>
-                        🎓 Experiencia verificada
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ margin: 0, fontWeight: 800, fontSize: '16px', color: '#fff', fontFamily: T.display, letterSpacing: '-.01em' }}>
+                      {perfil?.full_name || usuario?.full_name}
+                    </p>
+                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'rgba(234,242,236,.6)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {perfil?.email || usuario?.email}
+                    </p>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '7px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(255,255,255,0.08)', border: `1px solid ${T.monteLinea}`, color: 'rgba(234,242,236,.85)', borderRadius: '20px', padding: '2px 9px', fontSize: '10.5px', fontWeight: 700 }}>
+                        {perfil?.role === 'DRIVER' ? <IconAuto size={12} /> : perfil?.role === 'ADMIN' ? <IconEscudo size={12} /> : <IconPersona size={12} />}
+                        {perfil?.role === 'DRIVER' ? 'Conductor' : perfil?.role === 'ADMIN' ? 'Admin' : 'Pasajero'}
                       </span>
-                    )}
+                      {perfil?.role === 'DRIVER' && perfil?.conductor_verificado && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(233,161,59,.14)', border: '1px solid rgba(233,161,59,.32)', color: T.chiva, borderRadius: '20px', padding: '2px 9px', fontSize: '10.5px', fontWeight: 700 }}>
+                          <IconGorro size={12} />Verificado
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <button onClick={onCerrar} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', width: '30px', height: '30px', borderRadius: '50%', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                <button onClick={onCerrar} title="Cerrar" className="t-foco"
+                  style={{ background: 'none', border: 'none', color: 'rgba(234,242,236,.55)', width: '28px', height: '28px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <IconEquis size={16} />
+                </button>
               </div>
-              <div style={{ display: 'flex', gap: '6px', marginTop: '14px' }}>
+
+              {/* Pestañas: subrayado, no píldoras — se leen como navegación */}
+              <div style={{ position: 'relative', display: 'flex', gap: '22px', marginTop: '18px' }}>
                 {[
-                  { id: 'perfil', label: '👤 Perfil' },
-                  { id: 'historial', label: perfil?.role === 'DRIVER' ? '📋 Mis Docs' : '🗺️ Historial' },
-                  { id: 'seguridad', label: '🔒 Seguridad' },
-                ].map(tab => (
-                  <button key={tab.id} onClick={() => setSeccion(tab.id)}
-                    style={{ flex: 1, padding: '6px 8px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '11px', transition: 'all 0.2s',
-                      backgroundColor: seccion === tab.id ? '#fff' : 'rgba(255,255,255,0.15)',
-                      color: seccion === tab.id ? BRAND_GREEN : '#fff' }}>
-                    {tab.label}
-                  </button>
-                ))}
+                  { id: 'perfil', label: 'Perfil', Ico: IconPersona },
+                  { id: 'historial', label: perfil?.role === 'DRIVER' ? 'Mis documentos' : 'Historial', Ico: perfil?.role === 'DRIVER' ? IconClipboard : IconCalendario },
+                  { id: 'seguridad', label: 'Seguridad', Ico: IconCandado },
+                ].map(tab => {
+                  const activa = seccion === tab.id;
+                  return (
+                    <button key={tab.id} onClick={() => setSeccion(tab.id)} className="t-foco"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none',
+                        borderBottom: `2px solid ${activa ? T.chiva : 'transparent'}`,
+                        padding: '8px 0 10px', cursor: 'pointer',
+                        fontFamily: T.dato, fontSize: '10.5px', fontWeight: 500,
+                        letterSpacing: '.12em', textTransform: 'uppercase',
+                        color: activa ? '#fff' : 'rgba(234,242,236,.42)', transition: 'color .18s',
+                      }}>
+                      <tab.Ico size={13} />{tab.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* CONTENIDO */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-              {cargando && <div style={{ textAlign: 'center', padding: '40px', color: 'var(--t-piedra)' }}>⏳ Cargando perfil...</div>}
+              {cargando && <div style={{ textAlign: 'center', padding: '40px', color: 'var(--t-piedra)' }}>Cargando perfil…</div>}
 
               {/* PERFIL */}
               {!cargando && seccion === 'perfil' && perfil && (
@@ -227,12 +264,12 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                           {guardandoTelefono ? '...' : 'Guardar'}
                         </button>
                         <button onClick={() => setEditandoTelefono(false)}
-                          style={{ background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', borderRadius: '8px', padding: '0 12px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>✕</button>
+                          style={{ background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', borderRadius: '8px', padding: '0 12px', fontWeight: '600', fontSize: '12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}><IconEquis size={13} /></button>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px', padding: '10px 12px', backgroundColor: 'var(--t-niebla)', borderRadius: '8px', border: '1px solid var(--t-linea)' }}>
                         <span style={{ fontSize: '14px', color: 'var(--t-tinta)' }}>{perfil.phone_number}</span>
-                        <button onClick={() => setEditandoTelefono(true)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>✏️ Editar</button>
+                        <button onClick={() => setEditandoTelefono(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: T.ruta, cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: T.ui }}><IconLapiz size={12} />Editar</button>
                       </div>
                     )}
                   </div>
@@ -253,13 +290,13 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                       {perfil.rating_avg !== undefined && (
                         <div style={{ marginBottom: '12px' }}>
                           <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Calificación promedio</label>
-                          <div style={{ marginTop: '6px', padding: '10px 12px', backgroundColor: 'var(--t-chiva-suave)', borderRadius: '8px', border: '1px solid #fde047', fontSize: '14px', color: 'var(--t-chiva-texto)', fontWeight: '700' }}>⭐ {Number(perfil.rating_avg).toFixed(1)} / 5.0</div>
+                          <div style={{ marginTop: '6px', padding: '10px 12px', backgroundColor: 'var(--t-chiva-suave)', borderRadius: '8px', border: `1px solid ${T.chivaLinea}`, fontSize: '14px', color: T.chivaTexto, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px' }}><IconEstrella size={15} />{Number(perfil.rating_avg).toFixed(1)} / 5.0</div>
                         </div>
                       )}
                       {perfil.empresa_afiliada && (
                         <div style={{ marginBottom: '12px' }}>
                           <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Empresa afiliada</label>
-                          <div style={{ marginTop: '6px', padding: '10px 12px', backgroundColor: 'var(--t-niebla)', borderRadius: '8px', border: '1px solid var(--t-linea)', fontSize: '14px', color: 'var(--t-tinta)' }}>🏢 {perfil.empresa_afiliada.name}</div>
+                          <div style={{ marginTop: '6px', padding: '10px 12px', backgroundColor: 'var(--t-niebla)', borderRadius: '8px', border: '1px solid var(--t-linea)', fontSize: '14px', color: T.tinta, display: 'flex', alignItems: 'center', gap: '8px' }}><IconEmpresa size={15} color={T.piedra} />{perfil.empresa_afiliada.name}</div>
                         </div>
                       )}
                       {perfil.vehiculo && (
@@ -268,7 +305,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                           <div style={{ marginTop: '6px', backgroundColor: 'var(--t-niebla)', borderRadius: '8px', border: '1px solid var(--t-linea)', overflow: 'hidden' }}>
                             {perfil.vehiculo.photo_url && <img src={perfil.vehiculo.photo_url} alt="vehículo" style={{ width: '100%', height: '120px', objectFit: 'cover' }} />}
                             <div style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between' }}>
-                              <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--t-tinta)' }}>🚗 {perfil.vehiculo.plate}</span>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', fontSize: '14px', fontWeight: 700, color: T.tinta }}><IconAuto size={15} /><span style={{ fontFamily: T.dato, letterSpacing: '.08em' }}>{perfil.vehiculo.plate}</span></span>
                               <span style={{ fontSize: '13px', color: 'var(--t-piedra)' }}>{perfil.vehiculo.capacity} asientos</span>
                             </div>
                           </div>
@@ -280,7 +317,8 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                   {perfil.role === 'PASSENGER' && perfil.ofertas_activas !== undefined && (
                     <div style={{ marginBottom: '12px', padding: '12px', backgroundColor: 'var(--t-musgo)', borderRadius: '8px', border: `1px solid ${BRAND_GREEN}` }}>
                       <p style={{ margin: 0, fontSize: '13px', color: BRAND_GREEN, fontWeight: '700' }}>
-                        🎉 Tienes <strong>{perfil.ofertas_activas}</strong> oferta{perfil.ofertas_activas !== 1 ? 's' : ''} activa{perfil.ofertas_activas !== 1 ? 's' : ''}
+                        <IconVisto size={13} style={{ verticalAlign: '-2px', marginRight: '5px' }} />
+                        Tenés <strong>{perfil.ofertas_activas}</strong> oferta{perfil.ofertas_activas !== 1 ? 's' : ''} activa{perfil.ofertas_activas !== 1 ? 's' : ''}
                       </p>
                     </div>
                   )}
@@ -295,20 +333,27 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                       <h3 style={{ margin: '0 0 14px', fontSize: '15px', fontWeight: '700', color: 'var(--t-tinta)' }}>Historial de viajes</h3>
                       {(!perfil.historial_viajes || perfil.historial_viajes.length === 0) && (
                         <div style={{ textAlign: 'center', padding: '30px', color: 'var(--t-piedra)' }}>
-                          <div style={{ fontSize: '32px', marginBottom: '8px' }}>🗺️</div>
+                          <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: T.musgo, border: `1px solid ${T.musgoLinea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: T.musgoTexto }}>
+                            <IconCalendario size={20} />
+                          </div>
                           <p style={{ margin: 0, fontSize: '13px' }}>Aún no has solicitado viajes.</p>
                         </div>
                       )}
                       {perfil.historial_viajes?.map((v) => {
                         const est = ESTADO_VIAJE[v.status] || { color: 'var(--t-piedra)', label: v.status };
                         return (
-                          <div key={v.request_id} style={{ border: '1px solid var(--t-linea)', borderRadius: '10px', padding: '12px', marginBottom: '10px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                              <span style={{ fontSize: '11px', color: 'var(--t-piedra-clara)' }}>{formatearFecha(v.created_at)}</span>
-                              <span style={{ fontSize: '11px', fontWeight: '700', color: est.color }}>{est.label}</span>
+                          <div key={v.request_id} style={{ border: `1px solid ${T.linea}`, borderRadius: T.rTarjeta, padding: '13px 14px', marginBottom: '10px', background: T.papel }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '9px' }}>
+                              <span style={{ fontFamily: T.dato, fontSize: '10.5px', color: T.piedraClara }}>{formatearFecha(v.created_at)}</span>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10.5px', fontWeight: 700, color: est.color, whiteSpace: 'nowrap' }}>
+                                {est.Ico && <est.Ico size={12} />}{est.label}
+                              </span>
                             </div>
-                            <div style={{ fontWeight: '700', fontSize: '13px', color: 'var(--t-tinta)' }}>{v.origin} <span style={{ color: BRAND_GREEN }}>→</span> {v.destination}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--t-piedra)', marginTop: '3px' }}>🗓️ {new Date(v.departure_time).toLocaleDateString('es-CO')}</div>
+                            <TableroRuta origen={v.origin} destino={v.destination} size={10.5} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', color: T.piedra, marginTop: '8px' }}>
+                              <IconCalendario size={12} />
+                              {new Date(v.departure_time).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </div>
                           </div>
                         );
                       })}
@@ -325,14 +370,18 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                         const est = ESTADO_DOC[doc.verification_status] || ESTADO_DOC.PENDING;
                         return (
                           <div key={doc.document_id} style={{ border: '1px solid var(--t-linea)', borderRadius: '10px', padding: '12px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <span style={{ fontSize: '22px', flexShrink: 0 }}>{ICONO_DOC[doc.document_type] || '📁'}</span>
+                            <span style={{ flexShrink: 0, display: 'flex', color: T.piedra }}>
+                              {(() => { const I = ICONO_DOC[doc.document_type] || IconClipboard; return <I size={20} />; })()}
+                            </span>
                             <div style={{ flex: 1 }}>
                               <p style={{ margin: 0, fontWeight: '600', fontSize: '13px', color: 'var(--t-tinta)' }}>{LABEL_DOC[doc.document_type] || doc.document_type}</p>
                               {doc.document_type === 'RUNT' && doc.years_experience != null && (
                                 <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--t-piedra)' }}>{doc.years_experience} años de experiencia declarados</p>
                               )}
                             </div>
-                            <span style={{ backgroundColor: est.bg, color: est.color, padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap' }}>{est.label}</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', backgroundColor: est.bg, color: est.color, padding: '3px 9px', borderRadius: '20px', fontSize: '10.5px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                              <est.Ico size={12} />{est.label}
+                            </span>
                           </div>
                         );
                       })}
@@ -347,7 +396,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                           <div style={{ marginTop: '16px', border: '1px dashed var(--t-linea)', borderRadius: '10px', padding: '14px' }}>
                             {!mostrarFormRunt ? (
                               <div style={{ textAlign: 'center' }}>
-                                <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: '700', color: 'var(--t-tinta)' }}>🎓 ¿Quieres verificar tu experiencia?</p>
+                                <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: '700', color: T.tinta, display: 'flex', alignItems: 'center', gap: '6px' }}><IconGorro size={14} />¿Querés verificar tu experiencia?</p>
                                 <p style={{ margin: '0 0 10px', fontSize: '12px', color: 'var(--t-piedra)' }}>Sube tu RUNT para obtener el badge de conductor verificado.</p>
                                 <button onClick={() => setMostrarFormRunt(true)}
                                   style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 16px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
@@ -357,13 +406,13 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                             ) : (
                               <div>
                                 <div style={{ backgroundColor: 'var(--t-niebla)', borderRadius: '8px', padding: '10px 12px', border: '1px solid var(--t-linea)', marginBottom: '12px' }}>
-                                  <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: '700', color: 'var(--t-piedra)' }}>💡 ¿Cómo obtengo mi RUNT?</p>
+                                  <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: '700', color: T.piedra, display: 'flex', alignItems: 'center', gap: '6px' }}><IconIdea size={12} />¿Cómo obtengo mi RUNT?</p>
                                   <p style={{ margin: 0, fontSize: '11px', color: 'var(--t-piedra)', lineHeight: '1.6' }}>
                                     Descarga el "Extracto de conductor" en la página del RUNT (runt.gov.co), con tu número de cédula. Ahí aparece tu historial e infracciones como conductor.
                                   </p>
                                 </div>
 
-                                {errorRunt && <div style={{ backgroundColor: 'var(--t-alerta-suave)', border: '1px solid var(--t-alerta-linea)', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px', color: 'var(--t-alerta-texto)', fontWeight: '600', fontSize: '12px' }}>⚠️ {errorRunt}</div>}
+                                {errorRunt && <div style={{ backgroundColor: 'var(--t-alerta-suave)', border: '1px solid var(--t-alerta-linea)', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px', color: 'var(--t-alerta-texto)', fontWeight: '600', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '7px' }}><IconAlerta size={13} />{errorRunt}</div>}
 
                                 <div style={{ marginBottom: '10px' }}>
                                   <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', display: 'block', marginBottom: '5px' }}>Años de experiencia</label>
@@ -409,8 +458,8 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
               {!cargando && seccion === 'seguridad' && (
                 <div>
                   <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: '700', color: 'var(--t-tinta)' }}>Cambiar contraseña</h3>
-                  {exitoPassword && <div style={{ backgroundColor: 'var(--t-musgo)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', color: BRAND_GREEN, fontWeight: '600', fontSize: '13px' }}>✅ Contraseña actualizada correctamente.</div>}
-                  {errorPassword && <div style={{ backgroundColor: 'var(--t-alerta-suave)', border: '1px solid var(--t-alerta-linea)', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', color: 'var(--t-alerta-texto)', fontWeight: '600', fontSize: '13px' }}>⚠️ {errorPassword}</div>}
+                  {exitoPassword && <div style={{ backgroundColor: 'var(--t-musgo)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', color: BRAND_GREEN, fontWeight: 600, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px' }}><IconVisto size={14} />Contraseña actualizada.</div>}
+                  {errorPassword && <div style={{ backgroundColor: 'var(--t-alerta-suave)', border: '1px solid var(--t-alerta-linea)', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', color: 'var(--t-alerta-texto)', fontWeight: '600', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px' }}><IconAlerta size={14} />{errorPassword}</div>}
                   {[
                     { label: 'Contraseña actual', key: 'current' },
                     { label: 'Nueva contraseña', key: 'new' },
@@ -435,7 +484,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
             <div style={{ padding: '16px 20px', borderTop: '1px solid var(--t-linea)', flexShrink: 0 }}>
               <button onClick={handleCerrarSesion}
                 style={{ width: '100%', background: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
-                🚪 Cerrar sesión
+                <IconSalir size={15} />Cerrar sesión
               </button>
             </div>
           </motion.div>

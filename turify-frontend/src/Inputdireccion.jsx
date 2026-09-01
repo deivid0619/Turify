@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+const IconIdea = (p) => <Icono {...p}><path d="M9.5 17.5h5M10.5 20.5h3" /><path d="M12 3.5a5.5 5.5 0 0 1 3.3 9.9c-.5.4-.8 1-.8 1.6H9.5c0-.6-.3-1.2-.8-1.6A5.5 5.5 0 0 1 12 3.5Z" /></Icono>;
+import { T, Icono, IconPin, IconVisto, IconRadar } from './diseno';
+const IconGirar = (p) => <Icono {...p}><path d="M4 4v5h5" /><path d="M5.5 15A7.5 7.5 0 0 0 19 9.5" /><path d="M18.5 9A7.5 7.5 0 0 0 5 14.5" /></Icono>;
 
 const BRAND_GREEN = 'var(--t-ruta)';
 
@@ -134,7 +137,7 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
           autoComplete="off"
           style={{ border: 'none', outline: 'none', fontSize: '13px', backgroundColor: 'transparent', width: ancho }}
         />
-        {cargando && <span style={{ fontSize: '10px', color: 'var(--t-piedra-clara)' }}>⏳</span>}
+        {cargando && <span style={{ display: 'inline-flex', color: T.piedraClara, animation: 't-girar .9s linear infinite' }}><IconGirar size={12} /></span>}
 
         {/* BOTÓN UBICACIÓN ACTUAL — solo en origen */}
         {esOrigen && !cargando && (
@@ -144,7 +147,7 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
             onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--t-musgo)'}
             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
             {cargandoUbicacion
-              ? <span style={{ fontSize: '12px' }}>⏳</span>
+              ? <span style={{ display: 'inline-flex', color: T.piedraClara, animation: 't-girar .9s linear infinite' }}><IconGirar size={13} /></span>
               : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={BRAND_GREEN} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /><circle cx="12" cy="12" r="9" />
                 </svg>
@@ -168,7 +171,7 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
                 style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: i < sugerencias.length - 1 ? '1px solid var(--t-niebla-2)' : 'none', display: 'flex', alignItems: 'flex-start', gap: '10px', backgroundColor: 'var(--t-papel)', transition: 'background 0.15s' }}
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--t-musgo)'}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fff'}>
-                <span style={{ fontSize: '16px', marginTop: '1px', flexShrink: 0 }}>📍</span>
+                <span style={{ marginTop: '1px', flexShrink: 0, display: 'flex', color: T.piedra }}><IconPin size={15} /></span>
                 <div>
                   <div style={{ fontWeight: '600', fontSize: '13px', color: 'var(--t-tinta)' }}>{nombrePrincipal}</div>
                   {secundario && (
@@ -185,7 +188,7 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
           {sinResultados && (
             <div style={{ padding: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '10px' }}>
-                <span style={{ fontSize: '18px', flexShrink: 0 }}>🔍</span>
+                <span style={{ flexShrink: 0, display: 'flex', color: T.piedraClara }}><IconRadar size={16} /></span>
                 <div>
                   <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: 'var(--t-tinta)' }}>No encontramos esa dirección</p>
                   <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--t-piedra)' }}>Las direcciones con número de casa tienen cobertura limitada.</p>
@@ -197,7 +200,7 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
                 style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', backgroundColor: 'var(--t-musgo)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '8px', cursor: 'pointer', marginBottom: '10px' }}
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--t-musgo)'}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--t-musgo)'}>
-                <span style={{ fontSize: '16px', flexShrink: 0 }}>✅</span>
+                <span style={{ flexShrink: 0, display: 'flex', color: T.musgoTexto }}><IconVisto size={15} /></span>
                 <div>
                   <p style={{ margin: 0, fontWeight: '700', fontSize: '12px', color: BRAND_GREEN }}>Usar "{value}" de todas formas</p>
                   <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--t-musgo-texto)' }}>El conductor verá esta dirección tal como la escribiste</p>
@@ -205,7 +208,7 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
               </div>
 
               <div style={{ backgroundColor: 'var(--t-niebla)', borderRadius: '8px', padding: '10px 12px', border: '1px solid var(--t-linea)' }}>
-                <p style={{ margin: '0 0 5px', fontSize: '11px', fontWeight: '700', color: 'var(--t-piedra)' }}>💡 O intenta con:</p>
+                <p style={{ margin: '0 0 5px', fontSize: '11px', fontWeight: '700', color: T.piedra, display: 'flex', alignItems: 'center', gap: '6px' }}><IconIdea size={12} />O probá con:</p>
                 <ul style={{ margin: 0, padding: '0 0 0 14px', fontSize: '11px', color: 'var(--t-piedra)', lineHeight: '1.9' }}>
                   <li>Nombre del <strong>barrio</strong> — ej: <em>"Laureles"</em></li>
                   <li>Nombre de la <strong>comuna</strong> — ej: <em>"El Poblado"</em></li>

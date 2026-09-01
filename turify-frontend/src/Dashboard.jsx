@@ -1,4 +1,5 @@
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
+const IconIdea = (p) => <IconTrazo {...p}><path d="M9.5 17.5h5M10.5 20.5h3" /><path d="M12 3.5a5.5 5.5 0 0 1 3.3 9.9c-.5.4-.8 1-.8 1.6H9.5c0-.6-.3-1.2-.8-1.6A5.5 5.5 0 0 1 12 3.5Z" /></IconTrazo>;
 import { motion, AnimatePresence } from 'framer-motion';
 import logoTurify from './logo.png';
 import { GoogleMap, MarkerF, PolylineF, useJsApiLoader } from '@react-google-maps/api';
@@ -66,7 +67,7 @@ const ModalErrorDireccion = ({ textoDireccion, onCerrar, onContinuar }) => (
     <motion.div initial={{ opacity: 0, scale: 0.92, y: -20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92, y: -20 }}
       style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, boxShadow: '0 20px 50px rgba(0,0,0,0.18)', width: '390px', fontFamily: T.ui }}>
       <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-        <span style={{ fontSize: '40px' }}>📍</span>
+        <span style={{ display: 'inline-flex', color: 'var(--t-chiva-texto)' }}><IconPin size={34} /></span>
         <h3 style={{ margin: '10px 0 4px', color: 'var(--t-tinta)', fontSize: '17px' }}>No encontramos "{textoDireccion}"</h3>
         <p style={{ margin: 0, color: 'var(--t-piedra)', fontSize: '13px' }}>
           Esta dirección no está en el mapa, pero puedes usarla igual — el conductor verá exactamente lo que escribiste.
@@ -74,14 +75,14 @@ const ModalErrorDireccion = ({ textoDireccion, onCerrar, onContinuar }) => (
       </div>
       <button onClick={onContinuar}
         style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', padding: '13px', borderRadius: '10px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-        <span>✅</span> Continuar con esta dirección
+        <IconVisto size={15} />Continuar con esta dirección
       </button>
       <button onClick={onCerrar}
         style={{ width: '100%', background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', padding: '11px', borderRadius: '10px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', marginBottom: '16px' }}>
-        ✏️ Quiero corregir la dirección
+        Quiero corregir la dirección
       </button>
       <div style={{ backgroundColor: 'var(--t-niebla)', borderRadius: '10px', padding: '12px 14px', border: '1px solid var(--t-linea)' }}>
-        <p style={{ margin: '0 0 6px', fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)' }}>💡 Para mejor precisión en el mapa, intenta con:</p>
+        <p style={{ margin: '0 0 6px', fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', display: 'flex', alignItems: 'center', gap: '6px' }}><IconIdea size={13} />Para mejor precisión en el mapa, probá con:</p>
         <ul style={{ margin: 0, padding: '0 0 0 16px', fontSize: '12px', color: 'var(--t-piedra)', lineHeight: '2' }}>
           <li>Nombre del <strong>barrio</strong> — ej: <em>"Laureles, Medellín"</em></li>
           <li>Nombre de la <strong>comuna</strong> — ej: <em>"El Poblado"</em></li>
@@ -546,7 +547,7 @@ const Dashboard = () => {
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
       setFuecEnviado(prev => ({ ...prev, [modalFuec]: true }));
       setModalFuec(null);
-      toast.success('✅ Ocupantes registrados. El conductor ya puede ver la lista.');
+      toast.success('Ocupantes registrados. El conductor ya puede ver la lista.');
     } catch (e) {
       toast.error(`Error: ${e.message}`);
     } finally {
@@ -573,7 +574,7 @@ const Dashboard = () => {
       setModalCalificar(null);
       setEstrellasCalificar(0);
       setComentarioCalificar('');
-      toast.success('✅ ¡Gracias por tu calificación!');
+      toast.success('Gracias por tu calificación.');
     } catch (e) {
       toast.error(`Error: ${e.message}`);
     } finally {
@@ -1186,7 +1187,9 @@ const Dashboard = () => {
                   <div style={fieldLabelStyle}>Quién</div>
                   <span style={{ fontSize: '13px', color: 'var(--t-tinta)' }}>{textoViajeros}</span>
                 </div>
-                <span style={{ color: 'var(--t-piedra)' }}>▾</span>
+                <span style={{ display: 'flex', color: 'var(--t-piedra-clara)' }}>
+                  <IconTrazo size={14}><path d="M6 9.5l6 5.5 6-5.5" /></IconTrazo>
+                </span>
               </div>
               <AnimatePresence>
                 {mostrarPasajeros && (
@@ -1282,7 +1285,8 @@ const Dashboard = () => {
                 <h3 style={{ margin: '8px 0 4px', color: 'var(--t-tinta)' }}>{infoRuta.tiempo} · {infoRuta.distancia}</h3>
                 {infoRuta.distancia === 'No disponible' && (
                   <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#f59e0b' }}>
-                    ⚠️ No se pudo trazar la ruta exacta, pero el viaje se publicará con las direcciones ingresadas.
+                    <IconAlerta size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />
+                    No se pudo trazar la ruta exacta, pero el viaje se publicará con las direcciones que escribiste.
                   </p>
                 )}
 
@@ -1349,7 +1353,7 @@ const Dashboard = () => {
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
             <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
               style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '360px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: T.ui }}>
-              <h3 style={{ margin: '0 0 8px', color: 'var(--t-tinta)', fontSize: '17px' }}>💬 Enviar Contraoferta</h3>
+              <h3 style={{ margin: '0 0 8px', color: 'var(--t-tinta)', fontSize: '17px', fontFamily: T.display, fontWeight: 800, letterSpacing: '-.01em' }}>Enviar contraoferta</h3>
               <p style={{ margin: '0 0 20px', color: 'var(--t-piedra)', fontSize: '13px' }}>
                 Ingresa el precio que estás dispuesto a pagar por este viaje.
               </p>
@@ -1818,7 +1822,7 @@ const Dashboard = () => {
               {/* Header */}
               <div style={{ padding: '20px', borderBottom: '1px solid var(--t-linea)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--t-niebla)' }}>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: 'var(--t-tinta)' }}>🔔 Notificaciones</h2>
+                  <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: 'var(--t-tinta)', fontFamily: T.display, letterSpacing: '-.01em' }}>Notificaciones</h2>
                   <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>
                     {notificaciones.filter(n => !n.is_read).length} sin leer
                   </p>
@@ -1826,12 +1830,13 @@ const Dashboard = () => {
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {notificaciones.filter(n => !n.is_read).length > 0 && (
                     <button onClick={marcarTodasLeidas}
-                      style={{ background: 'none', border: '1px solid var(--t-linea)', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '600', color: 'var(--t-piedra)', cursor: 'pointer' }}>
-                      ✓ Leer todas
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '8px', padding: '6px 10px', fontSize: '11px', fontWeight: 600, color: 'var(--t-piedra)', cursor: 'pointer', fontFamily: T.ui }}>
+                      <IconVisto size={12} />Leer todas
                     </button>
                   )}
                   <button onClick={() => setMostrarNotificaciones(false)}
-                    style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: 'var(--t-piedra)' }}>×</button>
+                    title="Cerrar"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t-piedra-clara)', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconEquis size={17} /></button>
                 </div>
               </div>
 
@@ -1839,28 +1844,33 @@ const Dashboard = () => {
               <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
                 {notificaciones.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--t-piedra-clara)' }}>
-                    <div style={{ fontSize: '40px', marginBottom: '10px' }}>🔕</div>
+                    <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: 'var(--t-niebla-2)', border: '1px solid var(--t-linea)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: 'var(--t-piedra-clara)' }}>
+                      <IconCampana size={22} />
+                    </div>
                     <p style={{ margin: 0, fontWeight: '600', color: 'var(--t-piedra)' }}>Sin notificaciones</p>
                     <p style={{ margin: '4px 0 0', fontSize: '13px' }}>Las notificaciones aparecerán aquí.</p>
                   </div>
                 )}
                 {notificaciones.map((notif) => {
+                  // El color dice de qué se trata; el icono, qué pasó exactamente.
                   const cfgTipo = {
-                    NEW_OFFER:     { icono: '💰', color: 'var(--t-cielo-texto)', bg: '#f5f3ff' },
-                    COUNTER_OFFER: { icono: '🔄', color: 'var(--t-cielo-texto)', bg: 'var(--t-cielo-suave)' },
-                    TRIP_ACCEPTED: { icono: '✅', color: 'var(--t-musgo-texto)', bg: 'var(--t-musgo)' },
-                    TRIP_REJECTED: { icono: '❌', color: '#C2410C', bg: 'var(--t-alerta-suave)' },
-                    TRIP_STARTED:  { icono: '🚗', color: 'var(--t-cielo-texto)', bg: 'var(--t-cielo-suave)' },
-                    TRIP_COMPLETED:{ icono: '🏁', color: 'var(--t-cielo-texto)', bg: '#eef2ff' },
-                    SYSTEM:        { icono: '📢', color: 'var(--t-piedra)', bg: 'var(--t-niebla)' },
+                    NEW_OFFER:     { Ico: IconPrecio,   color: T.musgoTexto,  bg: T.musgo },
+                    COUNTER_OFFER: { Ico: IconIntercambio, color: T.chivaTexto, bg: T.chivaSuave },
+                    TRIP_ACCEPTED: { Ico: IconVisto,    color: T.musgoTexto,  bg: T.musgo },
+                    TRIP_REJECTED: { Ico: IconEquis,    color: T.alertaTexto, bg: T.alertaSuave },
+                    TRIP_STARTED:  { Ico: IconAuto,     color: T.cieloTexto,  bg: T.cieloSuave },
+                    TRIP_COMPLETED:{ Ico: IconBandera,  color: T.cieloTexto,  bg: T.cieloSuave },
+                    SYSTEM:        { Ico: IconCampana,  color: T.piedra,      bg: T.niebla2 },
                   };
                   const cfg = cfgTipo[notif.type] || cfgTipo.SYSTEM;
                   return (
                     <div key={notif.notification_id}
                       onClick={() => !notif.is_read && marcarLeida(notif.notification_id)}
-                      style={{ backgroundColor: notif.is_read ? '#fff' : cfg.bg, borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', border: `1px solid ${notif.is_read ? 'var(--t-linea)' : cfg.color + '33'}`, cursor: notif.is_read ? 'default' : 'pointer', transition: 'all 0.2s' }}>
-                      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                        <span style={{ fontSize: '20px', flexShrink: 0 }}>{cfg.icono}</span>
+                      style={{ backgroundColor: notif.is_read ? 'var(--t-papel)' : cfg.bg, borderRadius: T.rTarjeta, padding: '12px 14px', marginBottom: '8px', border: `1px solid ${notif.is_read ? T.linea : 'transparent'}`, cursor: notif.is_read ? 'default' : 'pointer', transition: 'background-color .2s, border-color .2s' }}>
+                      <div style={{ display: 'flex', gap: '11px', alignItems: 'flex-start' }}>
+                        <span style={{ flexShrink: 0, width: '28px', height: '28px', borderRadius: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: notif.is_read ? T.niebla2 : 'rgba(255,255,255,.16)', color: notif.is_read ? T.piedraClara : cfg.color }}>
+                          <cfg.Ico size={15} />
+                        </span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
                             <p style={{ margin: 0, fontWeight: notif.is_read ? '600' : '700', fontSize: '13px', color: notif.is_read ? 'var(--t-piedra)' : 'var(--t-tinta)' }}>
@@ -1981,8 +1991,8 @@ const Dashboard = () => {
                   Cancelar
                 </button>
                 <button onClick={enviarFuec} disabled={enviandoFuec}
-                  style={{ flex: 2, padding: '12px', background: enviandoFuec ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${BRAND_GREEN}, var(--t-ruta))`, border: 'none', borderRadius: '9px', color: enviandoFuec ? 'rgba(255,255,255,0.4)' : 'var(--t-monte)', fontWeight: '700', fontSize: '14px', cursor: enviandoFuec ? 'not-allowed' : 'pointer', fontFamily: T.display }}>
-                  {enviandoFuec ? 'Guardando...' : '✓ Confirmar ocupantes'}
+                  style={{ flex: 2, padding: '12px', background: enviandoFuec ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${BRAND_GREEN}, var(--t-ruta))`, border: 'none', borderRadius: '9px', color: enviandoFuec ? 'rgba(255,255,255,0.4)' : '#08210F', fontWeight: 700, fontSize: '14px', cursor: enviandoFuec ? 'not-allowed' : 'pointer', fontFamily: T.display, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                  {enviandoFuec ? 'Guardando…' : <><IconVisto size={15} />Confirmar ocupantes</>}
                 </button>
               </div>
             </motion.div>
@@ -2000,14 +2010,18 @@ const Dashboard = () => {
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
             <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
               style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '360px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: T.ui }}>
-              <h3 style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px' }}>⭐ ¿Cómo estuvo tu viaje?</h3>
+              <h3 style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px', fontFamily: T.display, fontWeight: 800, letterSpacing: '-.01em', display: 'flex', alignItems: 'center', gap: '8px' }}><IconEstrella size={17} color="var(--t-chiva)" />¿Cómo estuvo tu viaje?</h3>
               <p style={{ margin: '0 0 18px', color: 'var(--t-piedra)', fontSize: '13px' }}>Tu calificación ayuda a otros pasajeros a elegir mejor.</p>
 
               <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '16px' }}>
                 {[1, 2, 3, 4, 5].map(n => (
                   <button key={n} type="button" onClick={() => setEstrellasCalificar(n)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '30px', padding: 0, color: n <= estrellasCalificar ? 'var(--t-chiva)' : 'var(--t-linea)', transition: 'color 0.15s' }}>
-                    ★
+                    title={`${n} de 5`} aria-label={`Calificar con ${n} de 5`}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'flex',
+                             color: n <= estrellasCalificar ? 'var(--t-chiva)' : 'var(--t-linea)', transition: 'color .15s, transform .15s',
+                             transform: n <= estrellasCalificar ? 'scale(1)' : 'scale(.94)' }}>
+                    <IconEstrella size={30} grosor={1.5}
+                      style={{ fill: n <= estrellasCalificar ? 'currentColor' : 'none' }} />
                   </button>
                 ))}
               </div>
