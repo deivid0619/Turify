@@ -3,9 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from './AuthContext';
 import API_BASE_URL from './api';
 
-const FOREST = '#052e16';
-const GOLD = '#eab308';
-const BRAND_GREEN = '#16a34a';
+const FOREST = 'var(--t-monte)';
+const GOLD = 'var(--t-chiva)';
+const BRAND_GREEN = 'var(--t-ruta)';
 
 // HU21 — Perfil público del conductor como página completa (no una tarjeta
 // flotando sobre fondo gris): la cabecera ocupa todo el ancho como en cualquier
@@ -61,7 +61,7 @@ const PerfilConductorPagina = () => {
 
   if (cargando) {
     return (
-      <div style={{ minHeight: '100vh', backgroundColor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontFamily: 'Inter, sans-serif', fontSize: '14px' }}>
+      <div style={{ minHeight: '100vh', backgroundColor: 'var(--t-papel)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra-clara)', fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: '14px' }}>
         Cargando perfil…
       </div>
     );
@@ -69,10 +69,10 @@ const PerfilConductorPagina = () => {
 
   if (error || !datos) {
     return (
-      <div style={{ minHeight: '100vh', backgroundColor: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', gap: '18px' }}>
-        <p style={{ margin: 0, fontWeight: 700, fontSize: '16px', color: '#1e293b' }}>No pudimos cargar este perfil.</p>
-        <p style={{ margin: '-10px 0 0', color: '#64748b', fontSize: '13px' }}>Verifica tu conexión e intenta de nuevo.</p>
-        <button onClick={volver} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '9px 18px', cursor: 'pointer', fontSize: '13px', color: '#334155', fontWeight: 600 }}>
+      <div style={{ minHeight: '100vh', backgroundColor: 'var(--t-papel)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', system-ui, sans-serif", gap: '18px' }}>
+        <p style={{ margin: 0, fontWeight: 700, fontSize: '16px', color: 'var(--t-tinta)' }}>No pudimos cargar este perfil.</p>
+        <p style={{ margin: '-10px 0 0', color: 'var(--t-piedra)', fontSize: '13px' }}>Verifica tu conexión e intenta de nuevo.</p>
+        <button onClick={volver} style={{ background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '8px', padding: '9px 18px', cursor: 'pointer', fontSize: '13px', color: 'var(--t-tinta)', fontWeight: 600 }}>
           ← Volver
         </button>
       </div>
@@ -80,19 +80,19 @@ const PerfilConductorPagina = () => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#fff', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--t-papel)', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&display=swap');`}</style>
 
       {/* CABECERA — a todo el ancho, como el resto del sitio */}
       <div style={{
-        position: 'relative', color: '#f0fdf4',
+        position: 'relative', color: 'var(--t-musgo)',
         background: `radial-gradient(circle at 12% -20%, rgba(34,197,94,0.35), transparent 55%), linear-gradient(155deg, #0a3d1f, ${FOREST} 68%)`
       }}>
         <div style={{ maxWidth: '840px', margin: '0 auto', padding: '28px 32px 84px' }}>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '56px' }}>
             <button onClick={volver}
-              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(240,253,244,0.25)', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '13px', color: '#f0fdf4', fontWeight: 600 }}>
+              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(240,253,244,0.25)', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '13px', color: 'var(--t-musgo)', fontWeight: 600 }}>
               ← Volver
             </button>
             <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '16px', letterSpacing: '0.06em', color: 'rgba(240,253,244,0.85)' }}>TURIFY</span>
@@ -113,7 +113,7 @@ const PerfilConductorPagina = () => {
                   </div>
                 )}
                 {datos.rating_avg != null ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginTop: '12px', fontSize: '15px', fontWeight: 700, color: '#fde68a' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginTop: '12px', fontSize: '15px', fontWeight: 700, color: 'var(--t-chiva-linea)' }}>
                     ★ {Number(datos.rating_avg).toFixed(1)}
                     <span style={{ color: 'rgba(240,253,244,0.55)', fontWeight: 500 }}>· {datos.rating_count} calificaciones</span>
                   </div>
@@ -130,12 +130,12 @@ const PerfilConductorPagina = () => {
               }}>
                 <span style={{
                   width: '22px', height: '22px', borderRadius: '50%', flexShrink: 0,
-                  background: `radial-gradient(circle at 32% 28%, #fde047, ${GOLD} 55%, #a16207 100%)`,
+                  background: `radial-gradient(circle at 32% 28%, #fde047, ${GOLD} 55%, var(--t-chiva-texto) 100%)`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}>
                   <IconCheck size={12} color="#3d2500" />
                 </span>
-                <span style={{ fontSize: '12.5px', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#fde68a' }}>Conductor verificado</span>
+                <span style={{ fontSize: '12.5px', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--t-chiva-linea)' }}>Conductor verificado</span>
               </div>
             )}
           </div>
@@ -144,33 +144,33 @@ const PerfilConductorPagina = () => {
 
       {/* DETALLE — columna editorial debajo de la cabecera */}
       <div style={{ maxWidth: '840px', margin: '-40px auto 0', padding: '0 32px 90px' }}>
-        <div style={{ background: '#fff', borderRadius: '18px', boxShadow: '0 20px 50px rgba(5,46,22,0.1)', border: '1px solid #f1f5f9', padding: '44px 44px 8px' }}>
+        <div style={{ background: 'var(--t-papel)', borderRadius: '18px', boxShadow: '0 20px 50px rgba(5,46,22,0.1)', border: '1px solid var(--t-niebla-2)', padding: '44px 44px 8px' }}>
 
           {datos.empresa_afiliada && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 0', borderBottom: '1px solid #f1f5f9' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#94a3b8' }}>Empresa afiliada</span>
-              <span style={{ fontSize: '16px', fontWeight: 700, color: '#1e293b' }}>{datos.empresa_afiliada.name}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 0', borderBottom: '1px solid var(--t-niebla-2)' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--t-piedra-clara)' }}>Empresa afiliada</span>
+              <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--t-tinta)' }}>{datos.empresa_afiliada.name}</span>
             </div>
           )}
 
           {datos.conductor_verificado && datos.years_experience != null && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 0', borderBottom: '1px solid #f1f5f9' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#94a3b8' }}>Experiencia verificada</span>
-              <span style={{ fontSize: '16px', fontWeight: 700, color: '#1e293b' }}>{datos.years_experience} años</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 0', borderBottom: '1px solid var(--t-niebla-2)' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--t-piedra-clara)' }}>Experiencia verificada</span>
+              <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--t-tinta)' }}>{datos.years_experience} años</span>
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 0', borderBottom: datos.vehiculo ? '1px solid #f1f5f9' : 'none' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#94a3b8' }}>Viajes completados</span>
-            <span style={{ fontSize: '16px', fontWeight: 700, color: '#1e293b' }}>{datos.viajes_completados}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 0', borderBottom: datos.vehiculo ? '1px solid var(--t-niebla-2)' : 'none' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--t-piedra-clara)' }}>Viajes completados</span>
+            <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--t-tinta)' }}>{datos.viajes_completados}</span>
           </div>
 
           {datos.vehiculo && (
             <div style={{ padding: '22px 0 30px' }}>
-              <span style={{ display: 'block', fontSize: '12px', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#94a3b8', marginBottom: '14px' }}>Comodidades</span>
+              <span style={{ display: 'block', fontSize: '12px', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--t-piedra-clara)', marginBottom: '14px' }}>Comodidades</span>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '9px' }}>
                 {ETIQUETAS_COMODIDAD.filter(([campo]) => datos.vehiculo[campo]).map(([campo, etiqueta]) => (
-                  <span key={campo} style={{ fontSize: '13.5px', fontWeight: 600, padding: '8px 16px', borderRadius: '100px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }}>
+                  <span key={campo} style={{ fontSize: '13.5px', fontWeight: 600, padding: '8px 16px', borderRadius: '100px', background: 'var(--t-niebla)', border: '1px solid var(--t-linea)', color: 'var(--t-tinta)' }}>
                     {etiqueta}
                   </span>
                 ))}
@@ -182,8 +182,8 @@ const PerfilConductorPagina = () => {
         {datos.conductor_verificado && (
           <div style={{ marginTop: '24px', display: 'flex', gap: '16px', alignItems: 'flex-start', borderLeft: `3px solid ${GOLD}`, padding: '4px 0 4px 20px' }}>
             <div>
-              <b style={{ display: 'block', fontSize: '14px', color: '#1e293b', marginBottom: '4px' }}>Experiencia verificada por Turify</b>
-              <span style={{ fontSize: '13.5px', color: '#64748b', lineHeight: 1.65 }}>El administrador confirmó los años de experiencia de este conductor a partir de su RUNT.</span>
+              <b style={{ display: 'block', fontSize: '14px', color: 'var(--t-tinta)', marginBottom: '4px' }}>Experiencia verificada por Turify</b>
+              <span style={{ fontSize: '13.5px', color: 'var(--t-piedra)', lineHeight: 1.65 }}>El administrador confirmó los años de experiencia de este conductor a partir de su RUNT.</span>
             </div>
           </div>
         )}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 
-const BRAND_GREEN = '#16a34a';
+const BRAND_GREEN = 'var(--t-ruta)';
 
 // Sesgo geográfico hacia Antioquia (mismo bounding box usado en Dashboard.jsx para geocodificar),
 // para que nombres locales cortos como "C4TA" o barrios sin ciudad se prioricen en esta zona.
@@ -134,14 +134,14 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
           autoComplete="off"
           style={{ border: 'none', outline: 'none', fontSize: '13px', backgroundColor: 'transparent', width: ancho }}
         />
-        {cargando && <span style={{ fontSize: '10px', color: '#94a3b8' }}>⏳</span>}
+        {cargando && <span style={{ fontSize: '10px', color: 'var(--t-piedra-clara)' }}>⏳</span>}
 
         {/* BOTÓN UBICACIÓN ACTUAL — solo en origen */}
         {esOrigen && !cargando && (
           <button type="button" onClick={usarUbicacionActual} disabled={cargandoUbicacion}
             title="Usar mi ubicación actual"
             style={{ background: 'none', border: 'none', cursor: cargandoUbicacion ? 'not-allowed' : 'pointer', padding: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', width: '22px', height: '22px', flexShrink: 0 }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0fdf4'}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--t-musgo)'}
             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
             {cargandoUbicacion
               ? <span style={{ fontSize: '12px' }}>⏳</span>
@@ -155,7 +155,7 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
 
       {/* DROPDOWN */}
       {mostrar && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 10px)', left: '-15px', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0', zIndex: 3000, minWidth: '300px', maxWidth: '360px', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 'calc(100% + 10px)', left: '-15px', backgroundColor: 'var(--t-papel)', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid var(--t-linea)', zIndex: 3000, minWidth: '300px', maxWidth: '360px', overflow: 'hidden' }}>
 
           {/* RESULTADOS */}
           {!sinResultados && sugerencias.map((prediction, i) => {
@@ -165,14 +165,14 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
 
             return (
               <div key={prediction.place_id || i} onMouseDown={() => seleccionarSugerencia(prediction)}
-                style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: i < sugerencias.length - 1 ? '1px solid #f1f5f9' : 'none', display: 'flex', alignItems: 'flex-start', gap: '10px', backgroundColor: '#fff', transition: 'background 0.15s' }}
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0fdf4'}
+                style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: i < sugerencias.length - 1 ? '1px solid var(--t-niebla-2)' : 'none', display: 'flex', alignItems: 'flex-start', gap: '10px', backgroundColor: 'var(--t-papel)', transition: 'background 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--t-musgo)'}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fff'}>
                 <span style={{ fontSize: '16px', marginTop: '1px', flexShrink: 0 }}>📍</span>
                 <div>
-                  <div style={{ fontWeight: '600', fontSize: '13px', color: '#1e293b' }}>{nombrePrincipal}</div>
+                  <div style={{ fontWeight: '600', fontSize: '13px', color: 'var(--t-tinta)' }}>{nombrePrincipal}</div>
                   {secundario && (
-                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--t-piedra)', marginTop: '2px' }}>
                       {secundario}
                     </div>
                   )}
@@ -187,26 +187,26 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '10px' }}>
                 <span style={{ fontSize: '18px', flexShrink: 0 }}>🔍</span>
                 <div>
-                  <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: '#1e293b' }}>No encontramos esa dirección</p>
-                  <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#64748b' }}>Las direcciones con número de casa tienen cobertura limitada.</p>
+                  <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: 'var(--t-tinta)' }}>No encontramos esa dirección</p>
+                  <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--t-piedra)' }}>Las direcciones con número de casa tienen cobertura limitada.</p>
                 </div>
               </div>
 
               {/* USAR DE TODAS FORMAS */}
               <div onMouseDown={usarDireccionManual}
-                style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', backgroundColor: '#f0fdf4', border: `1px solid ${BRAND_GREEN}`, borderRadius: '8px', cursor: 'pointer', marginBottom: '10px' }}
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#dcfce7'}
-                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f0fdf4'}>
+                style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', backgroundColor: 'var(--t-musgo)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '8px', cursor: 'pointer', marginBottom: '10px' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--t-musgo)'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--t-musgo)'}>
                 <span style={{ fontSize: '16px', flexShrink: 0 }}>✅</span>
                 <div>
                   <p style={{ margin: 0, fontWeight: '700', fontSize: '12px', color: BRAND_GREEN }}>Usar "{value}" de todas formas</p>
-                  <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#166534' }}>El conductor verá esta dirección tal como la escribiste</p>
+                  <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--t-musgo-texto)' }}>El conductor verá esta dirección tal como la escribiste</p>
                 </div>
               </div>
 
-              <div style={{ backgroundColor: '#f8fafc', borderRadius: '8px', padding: '10px 12px', border: '1px solid #e2e8f0' }}>
-                <p style={{ margin: '0 0 5px', fontSize: '11px', fontWeight: '700', color: '#475569' }}>💡 O intenta con:</p>
-                <ul style={{ margin: 0, padding: '0 0 0 14px', fontSize: '11px', color: '#64748b', lineHeight: '1.9' }}>
+              <div style={{ backgroundColor: 'var(--t-niebla)', borderRadius: '8px', padding: '10px 12px', border: '1px solid var(--t-linea)' }}>
+                <p style={{ margin: '0 0 5px', fontSize: '11px', fontWeight: '700', color: 'var(--t-piedra)' }}>💡 O intenta con:</p>
+                <ul style={{ margin: 0, padding: '0 0 0 14px', fontSize: '11px', color: 'var(--t-piedra)', lineHeight: '1.9' }}>
                   <li>Nombre del <strong>barrio</strong> — ej: <em>"Laureles"</em></li>
                   <li>Nombre de la <strong>comuna</strong> — ej: <em>"El Poblado"</em></li>
                   <li>Un <strong>lugar cercano</strong> — ej: <em>"Parque Lleras"</em></li>

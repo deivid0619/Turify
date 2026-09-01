@@ -2,10 +2,10 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 
 // ── Tipos de toast ──
 const CONFIG = {
-  success: { bg: '#f0fdf4', border: '#22c55e', color: '#14532d', icon: '✅', barColor: '#22c55e' },
-  error:   { bg: '#fef2f2', border: '#ef4444', color: '#7f1d1d', icon: '❌', barColor: '#ef4444' },
-  warning: { bg: '#fffbeb', border: '#f59e0b', color: '#78350f', icon: '⚠️', barColor: '#f59e0b' },
-  info:    { bg: '#eff6ff', border: '#3b82f6', color: '#1e3a8a', icon: 'ℹ️', barColor: '#3b82f6' },
+  success: { bg: 'var(--t-musgo)', border: 'var(--t-ruta)', color: 'var(--t-musgo-texto)', icon: '✅', barColor: 'var(--t-ruta)' },
+  error:   { bg: 'var(--t-alerta-suave)', border: '#C2410C', color: '#7f1d1d', icon: '❌', barColor: '#C2410C' },
+  warning: { bg: 'var(--t-chiva-suave)', border: '#f59e0b', color: '#78350f', icon: '⚠️', barColor: '#f59e0b' },
+  info:    { bg: 'var(--t-cielo-suave)', border: '#3b82f6', color: 'var(--t-cielo-texto)', icon: 'ℹ️', barColor: '#3b82f6' },
 };
 
 // ── Toast individual ──

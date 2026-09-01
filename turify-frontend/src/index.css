@@ -1,14 +1,100 @@
-/* Reseteamos los márgenes y le decimos a la app que use todo el ancho y alto */
+/* ─────────────────────────────────────────────────────────────────────────────
+   SISTEMA DE DISEÑO TURIFY — paletas
+   Los componentes no escriben colores: apuntan a estas variables (ver diseno.jsx).
+   Cambiar data-tema en <html> repinta la app entera.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  color-scheme: light;
+
+  --t-monte:        #0E2A1E;
+  --t-monte-alto:   #1A3C2B;
+  --t-monte-linea:  #2C503C;
+
+  --t-ruta:         #16A34A;
+  --t-ruta-hover:   #128A3E;
+
+  --t-musgo:        #E6F1E8;
+  --t-musgo-linea:  #C9E3D0;
+  --t-musgo-texto:  #146B36;
+
+  --t-niebla:       #F1F2ED;
+  --t-niebla-2:     #EDEEE8;
+  --t-papel:        #FFFFFF;
+
+  --t-chiva:        #E9A13B;
+  --t-chiva-suave:  #FBF1DE;
+  --t-chiva-linea:  #EBD5A9;
+  --t-chiva-texto:  #8A5A12;
+
+  --t-tinta:        #131A16;
+  --t-piedra:       #6B7A72;
+  --t-piedra-clara: #9AA79F;
+  --t-linea:        #E2E4DC;
+
+  --t-cielo:        #2563EB;
+  --t-cielo-suave:  #EAF1FE;
+  --t-cielo-linea:  #BFD3F7;
+  --t-cielo-texto:  #1E40AF;
+
+  --t-alerta:       #C2410C;
+  --t-alerta-suave: #FBEDE7;
+  --t-alerta-linea: #EED4C7;
+  --t-alerta-texto: #9A3412;
+}
+
+/* Modo oscuro — no es negro puro: es el mismo verde monte, bajado de luz.
+   La marca (ruta y chiva) sube un punto de brillo para sostener el contraste. */
+:root[data-tema="oscuro"] {
+  color-scheme: dark;
+
+  --t-monte:        #081A11;
+  --t-monte-alto:   #12291F;
+  --t-monte-linea:  #274534;
+
+  --t-ruta:         #22C55E;
+  --t-ruta-hover:   #34D871;
+
+  --t-musgo:        #102E1D;
+  --t-musgo-linea:  #22553A;
+  --t-musgo-texto:  #7EE0A3;
+
+  --t-niebla:       #0B1F16;
+  --t-niebla-2:     #102A1E;
+  --t-papel:        #12291F;
+
+  --t-chiva:        #F0B45E;
+  --t-chiva-suave:  #2E2211;
+  --t-chiva-linea:  #57411D;
+  --t-chiva-texto:  #F0B45E;
+
+  --t-tinta:        #E8EFE9;
+  --t-piedra:       #93A69A;
+  --t-piedra-clara: #6F8177;
+  --t-linea:        #22402F;
+
+  --t-cielo:        #60A5FA;
+  --t-cielo-suave:  #13253F;
+  --t-cielo-linea:  #294676;
+  --t-cielo-texto:  #9CC0F8;
+
+  --t-alerta:       #F97316;
+  --t-alerta-suave: #2E1A12;
+  --t-alerta-linea: #5A3222;
+  --t-alerta-texto: #F5A97A;
+}
+
 html, body, #root {
   margin: 0;
   padding: 0;
   width: 100%;
   min-height: 100vh;
   box-sizing: border-box;
-  background-color: #ffffff;
+  background-color: var(--t-niebla);
+  color: var(--t-tinta);
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color .25s ease, color .25s ease;
 }
 
-/* Evitamos que los elementos sumen padding a su ancho total */
-*, *::before, *::after {
-  box-sizing: inherit;
-}
+*, *::before, *::after { box-sizing: inherit; }

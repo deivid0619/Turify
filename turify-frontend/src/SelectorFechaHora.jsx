@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const BRAND_GREEN = '#16a34a';
+const BRAND_GREEN = 'var(--t-ruta)';
 
 const DIAS_SEMANA = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const MESES = [
@@ -128,14 +128,14 @@ export default function SelectorFechaHora({ label, value, onChange, min, placeho
   };
 
   const bonito = formatearBonito(value);
-  const fieldBoxStyle = { display: 'flex', alignItems: 'center', border: '1px solid #e8e4db', borderRadius: '12px', padding: '11px 14px', backgroundColor: '#fff', cursor: 'pointer' };
-  const fieldLabelStyle = { fontSize: '10px', fontWeight: '700', color: '#8a8578', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '5px' };
+  const fieldBoxStyle = { display: 'flex', alignItems: 'center', border: '1px solid #e8e4db', borderRadius: '12px', padding: '11px 14px', backgroundColor: 'var(--t-papel)', cursor: 'pointer' };
+  const fieldLabelStyle = { fontSize: '10px', fontWeight: '700', color: 'var(--t-piedra-clara)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '5px' };
 
   return (
     <div ref={contenedorRef} style={{ position: 'relative', width: ancho || '100%' }}>
       <div style={{ ...fieldBoxStyle, flexDirection: 'column', alignItems: 'flex-start' }} onClick={() => setAbierto(o => !o)}>
         {label && <div style={fieldLabelStyle}>{label}</div>}
-        <div style={{ fontSize: '13px', color: bonito ? '#000' : '#888', display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
+        <div style={{ fontSize: '13px', color: bonito ? 'var(--t-tinta)' : 'var(--t-piedra-clara)', display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a8578" strokeWidth="2" style={{ flexShrink: 0 }}>
             <rect x="3" y="5" width="18" height="16" rx="2" />
             <path d="M3 10h18M8 3v4M16 3v4" strokeLinecap="round" />
@@ -151,21 +151,21 @@ export default function SelectorFechaHora({ label, value, onChange, min, placeho
         {abierto && (
           <motion.div initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.15 }}
-            style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 2000, background: '#fff', borderRadius: '16px', boxShadow: '0 12px 40px rgba(0,0,0,0.18)', border: '1px solid #eee', padding: '16px', width: '290px' }}>
+            style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 2000, background: 'var(--t-papel)', borderRadius: '16px', boxShadow: '0 12px 40px rgba(0,0,0,0.34)', border: '1px solid var(--t-linea)', padding: '16px', width: '290px' }}>
 
             {/* Encabezado mes/año */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
               <button type="button" onClick={() => cambiarMes(-1)} disabled={esMesMinimo}
-                style={{ border: 'none', background: 'none', cursor: esMesMinimo ? 'default' : 'pointer', color: esMesMinimo ? '#d4d4d4' : '#334155', fontSize: '16px', padding: '4px 8px' }}>‹</button>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>{MESES[mesVisible]} {anioVisible}</span>
+                style={{ border: 'none', background: 'none', cursor: esMesMinimo ? 'default' : 'pointer', color: esMesMinimo ? 'var(--t-piedra-clara)' : 'var(--t-tinta)', fontSize: '16px', padding: '4px 8px' }}>‹</button>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--t-tinta)' }}>{MESES[mesVisible]} {anioVisible}</span>
               <button type="button" onClick={() => cambiarMes(1)}
-                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#334155', fontSize: '16px', padding: '4px 8px' }}>›</button>
+                style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--t-tinta)', fontSize: '16px', padding: '4px 8px' }}>›</button>
             </div>
 
             {/* Días de la semana */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: '4px' }}>
               {DIAS_SEMANA.map(d => (
-                <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: '700', color: '#9ca3af' }}>{d}</div>
+                <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: '700', color: 'var(--t-piedra-clara)' }}>{d}</div>
               ))}
             </div>
 
@@ -181,7 +181,7 @@ export default function SelectorFechaHora({ label, value, onChange, min, placeho
                       aspectRatio: '1', border: 'none', borderRadius: '8px', cursor: deshabilitado ? 'default' : 'pointer',
                       fontSize: '12px', fontWeight: seleccionado ? '700' : '500',
                       background: seleccionado ? BRAND_GREEN : 'transparent',
-                      color: deshabilitado ? '#d4d4d4' : seleccionado ? '#fff' : '#334155',
+                      color: deshabilitado ? 'var(--t-piedra-clara)' : seleccionado ? '#fff' : 'var(--t-tinta)',
                     }}>
                     {dia}
                   </button>
@@ -190,19 +190,19 @@ export default function SelectorFechaHora({ label, value, onChange, min, placeho
             </div>
 
             {/* Selector de hora */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', paddingTop: '12px', borderTop: '1px solid #EDEEE8' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a8578" strokeWidth="2" style={{ flexShrink: 0 }}>
                 <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" strokeLinecap="round" />
               </svg>
               <select value={borrador.hora} onChange={e => setBorrador(prev => ({ ...prev, hora: Number(e.target.value) }))}
-                style={{ flex: 1, padding: '7px 8px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', background: '#fff' }}>
+                style={{ flex: 1, padding: '7px 8px', border: '1px solid #E2E4DC', borderRadius: '8px', fontSize: '13px', background: 'var(--t-papel)', color: 'var(--t-tinta)', fontFamily: 'inherit' }}>
                 {Array.from({ length: 24 }, (_, h) => h)
                   .filter(h => horaMinimaHoy === null || h * 60 + 45 >= horaMinimaHoy)
                   .map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}</option>)}
               </select>
-              <span style={{ color: '#94a3b8', fontWeight: '700' }}>:</span>
+              <span style={{ color: 'var(--t-piedra-clara)', fontWeight: '700' }}>:</span>
               <select value={borrador.minuto} onChange={e => setBorrador(prev => ({ ...prev, minuto: Number(e.target.value) }))}
-                style={{ flex: 1, padding: '7px 8px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', background: '#fff' }}>
+                style={{ flex: 1, padding: '7px 8px', border: '1px solid #E2E4DC', borderRadius: '8px', fontSize: '13px', background: 'var(--t-papel)', color: 'var(--t-tinta)', fontFamily: 'inherit' }}>
                 {MINUTOS_DISPONIBLES
                   .filter(m => horaMinimaHoy === null || borrador.hora * 60 + m >= horaMinimaHoy)
                   .map(m => <option key={m} value={m}>{String(m).padStart(2, '0')}</option>)}
@@ -211,7 +211,7 @@ export default function SelectorFechaHora({ label, value, onChange, min, placeho
 
             <div style={{ display: 'flex', gap: '8px' }}>
               <button type="button" onClick={() => setAbierto(false)}
-                style={{ flex: 1, padding: '9px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
+                style={{ flex: 1, padding: '9px', borderRadius: '8px', border: '1px solid #E2E4DC', background: 'var(--t-papel)', color: 'var(--t-piedra)', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
                 Cancelar
               </button>
               <button type="button" onClick={confirmar}

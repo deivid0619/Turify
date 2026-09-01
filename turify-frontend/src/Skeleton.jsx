@@ -9,7 +9,7 @@ const pulseStyle = `
     100% { background-position: 200% 0; }
   }
   .sk {
-    background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+    background: linear-gradient(90deg, var(--t-linea) 25%, var(--t-niebla-2) 50%, var(--t-linea) 75%);
     background-size: 200% 100%;
     animation: shimmer 1.4s infinite;
     border-radius: 6px;
@@ -36,7 +36,7 @@ export const SkeletonBlock = ({ width = '100%', height = 16, dark = false, style
 // ── Tarjeta de solicitud de viaje (Radar del conductor) ──
 export const SkeletonTarjetaViaje = ({ dark = false }) => {
   const bg = dark ? 'rgba(255,255,255,0.04)' : '#fff';
-  const border = dark ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e2e8f0';
+  const border = dark ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--t-linea)';
 
   return (
     <>
@@ -63,7 +63,7 @@ export const SkeletonTarjetaViaje = ({ dark = false }) => {
 export const SkeletonTarjetaConfirmado = () => (
   <>
     <style>{pulseStyle}</style>
-    <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 16, marginBottom: 12, backgroundColor: '#fff' }}>
+    <div style={{ border: '1px solid var(--t-linea)', borderRadius: 12, padding: 16, marginBottom: 12, backgroundColor: 'var(--t-papel)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
         <div className="sk" style={{ height: 12, width: 80 }} />
         <div className="sk" style={{ height: 20, width: 90, borderRadius: 20 }} />
@@ -71,7 +71,7 @@ export const SkeletonTarjetaConfirmado = () => (
       <div className="sk" style={{ height: 15, width: '80%', marginBottom: 6 }} />
       <div className="sk" style={{ height: 13, width: '60%', marginBottom: 4 }} />
       <div className="sk" style={{ height: 12, width: '50%', marginBottom: 12 }} />
-      <div style={{ backgroundColor: '#f8fafc', borderRadius: 8, padding: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ backgroundColor: 'var(--t-niebla)', borderRadius: 8, padding: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
         <div className="sk" style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0 }} />
         <div style={{ flex: 1 }}>
           <div className="sk" style={{ height: 13, width: '60%', marginBottom: 5 }} />
@@ -88,7 +88,7 @@ export const SkeletonDashboard = () => (
     <style>{pulseStyle}</style>
     <div style={{
       position: 'fixed', inset: 0,
-      backgroundColor: '#0a0f0a',
+      backgroundColor: 'var(--t-monte)',
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
       zIndex: 99999,
@@ -99,11 +99,11 @@ export const SkeletonDashboard = () => (
         <div style={{
           width: 64, height: 64, borderRadius: '50%',
           border: '3px solid rgba(34,197,94,0.2)',
-          borderTop: '3px solid #22c55e',
+          borderTop: '3px solid var(--t-ruta)',
           animation: 'spin 0.8s linear infinite',
           margin: '0 auto 16px',
         }} />
-        <p style={{ color: '#22c55e', fontSize: 20, fontWeight: 700, margin: 0, fontFamily: "'Syne', sans-serif" }}>
+        <p style={{ color: 'var(--t-ruta)', fontSize: 20, fontWeight: 700, margin: 0, fontFamily: "'Syne', sans-serif" }}>
           Turify
         </p>
         <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, margin: '4px 0 0' }}>
@@ -122,7 +122,7 @@ export const SkeletonDashboard = () => (
 export const ErrorConexion = ({ onReintentar }) => (
   <div style={{
     position: 'fixed', inset: 0,
-    backgroundColor: '#0a0f0a',
+    backgroundColor: 'var(--t-monte)',
     display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'center',
     zIndex: 99999,
@@ -139,7 +139,7 @@ export const ErrorConexion = ({ onReintentar }) => (
       boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
     }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>🔌</div>
-      <h2 style={{ margin: '0 0 10px', color: '#f0fdf4', fontSize: 20, fontWeight: 800, fontFamily: "'Syne', sans-serif" }}>
+      <h2 style={{ margin: '0 0 10px', color: 'var(--t-musgo)', fontSize: 20, fontWeight: 800, fontFamily: "'Syne', sans-serif" }}>
         Sin conexión al servidor
       </h2>
       <p style={{ margin: '0 0 24px', color: 'rgba(255,255,255,0.5)', fontSize: 14, lineHeight: 1.6 }}>
@@ -149,9 +149,9 @@ export const ErrorConexion = ({ onReintentar }) => (
         <button
           onClick={onReintentar}
           style={{
-            background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+            background: 'linear-gradient(135deg, var(--t-ruta), var(--t-ruta))',
             border: 'none', borderRadius: 9,
-            color: '#052e16', fontWeight: 700,
+            color: 'var(--t-monte)', fontWeight: 700,
             fontSize: 14, padding: '12px 28px',
             cursor: 'pointer', fontFamily: "'Syne', sans-serif",
             boxShadow: '0 4px 14px rgba(34,197,94,0.3)',

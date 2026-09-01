@@ -12,8 +12,15 @@ import PerfilDrawer from './PerfilDrawer';
 import { ToastContainer, useToast } from './Toast';
 import { SkeletonDashboard, SkeletonTarjetaConfirmado, ErrorConexion } from './Skeleton';
 
-const BRAND_GREEN = '#16a34a';
+const BRAND_GREEN = T.ruta;
 import API_BASE_URL from './api';
+import {
+  T, EstilosBase, TableroRuta, Icono,
+  IconReloj, IconVisto, IconBandera, IconAuto, IconCalendario, IconPersonas,
+  IconRadar, IconRecibo, IconEstrella, IconClipboard, IconEquis, IconFlecha,
+  IconAlerta, IconGorro, IconPin, IconPersona, IconRecibo as _IconRecibo,
+  MarcaTurify, LogoWordmark, BotonTema, useTema,
+} from './diseno';
 
 // Librerias de Google Maps que necesitamos: 'places' para el autocompletar de InputDireccion,
 // 'geometry' para decodificar el polyline que devuelve el Directions Service.
@@ -22,39 +29,46 @@ import API_BASE_URL from './api';
 const GOOGLE_MAPS_LIBRARIES = ['places', 'geometry'];
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  MAPA EN MODO OSCURO — no es el "dark" genérico de Google: el suelo y el agua
+//  se llevan al verde monte de la marca, y las vías quedan apenas más claras que
+//  el fondo para que la ruta verde siga siendo lo que más resalta.
+// ─────────────────────────────────────────────────────────────────────────────
+const MAPA_OSCURO = [
+  { elementType: 'geometry', stylers: [{ color: '#0B1F16' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#0B1F16' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#7E9187' }] },
+  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#22402F' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#A8BBAF' }] },
+  { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#102A1E' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1B3527' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8DA396' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#274534' }] },
+  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#12291F' }] },
+  { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#07160F' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3F5A4B' }] },
+];
+
 const mapContainerStyle = { width: '100%', height: '100%' };
 const centroDefaultColombia = { lat: 4.6097, lng: -74.0817 };
 
-// ── Iconos de trazo — mismo lenguaje visual que PerfilConductorPagina (sin emojis) ──
-const IconTrazo = ({ children, size = 16, color = 'currentColor', strokeWidth = 1.7, style, ...rest }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style} {...rest}>{children}</svg>
-);
-const IconReloj = (p) => <IconTrazo {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.2 2" /></IconTrazo>;
-const IconVisto = (p) => <IconTrazo {...p}><circle cx="12" cy="12" r="9" /><path d="M8 12.5l2.5 2.5L16 9.5" /></IconTrazo>;
-const IconBandera = (p) => <IconTrazo {...p}><path d="M6 21V4" /><path d="M6 4h12l-3 4 3 4H6" /></IconTrazo>;
-const IconAuto = (p) => <IconTrazo {...p}><path d="M4 16v-3.2a1.4 1.4 0 0 1 .12-.57L5.9 8.4A2 2 0 0 1 7.75 7h8.5a2 2 0 0 1 1.85 1.4l1.78 3.83c.11.24.12.4.12.57V16" /><path d="M4 16h16v2a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H7v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2Z" /><circle cx="7.5" cy="16" r="1.4" /><circle cx="16.5" cy="16" r="1.4" /></IconTrazo>;
-const IconCalendario = (p) => <IconTrazo {...p}><rect x="3.5" y="5" width="17" height="15" rx="2.5" /><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5" /></IconTrazo>;
-const IconPersonas = (p) => <IconTrazo {...p}><circle cx="9" cy="8.5" r="2.6" /><path d="M4 19c0-3 2.2-5 5-5s5 2 5 5" /><path d="M15.5 6.5a2.4 2.4 0 1 1 0 4.8" /><path d="M17 14.3c1.9.5 3 2.1 3 4.7" /></IconTrazo>;
-const IconRadar = (p) => <IconTrazo {...p}><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" /><path d="M12 12l6-3.2" /><path d="M6 12a6 6 0 0 1 6-6" opacity="0.55" /><path d="M4 12a8 8 0 0 1 8-8" opacity="0.3" /></IconTrazo>;
-const IconRecibo = (p) => <IconTrazo {...p}><path d="M6 3.5h12v17l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3-2 1.3v-17Z" /><path d="M8.5 8h7M8.5 11.5h7M8.5 15h4.5" /></IconTrazo>;
-const IconEstrella = (p) => <IconTrazo {...p}><path d="M12 3.7l2.4 5 5.4.6-4 3.8 1 5.4-4.8-2.6-4.8 2.6 1-5.4-4-3.8 5.4-.6Z" /></IconTrazo>;
-const IconClipboard = (p) => <IconTrazo {...p}><rect x="5" y="4.5" width="14" height="16" rx="2.3" /><rect x="8.7" y="3" width="6.6" height="3" rx="1.3" /><path d="M8.5 11.5h7M8.5 15h5" /></IconTrazo>;
-const IconEquis = (p) => <IconTrazo {...p}><path d="M6 6l12 12M18 6L6 18" /></IconTrazo>;
-const IconFlecha = (p) => <IconTrazo {...p}><path d="M13 6l6 6-6 6M19 12H5" /></IconTrazo>;
-const IconAlerta = (p) => <IconTrazo {...p}><path d="M12 4l9 15.5H3Z" /><path d="M12 10v4M12 17h.01" /></IconTrazo>;
-const IconGorro = (p) => <IconTrazo {...p}><path d="M12 5 3 9.2 12 13l9-3.8L12 5Z" /><path d="M7 11.3V15c0 1.4 2.2 2.6 5 2.6s5-1.2 5-2.6v-3.7" /></IconTrazo>;
+// Iconos, tokens y componentes compartidos viven en ./diseno — un solo lugar.
+const IconTrazo = Icono;
 
 const ModalErrorDireccion = ({ textoDireccion, onCerrar, onContinuar }) => (
   <>
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       onClick={onCerrar}
-      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 3000 }} />
+      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(14,42,30,0.52)', zIndex: 3000 }} />
     <motion.div initial={{ opacity: 0, scale: 0.92, y: -20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92, y: -20 }}
-      style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: '#fff', borderRadius: '16px', padding: '28px', zIndex: 3001, boxShadow: '0 20px 50px rgba(0,0,0,0.18)', width: '390px', fontFamily: 'Inter, sans-serif' }}>
+      style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, boxShadow: '0 20px 50px rgba(0,0,0,0.18)', width: '390px', fontFamily: T.ui }}>
       <div style={{ textAlign: 'center', marginBottom: '16px' }}>
         <span style={{ fontSize: '40px' }}>📍</span>
-        <h3 style={{ margin: '10px 0 4px', color: '#1e293b', fontSize: '17px' }}>No encontramos "{textoDireccion}"</h3>
-        <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>
+        <h3 style={{ margin: '10px 0 4px', color: 'var(--t-tinta)', fontSize: '17px' }}>No encontramos "{textoDireccion}"</h3>
+        <p style={{ margin: 0, color: 'var(--t-piedra)', fontSize: '13px' }}>
           Esta dirección no está en el mapa, pero puedes usarla igual — el conductor verá exactamente lo que escribiste.
         </p>
       </div>
@@ -63,12 +77,12 @@ const ModalErrorDireccion = ({ textoDireccion, onCerrar, onContinuar }) => (
         <span>✅</span> Continuar con esta dirección
       </button>
       <button onClick={onCerrar}
-        style={{ width: '100%', background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', padding: '11px', borderRadius: '10px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', marginBottom: '16px' }}>
+        style={{ width: '100%', background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', padding: '11px', borderRadius: '10px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', marginBottom: '16px' }}>
         ✏️ Quiero corregir la dirección
       </button>
-      <div style={{ backgroundColor: '#f8fafc', borderRadius: '10px', padding: '12px 14px', border: '1px solid #e2e8f0' }}>
-        <p style={{ margin: '0 0 6px', fontSize: '12px', fontWeight: '700', color: '#475569' }}>💡 Para mejor precisión en el mapa, intenta con:</p>
-        <ul style={{ margin: 0, padding: '0 0 0 16px', fontSize: '12px', color: '#64748b', lineHeight: '2' }}>
+      <div style={{ backgroundColor: 'var(--t-niebla)', borderRadius: '10px', padding: '12px 14px', border: '1px solid var(--t-linea)' }}>
+        <p style={{ margin: '0 0 6px', fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)' }}>💡 Para mejor precisión en el mapa, intenta con:</p>
+        <ul style={{ margin: 0, padding: '0 0 0 16px', fontSize: '12px', color: 'var(--t-piedra)', lineHeight: '2' }}>
           <li>Nombre del <strong>barrio</strong> — ej: <em>"Laureles, Medellín"</em></li>
           <li>Nombre de la <strong>comuna</strong> — ej: <em>"El Poblado"</em></li>
           <li>Un <strong>lugar cercano</strong> — ej: <em>"Parque Lleras"</em></li>
@@ -130,6 +144,7 @@ const Dashboard = () => {
   const [listaSolicitudes, setListaSolicitudes] = useState([]);
   const [viajesConfirmados, setViajesConfirmados] = useState([]);
   const [pestanaViajes, setPestanaViajes] = useState('activos'); // 'activos' | 'confirmados' | 'completados'
+  const [tema, alternarTema] = useTema();
   const [confirmandoCancelarId, setConfirmandoCancelarId] = useState(null);
   const [cancelandoId, setCancelandoId] = useState(null);
   const [actualizandoViajes, setActualizandoViajes] = useState(false);
@@ -890,26 +905,26 @@ const Dashboard = () => {
   // ── Estilos del sidebar (rediseño HU05 — inspirado en el layout de Uber, pero
   // sin adoptar su paleta: el mapa deja de ser el fondo de toda la pantalla y pasa
   // a ser un panel contenido junto a un panel fijo con el formulario de búsqueda) ──
-  const sidebarStyle = { width: '400px', minWidth: '400px', height: '100vh', backgroundColor: '#f7f5f0', borderRight: '1px solid #e8e4db', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', position: 'relative', zIndex: 500, overflowY: 'auto' };
+  const sidebarStyle = { width: '400px', minWidth: '400px', height: '100vh', backgroundColor: 'var(--t-niebla)', borderRight: '1px solid var(--t-linea)', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', position: 'relative', zIndex: 500, overflowY: 'auto' };
   const sidebarTopStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 28px 8px' };
-  const fieldBoxStyle = { display: 'flex', alignItems: 'center', border: '1px solid #e8e4db', borderRadius: '12px', padding: '11px 14px', backgroundColor: '#fff' };
-  const fieldLabelStyle = { fontSize: '10px', fontWeight: '700', color: '#8a8578', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '5px' };
-  const dividerStyle = { height: '1px', width: '100%', background: '#e8e4db', margin: '2px 0', flexShrink: 0 };
-  const inputStyle = { border: 'none', outline: 'none', fontSize: '13px', backgroundColor: 'transparent' };
-  const navBtnStyle = { display: 'flex', alignItems: 'center', gap: '10px', width: '100%', textAlign: 'left', background: '#fff', border: '1px solid #e8e4db', borderRadius: '12px', padding: '11px 14px', fontWeight: '600', cursor: 'pointer', color: '#0f3d24', fontSize: '13px' };
+  const fieldBoxStyle = { display: 'flex', alignItems: 'center', border: '1px solid var(--t-linea)', borderRadius: '12px', padding: '11px 14px', backgroundColor: 'var(--t-papel)' };
+  const fieldLabelStyle = { fontSize: '10px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '5px' };
+  const dividerStyle = { height: '1px', width: '100%', background: 'var(--t-linea)', margin: '2px 0', flexShrink: 0 };
+  const inputStyle = { border: 'none', outline: 'none', fontSize: '13px', backgroundColor: 'transparent', color: 'var(--t-tinta)', fontFamily: T.ui };
+  const navBtnStyle = { display: 'flex', alignItems: 'center', gap: '10px', width: '100%', textAlign: 'left', background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '12px', padding: '11px 14px', fontWeight: '600', cursor: 'pointer', color: 'var(--t-tinta)', fontSize: '13px' };
 
   const SelectorPasajero = ({ titulo, subtitulo, tipo }) => {
     const deshabilitado = totalAsientos >= 44;
     return (
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid #eee' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid var(--t-linea)' }}>
         <div>
-          <div style={{ fontWeight: 'bold', fontSize: '15px', color: '#222' }}>{titulo}</div>
-          <div style={{ fontSize: '13px', color: '#777', marginTop: '2px' }}>{subtitulo}</div>
+          <div style={{ fontWeight: 'bold', fontSize: '15px', color: 'var(--t-tinta)' }}>{titulo}</div>
+          <div style={{ fontSize: '13px', color: 'var(--t-piedra)', marginTop: '2px' }}>{subtitulo}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => actualizarPasajeros(tipo, 'restar')} style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid #ccc', background: '#fff', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>-</motion.button>
+          <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => actualizarPasajeros(tipo, 'restar')} style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>-</motion.button>
           <span style={{ width: '20px', textAlign: 'center', fontSize: '15px' }}>{pasajeros[tipo]}</span>
-          <motion.button whileTap={!deshabilitado ? { scale: 0.9 } : {}} type="button" onClick={() => actualizarPasajeros(tipo, 'sumar')} disabled={deshabilitado} style={{ width: '30px', height: '30px', borderRadius: '50%', border: deshabilitado ? '1px solid #eee' : '1px solid #777', background: '#fff', cursor: deshabilitado ? 'not-allowed' : 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: deshabilitado ? '#ccc' : '#222' }}>+</motion.button>
+          <motion.button whileTap={!deshabilitado ? { scale: 0.9 } : {}} type="button" onClick={() => actualizarPasajeros(tipo, 'sumar')} disabled={deshabilitado} style={{ width: '30px', height: '30px', borderRadius: '50%', border: deshabilitado ? '1px solid #eee' : '1px solid #777', background: 'var(--t-papel)', cursor: deshabilitado ? 'not-allowed' : 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: deshabilitado ? 'var(--t-piedra-clara)' : 'var(--t-tinta)' }}>+</motion.button>
         </div>
       </div>
     );
@@ -919,7 +934,7 @@ const Dashboard = () => {
   // pasajero con un botón para abrirlo aparte.
   if (usuario?.role === 'DRIVER') {
     return (
-      <div style={{ position: 'relative', width: '100%', height: '100vh', background: '#f7f5f0', padding: '14px', boxSizing: 'border-box' }}>
+      <div style={{ position: 'relative', width: '100%', height: '100vh', background: 'var(--t-niebla)', padding: '14px', boxSizing: 'border-box' }}>
         <PanelConductor />
         <ToastContainer toasts={toasts} onRemove={removeToast} />
       </div>
@@ -961,6 +976,7 @@ const Dashboard = () => {
         cargarMisViajes().catch(() => setErrorConexion(true)).finally(() => setCargandoInicial(false));
       }} />
     )}
+    <EstilosBase />
     <style>{`
       @keyframes girar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       .fuec-input {
@@ -969,7 +985,7 @@ const Dashboard = () => {
         background: rgba(255,255,255,0.07) !important;
         border: 1px solid rgba(255,255,255,0.18) !important;
         border-radius: 8px;
-        color: #f0fdf4 !important;
+        color: var(--t-musgo) !important;
         font-size: 13px;
         font-family: 'DM Sans', sans-serif;
         box-sizing: border-box;
@@ -985,16 +1001,16 @@ const Dashboard = () => {
       .fuec-select {
         width: 100%;
         padding: 9px 6px;
-        background: #0d1a0d !important;
+        background: var(--t-monte-alto) !important;
         border: 1px solid rgba(255,255,255,0.18) !important;
         border-radius: 8px;
-        color: #f0fdf4 !important;
+        color: var(--t-musgo) !important;
         font-size: 13px;
         outline: none;
         cursor: pointer;
         min-width: 0;
       }
-      .fuec-select option { background: #0d1a0d; color: #f0fdf4; }
+      .fuec-select option { background: var(--t-monte-alto); color: var(--t-musgo); }
 
       /* ── RESPONSIVIDAD TABLETS ── */
       @media (max-width: 900px) {
@@ -1041,17 +1057,17 @@ const Dashboard = () => {
       }
       .viaje-pasaje {
         position: relative;
-        background: #fff;
+        background: var(--t-papel);
         border-radius: 14px;
         margin-bottom: 16px;
-        box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 8px 20px -12px rgba(15,23,42,0.18);
-        border: 1px solid #ecebe6;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 8px 20px -12px rgba(0,0,0,0.25);
+        border: 1px solid var(--t-linea);
         animation: ticket-entra 0.25s ease-out;
         overflow: hidden;
       }
       .viaje-pasaje__talon {
         position: relative;
-        border-top: 1.5px dashed #d8d5cc;
+        border-top: 1.5px dashed var(--t-linea);
         margin: 0 18px;
       }
       .viaje-pasaje__talon::before,
@@ -1062,8 +1078,8 @@ const Dashboard = () => {
         width: 18px;
         height: 18px;
         border-radius: 50%;
-        background: #faf9f6;
-        border: 1px solid #ecebe6;
+        background: var(--t-niebla);
+        border: 1px solid var(--t-linea);
       }
       .viaje-pasaje__talon::before { left: -27px; }
       .viaje-pasaje__talon::after { right: -27px; }
@@ -1084,20 +1100,24 @@ const Dashboard = () => {
         transition: background-color 0.18s, color 0.18s;
       }
     `}</style>
-    <div style={{ height: '100vh', width: '100%', position: 'relative', fontFamily: 'Inter, sans-serif', overflow: 'hidden', display: 'flex' }}>
+    <div style={{ height: '100vh', width: '100%', position: 'relative', fontFamily: T.ui, overflow: 'hidden', display: 'flex' }}>
 
       <aside style={sidebarStyle}>
         <div style={sidebarTopStyle}>
-          <img src={logoTurify} alt="Logo" style={{ height: '48px' }} />
+          {/* La barra tiene 400 px: cabe el nombre. La marca compacta se reserva
+              para el favicon y las vistas angostas. */}
+          <LogoWordmark alto={17} />
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
               onClick={() => { setMostrarNotificaciones(true); }}
-              style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '35px', height: '35px', borderRadius: '50%', background: '#fff', border: '1px solid #e8e4db' }}>
-              <span style={{ fontSize: '18px' }}>🔔</span>
+              style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '35px', height: '35px', borderRadius: '50%', background: 'var(--t-papel)', border: '1px solid var(--t-linea)' }}>
+              <Icono size={17} color="var(--t-piedra)">
+                <path d="M18 15.5V11a6 6 0 1 0-12 0v4.5L4.5 18h15L18 15.5Z" /><path d="M10 20.5a2.2 2.2 0 0 0 4 0" />
+              </Icono>
               <AnimatePresence>
                 {notificaciones.filter(n => !n.is_read).length > 0 && (
                   <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
-                    style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '2px solid #fff' }}>
+                    style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#C2410C', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '2px solid #fff' }}>
                     {notificaciones.filter(n => !n.is_read).length}
                   </motion.span>
                 )}
@@ -1105,24 +1125,24 @@ const Dashboard = () => {
             </motion.div>
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
               onClick={() => setMostrarPerfil(true)}
-              style={{ border: '1px solid #e8e4db', borderRadius: '20px', padding: '5px 12px', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center', background: '#fff' }}>
-              <div style={{ background: '#eee', borderRadius: '50%', width: '25px', height: '25px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              style={{ border: '1px solid var(--t-linea)', borderRadius: '20px', padding: '5px 12px', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center', background: 'var(--t-papel)' }}>
+              <div style={{ background: 'var(--t-niebla-2)', borderRadius: '50%', width: '25px', height: '25px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {usuario?.profile_photo_url
                   ? <img src={usuario.profile_photo_url} alt="perfil" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <span>👤</span>}
+                  : <IconPersona size={15} color="var(--t-piedra)" />}
               </div>
             </motion.div>
           </div>
         </div>
 
         <div style={{ padding: '10px 28px 24px' }}>
-          <h2 style={{ margin: '4px 0 2px', fontSize: '20px', color: '#0f3d24', fontWeight: '700' }}>¿A dónde viajas hoy?</h2>
-          <p style={{ margin: '0 0 16px', fontSize: '12px', color: '#8a8578' }}>Publica tu viaje y te contactamos con conductores cerca.</p>
+          <h2 style={{ margin: '4px 0 2px', fontSize: '20px', color: 'var(--t-tinta)', fontWeight: '700', fontFamily: T.display, letterSpacing: '-.01em' }}>¿A dónde viajas hoy?</h2>
+          <p style={{ margin: '0 0 16px', fontSize: '12px', color: 'var(--t-piedra)' }}>Publica tu viaje y te contactamos con conductores cerca.</p>
 
           <form onSubmit={buscarRuta} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ display: 'flex', gap: '4px' }}>
-              <button type="button" onClick={() => setTipoViaje('ida')} style={{ flex: 1, padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: tipoViaje === 'ida' ? BRAND_GREEN : '#fff', color: tipoViaje === 'ida' ? '#fff' : '#666', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Solo ida</button>
-              <button type="button" onClick={() => setTipoViaje('redondo')} style={{ flex: 1, padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: tipoViaje === 'redondo' ? BRAND_GREEN : '#fff', color: tipoViaje === 'redondo' ? '#fff' : '#666', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Ida y vuelta</button>
+              <button type="button" onClick={() => setTipoViaje('ida')} style={{ flex: 1, padding: '8px 12px', borderRadius: '20px', backgroundColor: tipoViaje === 'ida' ? BRAND_GREEN : 'var(--t-papel)', color: tipoViaje === 'ida' ? '#fff' : 'var(--t-piedra)', border: tipoViaje === 'ida' ? 'none' : '1px solid var(--t-linea)', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Solo ida</button>
+              <button type="button" onClick={() => setTipoViaje('redondo')} style={{ flex: 1, padding: '8px 12px', borderRadius: '20px', backgroundColor: tipoViaje === 'redondo' ? BRAND_GREEN : 'var(--t-papel)', color: tipoViaje === 'redondo' ? '#fff' : 'var(--t-piedra)', border: tipoViaje === 'redondo' ? 'none' : '1px solid var(--t-linea)', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Ida y vuelta</button>
             </div>
             <div style={dividerStyle} />
             <div style={fieldBoxStyle}>
@@ -1164,20 +1184,20 @@ const Dashboard = () => {
               <div onClick={() => setMostrarPasajeros(!mostrarPasajeros)} style={{ ...fieldBoxStyle, cursor: 'pointer', userSelect: 'none', justifyContent: 'space-between' }}>
                 <div>
                   <div style={fieldLabelStyle}>Quién</div>
-                  <span style={{ fontSize: '13px', color: '#222' }}>{textoViajeros}</span>
+                  <span style={{ fontSize: '13px', color: 'var(--t-tinta)' }}>{textoViajeros}</span>
                 </div>
-                <span style={{ color: '#8a8578' }}>▾</span>
+                <span style={{ color: 'var(--t-piedra)' }}>▾</span>
               </div>
               <AnimatePresence>
                 {mostrarPasajeros && (
                   <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} transition={{ duration: 0.2 }}
-                    style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#fff', borderRadius: '16px', padding: '15px 20px', boxShadow: '0 8px 28px rgba(0,0,0,0.15)', zIndex: 2000, border: '1px solid #e8e4db' }}>
+                    style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: 'var(--t-papel)', borderRadius: '16px', padding: '15px 20px', boxShadow: '0 8px 28px rgba(0,0,0,0.15)', zIndex: 2000, border: '1px solid var(--t-linea)' }}>
                     <SelectorPasajero titulo="Adultos" subtitulo="15 años o más" tipo="adultos" />
                     <SelectorPasajero titulo="Niños" subtitulo="Edades 0 – 14" tipo="ninos" />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid #eee' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid var(--t-linea)' }}>
                       <div>
-                        <div style={{ fontWeight: 'bold', fontSize: '15px', color: '#222' }}>Mascotas</div>
-                        <div style={{ fontSize: '13px', color: '#777', marginTop: '2px' }}>¿Traes mascota?</div>
+                        <div style={{ fontWeight: 'bold', fontSize: '15px', color: 'var(--t-tinta)' }}>Mascotas</div>
+                        <div style={{ fontSize: '13px', color: 'var(--t-piedra)', marginTop: '2px' }}>¿Traes mascota?</div>
                       </div>
                       <input type="checkbox" checked={pasajeros.mascotas} onChange={(e) => setPasajeros(prev => ({ ...prev, mascotas: e.target.checked }))} style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: BRAND_GREEN }} />
                     </div>
@@ -1190,7 +1210,7 @@ const Dashboard = () => {
               </AnimatePresence>
             </div>
             <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" style={{ background: BRAND_GREEN, border: 'none', borderRadius: '12px', padding: '13px', color: '#fff', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '700', marginTop: '4px' }}>
-              {cargandoMapa ? 'Buscando ruta...' : <>🔍 Buscar ruta</>}
+              {cargandoMapa ? 'Buscando ruta…' : <><IconRadar size={15} />Buscar ruta</>}
             </motion.button>
           </form>
 
@@ -1198,7 +1218,7 @@ const Dashboard = () => {
             <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
               onClick={() => { cargarMisViajes(); setMostrarMisSolicitudes(true); }}
               style={navBtnStyle}>
-              <span>🧳</span>
+              <IconClipboard size={15} />
               <span style={{ flex: 1 }}>Mis viajes</span>
               {listaSolicitudes.length > 0 && (
                 <span style={{ background: BRAND_GREEN, color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '11px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
@@ -1210,9 +1230,20 @@ const Dashboard = () => {
             {usuario?.role !== 'DRIVER' && usuario?.role !== 'ADMIN' && (
               <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={() => navigate('/registro-conductor')}
                 style={{ ...navBtnStyle, background: BRAND_GREEN, border: 'none', color: '#fff' }}>
-                <span>🌱</span><span>Quiero ser conductor</span>
+                <IconAuto size={15} /><span>Quiero ser conductor</span>
               </motion.button>
             )}
+          </div>
+
+          {/* Apariencia — el interruptor vive al pie de la barra, fuera del flujo
+              de crear un viaje, para que no compita con la acción principal. */}
+          <div style={{ marginTop: '24px', paddingTop: '18px', borderTop: '1px solid var(--t-linea)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            <span style={{ fontFamily: T.dato, fontSize: '10px', letterSpacing: '.16em',
+                           textTransform: 'uppercase', color: 'var(--t-piedra-clara)' }}>
+              Apariencia
+            </span>
+            <BotonTema tema={tema} alternar={alternarTema} />
           </div>
         </div>
       </aside>
@@ -1228,7 +1259,7 @@ const Dashboard = () => {
               center={datosMapa.origen || centroDefaultColombia}
               zoom={datosMapa.origen ? 15 : 6}
               onLoad={onMapLoad}
-              options={{ disableDefaultUI: true, zoomControl: true }}
+              options={{ disableDefaultUI: true, zoomControl: true, styles: tema === 'oscuro' ? MAPA_OSCURO : undefined }}
             >
               {datosMapa.origen && <MarkerF position={datosMapa.origen} title="Origen" />}
               {datosMapa.destino && <MarkerF position={datosMapa.destino} title="Destino" />}
@@ -1237,7 +1268,7 @@ const Dashboard = () => {
               )}
             </GoogleMap>
           ) : (
-            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', color: '#94a3b8', fontSize: '14px' }}>
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--t-niebla-2)', color: 'var(--t-piedra-clara)', fontSize: '14px' }}>
               Cargando mapa...
             </div>
           )}
@@ -1246,9 +1277,9 @@ const Dashboard = () => {
           <AnimatePresence>
             {infoRuta && (
               <motion.div initial={{ opacity: 0, y: 50, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: 50, x: '-50%' }}
-                style={{ position: 'absolute', bottom: '24px', left: '50%', backgroundColor: '#fff', padding: '20px 25px', borderRadius: '15px', zIndex: 1000, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', textAlign: 'center', width: '380px', maxWidth: 'calc(100% - 32px)' }}>
-                <p style={{ margin: 0, color: '#666', fontSize: '13px' }}>Resumen del viaje</p>
-                <h3 style={{ margin: '8px 0 4px', color: '#222' }}>{infoRuta.tiempo} · {infoRuta.distancia}</h3>
+                style={{ position: 'absolute', bottom: '24px', left: '50%', backgroundColor: 'var(--t-papel)', padding: '20px 25px', borderRadius: '15px', zIndex: 1000, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', textAlign: 'center', width: '380px', maxWidth: 'calc(100% - 32px)' }}>
+                <p style={{ margin: 0, color: 'var(--t-piedra)', fontSize: '13px' }}>Resumen del viaje</p>
+                <h3 style={{ margin: '8px 0 4px', color: 'var(--t-tinta)' }}>{infoRuta.tiempo} · {infoRuta.distancia}</h3>
                 {infoRuta.distancia === 'No disponible' && (
                   <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#f59e0b' }}>
                     ⚠️ No se pudo trazar la ruta exacta, pero el viaje se publicará con las direcciones ingresadas.
@@ -1257,13 +1288,13 @@ const Dashboard = () => {
 
                 {/* HU09 — la búsqueda de conductores es automática desde el origen del
                     viaje: empieza cerca y se amplía sola si no hay nadie disponible. */}
-                <p style={{ margin: '0 0 12px', fontSize: '11px', color: '#64748b', textAlign: 'left' }}>
+                <p style={{ margin: '0 0 12px', fontSize: '11px', color: 'var(--t-piedra)', textAlign: 'left' }}>
                   Buscamos automáticamente a los conductores disponibles más cercanos a tu origen.
                 </p>
 
                 {/* HU38 — Filtro de comodidades del vehículo */}
-                <div style={{ textAlign: 'left', margin: '0 0 14px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-                  <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <div style={{ textAlign: 'left', margin: '0 0 14px', padding: '10px 12px', background: 'var(--t-niebla)', border: '1px solid var(--t-linea)', borderRadius: '10px' }}>
+                  <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     ¿Necesitas alguna comodidad? (opcional)
                   </p>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
@@ -1276,20 +1307,20 @@ const Dashboard = () => {
                       ['tiene_sillas_bebe', 'Sillas para bebé'],
                       ['acepta_mascotas', 'Acepta mascotas'],
                     ].map(([campo, etiqueta]) => (
-                      <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#334155', cursor: 'pointer' }}>
+                      <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--t-tinta)', cursor: 'pointer' }}>
                         <input type="checkbox" checked={!!comodidadesFiltro[campo]}
                           onChange={e => setComodidadesFiltro({ ...comodidadesFiltro, [campo]: e.target.checked })} />
                         {etiqueta}
                       </label>
                     ))}
                   </div>
-                  <p style={{ margin: '8px 0 0', fontSize: '10.5px', color: '#94a3b8' }}>
+                  <p style={{ margin: '8px 0 0', fontSize: '10.5px', color: 'var(--t-piedra-clara)' }}>
                     Solo se te notificarán ofertas de conductores cuyo vehículo cumpla lo que marques aquí.
                   </p>
                 </div>
 
                 <button onClick={crearViaje} disabled={enviandoSolicitud}
-                  style={{ background: enviandoSolicitud ? '#9ca3af' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: enviandoSolicitud ? 'not-allowed' : 'pointer', fontWeight: 'bold', width: '100%' }}>
+                  style={{ background: enviandoSolicitud ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: enviandoSolicitud ? 'not-allowed' : 'pointer', fontWeight: 'bold', width: '100%' }}>
                   {enviandoSolicitud ? 'Procesando...' : 'Confirmar y Publicar Viaje'}
                 </button>
               </motion.div>
@@ -1317,13 +1348,13 @@ const Dashboard = () => {
               onClick={() => setModalContraoferta(null)}
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
             <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
-              style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: '#fff', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '360px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: 'Inter, sans-serif' }}>
-              <h3 style={{ margin: '0 0 8px', color: '#1e293b', fontSize: '17px' }}>💬 Enviar Contraoferta</h3>
-              <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '13px' }}>
+              style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '360px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: T.ui }}>
+              <h3 style={{ margin: '0 0 8px', color: 'var(--t-tinta)', fontSize: '17px' }}>💬 Enviar Contraoferta</h3>
+              <p style={{ margin: '0 0 20px', color: 'var(--t-piedra)', fontSize: '13px' }}>
                 Ingresa el precio que estás dispuesto a pagar por este viaje.
               </p>
               <div style={{ position: 'relative', marginBottom: '8px' }}>
-                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', fontWeight: '700', fontSize: '15px' }}>$</span>
+                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--t-piedra)', fontWeight: '700', fontSize: '15px' }}>$</span>
                 <input
                   type="number"
                   placeholder="Ej: 45000"
@@ -1331,16 +1362,16 @@ const Dashboard = () => {
                   onChange={e => setPrecioContraoferta(e.target.value)}
                   min="1"
                   autoFocus
-                  style={{ width: '100%', padding: '12px 12px 12px 28px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '15px', boxSizing: 'border-box', outline: 'none' }}
+                  style={{ width: '100%', padding: '12px 12px 12px 28px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '15px', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
               <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
                 <button onClick={() => setModalContraoferta(null)}
-                  style={{ flex: 1, background: '#f1f5f9', color: '#475569', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
+                  style={{ flex: 1, background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
                   Cancelar
                 </button>
                 <button onClick={enviarContraoferta} disabled={enviandoContraoferta}
-                  style={{ flex: 1, background: enviandoContraoferta ? '#9ca3af' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: enviandoContraoferta ? 'not-allowed' : 'pointer' }}>
+                  style={{ flex: 1, background: enviandoContraoferta ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: enviandoContraoferta ? 'not-allowed' : 'pointer' }}>
                   {enviandoContraoferta ? 'Enviando...' : 'Enviar oferta'}
                 </button>
               </div>
@@ -1355,34 +1386,34 @@ const Dashboard = () => {
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => { setMostrarMisSolicitudes(false); setViajeSeleccionado(null); }}
-              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 2000 }} />
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(14,42,30,0.52)', zIndex: 2000 }} />
             <motion.div className="turify-panel-lateral" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.3 }}
-              style={{ position: 'absolute', top: 0, right: 0, width: '420px', maxWidth: '100%', height: '100vh', backgroundColor: '#faf9f6', zIndex: 2001, boxShadow: '-5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ padding: '18px 20px', borderBottom: '1px solid #ecebe6', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
+              style={{ position: 'absolute', top: 0, right: 0, width: '420px', maxWidth: '100%', height: '100vh', backgroundColor: 'var(--t-niebla)', zIndex: 2001, boxShadow: '-5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--t-linea)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--t-papel)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   {viajeSeleccionado && (
                     <button onClick={() => setViajeSeleccionado(null)} title="Volver"
-                      style={{ border: '1px solid #ecebe6', background: '#faf9f6', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1e293b' }}>
+                      style={{ border: '1px solid var(--t-linea)', background: 'var(--t-niebla)', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-tinta)' }}>
                       <IconFlecha size={15} style={{ transform: 'rotate(180deg)' }} />
                     </button>
                   )}
                   <div>
-                    <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a', fontFamily: "'Syne', sans-serif", letterSpacing: '-0.01em' }}>
+                    <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: 'var(--t-tinta)', fontFamily: T.display, letterSpacing: '-0.01em' }}>
                       {viajeSeleccionado ? 'Ofertas del viaje' : 'Mis viajes'}
                     </h2>
                     {viajeSeleccionado && (
-                      <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#94a3b8' }}>{viajeSeleccionado.origin} → {viajeSeleccionado.destination}</p>
+                      <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--t-piedra-clara)' }}>{viajeSeleccionado.origin} → {viajeSeleccionado.destination}</p>
                     )}
                   </div>
                 </div>
                 <button onClick={() => { setMostrarMisSolicitudes(false); setViajeSeleccionado(null); }} title="Cerrar"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t-piedra-clara)', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <IconEquis size={17} />
                 </button>
               </div>
               {/* PESTAÑAS */}
               {!viajeSeleccionado && (
-                <div style={{ display: 'flex', padding: '12px 16px', gap: '6px', borderBottom: '1px solid #ecebe6', backgroundColor: '#fff' }}>
+                <div style={{ display: 'flex', padding: '12px 16px', gap: '6px', borderBottom: '1px solid var(--t-linea)', backgroundColor: 'var(--t-papel)' }}>
                   {[
                     { id: 'activos', label: 'Buscando', icon: IconReloj, count: listaSolicitudes.length },
                     { id: 'confirmados', label: 'Confirmados', icon: IconVisto, count: viajesActivosConfirmados.length },
@@ -1390,15 +1421,15 @@ const Dashboard = () => {
                   ].map(tab => (
                     <button key={tab.id} className="pestana-mv" onClick={() => setPestanaViajes(tab.id)}
                       style={{
-                        backgroundColor: pestanaViajes === tab.id ? BRAND_GREEN : '#f1f0eb',
-                        color: pestanaViajes === tab.id ? '#fff' : '#64748b' }}>
+                        backgroundColor: pestanaViajes === tab.id ? BRAND_GREEN : 'var(--t-niebla-2)',
+                        color: pestanaViajes === tab.id ? '#fff' : 'var(--t-piedra)' }}>
                       <tab.icon size={13} />
                       {tab.label}
-                      {tab.count > 0 && <span style={{ background: pestanaViajes === tab.id ? 'rgba(255,255,255,0.28)' : '#e2e8f0', color: pestanaViajes === tab.id ? '#fff' : '#64748b', borderRadius: '10px', padding: '1px 6px', fontSize: '10px' }}>{tab.count}</span>}
+                      {tab.count > 0 && <span style={{ background: pestanaViajes === tab.id ? 'rgba(255,255,255,0.28)' : 'var(--t-linea)', color: pestanaViajes === tab.id ? '#fff' : 'var(--t-piedra)', borderRadius: '10px', padding: '1px 6px', fontSize: '10px' }}>{tab.count}</span>}
                     </button>
                   ))}
                   <button onClick={refrescarViajes} disabled={actualizandoViajes} title="Actualizar"
-                    style={{ flexShrink: 0, width: '32px', borderRadius: '9px', border: '1px solid #ecebe6', background: '#fff', cursor: actualizandoViajes ? 'default' : 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    style={{ flexShrink: 0, width: '32px', borderRadius: '9px', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: actualizandoViajes ? 'default' : 'pointer', color: 'var(--t-piedra)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <IconTrazo size={14} style={{ display: 'inline-flex', animation: actualizandoViajes ? 'girar 0.8s linear infinite' : 'none' }}>
                       <path d="M4 4v5h5" /><path d="M20 20v-5h-5" /><path d="M5.5 15A7.5 7.5 0 0 0 19 9.5" /><path d="M18.5 9A7.5 7.5 0 0 0 5 14.5" />
                     </IconTrazo>
@@ -1410,11 +1441,11 @@ const Dashboard = () => {
                 {/* PESTAÑA: EN BÚSQUEDA */}
                 {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '50px 20px' }}>
-                    <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: BRAND_GREEN }}>
+                    <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--t-musgo)', border: '1px solid var(--t-musgo-linea)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: BRAND_GREEN }}>
                       <IconRadar size={24} />
                     </div>
-                    <p style={{ margin: '0 0 6px', fontWeight: '700', color: '#1e293b', fontSize: '15px' }}>Sin viajes activos</p>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>Busca una ruta en el mapa y<br/>publica tu primer viaje.</p>
+                    <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '15px' }}>Sin viajes activos</p>
+                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--t-piedra)', lineHeight: '1.5' }}>Busca una ruta en el mapa y<br/>publica tu primer viaje.</p>
                   </div>
                 )}
                 {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.map((viaje) => {
@@ -1422,18 +1453,14 @@ const Dashboard = () => {
                   return (
                   <div key={viaje.id} onClick={() => setViajeSeleccionado(viaje)} className="viaje-pasaje" style={{ cursor: 'pointer', padding: '13px 16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <span style={{ fontWeight: '700', color: '#0f172a', fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viaje.origin}</span>
-                        <IconFlecha size={11} color={BRAND_GREEN} style={{ flexShrink: 0 }} />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viaje.destination}</span>
-                      </span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, marginLeft: '8px', color: viaje.ofertas.length > 0 ? BRAND_GREEN : '#b45309', fontSize: '11px', fontWeight: '700' }}>
+                      <TableroRuta origen={viaje.origin} destino={viaje.destination} size={11} style={{ flex: 1 }} />
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, marginLeft: '8px', color: viaje.ofertas.length > 0 ? BRAND_GREEN : 'var(--t-chiva-texto)', fontSize: '11px', fontWeight: '700' }}>
                         {viaje.ofertas.length > 0
                           ? <><IconVisto size={12} />{viaje.ofertas.length}</>
                           : <IconReloj size={12} />}
                       </span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', color: '#94a3b8' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', color: 'var(--t-piedra-clara)' }}>
                       <IconCalendario size={11} />
                       <span>{new Date(viaje.departure_time).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                       <span style={{ margin: '0 1px' }}>·</span>
@@ -1442,7 +1469,7 @@ const Dashboard = () => {
                     </div>
 
                     {avisoSinOfertas && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '8px', fontSize: '11px', color: '#b45309' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '8px', fontSize: '11px', color: 'var(--t-chiva-texto)' }}>
                         <IconAlerta size={12} style={{ flexShrink: 0 }} />
                         <span>Seguimos buscando conductores en tu zona.</span>
                       </div>
@@ -1451,20 +1478,20 @@ const Dashboard = () => {
                     {/* Cancelar búsqueda — con confirmación inline, no window.confirm */}
                     {confirmandoCancelarId === viaje.id ? (
                       <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '9px' }}>
-                        <span style={{ fontSize: '11.5px', color: '#b91c1c', flex: 1 }}>¿Cancelar?</span>
+                        <span style={{ fontSize: '11.5px', color: 'var(--t-alerta-texto)', flex: 1 }}>¿Cancelar?</span>
                         <button onClick={() => setConfirmandoCancelarId(null)} disabled={cancelandoId === viaje.id}
-                          style={{ background: '#fff', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '7px', padding: '4px 9px', fontSize: '10.5px', fontWeight: '600', cursor: 'pointer' }}>
+                          style={{ background: 'var(--t-papel)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', borderRadius: '7px', padding: '4px 9px', fontSize: '10.5px', fontWeight: '600', cursor: 'pointer' }}>
                           No
                         </button>
                         <button onClick={() => cancelarBusqueda(viaje.id)} disabled={cancelandoId === viaje.id}
-                          style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '7px', padding: '4px 9px', fontSize: '10.5px', fontWeight: '700', cursor: cancelandoId === viaje.id ? 'default' : 'pointer' }}>
+                          style={{ background: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', border: '1px solid var(--t-alerta-linea)', borderRadius: '7px', padding: '4px 9px', fontSize: '10.5px', fontWeight: '700', cursor: cancelandoId === viaje.id ? 'default' : 'pointer' }}>
                           {cancelandoId === viaje.id ? 'Cancelando…' : 'Sí, cancelar'}
                         </button>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
                         <button onClick={(e) => { e.stopPropagation(); setConfirmandoCancelarId(viaje.id); }}
-                          style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '11px', fontWeight: '600', cursor: 'pointer', padding: '2px 0' }}>
+                          style={{ background: 'none', border: 'none', color: 'var(--t-piedra-clara)', fontSize: '11px', fontWeight: '600', cursor: 'pointer', padding: '2px 0' }}>
                           Cancelar búsqueda
                         </button>
                       </div>
@@ -1476,31 +1503,31 @@ const Dashboard = () => {
                 {/* PESTAÑA: CONFIRMADOS */}
                 {!viajeSeleccionado && pestanaViajes === 'confirmados' && viajesActivosConfirmados.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '50px 20px' }}>
-                    <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: BRAND_GREEN }}>
+                    <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--t-musgo)', border: '1px solid var(--t-musgo-linea)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: BRAND_GREEN }}>
                       <IconVisto size={24} />
                     </div>
-                    <p style={{ margin: '0 0 6px', fontWeight: '700', color: '#1e293b', fontSize: '15px' }}>Sin viajes confirmados</p>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>Cuando un conductor acepte<br/>tu oferta aparecerá aquí.</p>
+                    <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '15px' }}>Sin viajes confirmados</p>
+                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--t-piedra)', lineHeight: '1.5' }}>Cuando un conductor acepte<br/>tu oferta aparecerá aquí.</p>
                   </div>
                 )}
 
                 {/* PESTAÑA: COMPLETADOS — historial aparte, no compite con los activos */}
                 {!viajeSeleccionado && pestanaViajes === 'completados' && viajesCompletadosOrdenados.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '50px 20px' }}>
-                    <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#f5f3ff', border: '1px solid #ddd6fe', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: '#7c3aed' }}>
+                    <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--t-cielo-suave)', border: '1px solid #ddd6fe', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: 'var(--t-cielo-texto)' }}>
                       <IconBandera size={24} />
                     </div>
-                    <p style={{ margin: '0 0 6px', fontWeight: '700', color: '#1e293b', fontSize: '15px' }}>Aún no tienes viajes completados</p>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>Cuando termines un viaje,<br/>quedará aquí en tu historial.</p>
+                    <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '15px' }}>Aún no tienes viajes completados</p>
+                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--t-piedra)', lineHeight: '1.5' }}>Cuando termines un viaje,<br/>quedará aquí en tu historial.</p>
                   </div>
                 )}
 
                 {!viajeSeleccionado && (pestanaViajes === 'confirmados' || pestanaViajes === 'completados') &&
                   (pestanaViajes === 'completados' ? viajesCompletadosOrdenados : viajesActivosConfirmados).map((viaje) => {
                   const cfgEstadoViaje = {
-                    ASSIGNED:    { color: BRAND_GREEN, badgeBg: '#dcfce7', badgeColor: '#166534', Icono: IconVisto, badgeLabel: 'Confirmado', info: 'El conductor está listo para recogerte.' },
-                    IN_PROGRESS: { color: '#2563eb',   badgeBg: '#dbeafe', badgeColor: '#1e40af', Icono: IconAuto,  badgeLabel: 'En camino',   info: '¡Tu conductor está en camino!' },
-                    COMPLETED:   { color: '#7c3aed',   badgeBg: '#e0e7ff', badgeColor: '#3730a3', Icono: IconBandera, badgeLabel: 'Completado', info: 'Viaje finalizado exitosamente.' },
+                    ASSIGNED:    { color: BRAND_GREEN, badgeBg: 'var(--t-musgo)', badgeColor: 'var(--t-musgo-texto)', Icono: IconVisto, badgeLabel: 'Confirmado', info: 'El conductor está listo para recogerte.' },
+                    IN_PROGRESS: { color: 'var(--t-cielo)',   badgeBg: 'var(--t-cielo-suave)', badgeColor: '#1e40af', Icono: IconAuto,  badgeLabel: 'En camino',   info: '¡Tu conductor está en camino!' },
+                    COMPLETED:   { color: 'var(--t-cielo-texto)',   badgeBg: '#e0e7ff', badgeColor: '#3730a3', Icono: IconBandera, badgeLabel: 'Completado', info: 'Viaje finalizado exitosamente.' },
                   };
                   const cfg = cfgEstadoViaje[viaje.trip_status] || cfgEstadoViaje.ASSIGNED;
                   const esEnCurso = viaje.trip_status === 'IN_PROGRESS';
@@ -1509,7 +1536,7 @@ const Dashboard = () => {
                     <div key={viaje.id} className="viaje-pasaje">
                       <div style={{ padding: '16px 18px 14px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                          <span style={{ fontSize: '11.5px', color: '#94a3b8' }}>{viaje.fechaCreacion}</span>
+                          <span style={{ fontSize: '11.5px', color: 'var(--t-piedra-clara)' }}>{viaje.fechaCreacion}</span>
                           <span style={{ backgroundColor: cfg.badgeBg, color: cfg.badgeColor, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' }}>
                             <cfg.Icono size={12} />
                             {cfg.badgeLabel}
@@ -1518,10 +1545,8 @@ const Dashboard = () => {
                             )}
                           </span>
                         </div>
-                        <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '15.5px', marginBottom: '9px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>{viaje.origin}</span><IconFlecha size={13} color={cfg.color} /><span>{viaje.destination}</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '16px', fontSize: '12.5px', color: '#64748b' }}>
+                        <TableroRuta origen={viaje.origin} destino={viaje.destination} size={12} style={{ marginBottom: '10px' }} />
+                        <div style={{ display: 'flex', gap: '16px', fontSize: '12.5px', color: 'var(--t-piedra)' }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><IconCalendario size={13} />{new Date(viaje.departure_time).toLocaleString()}</span>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><IconPersonas size={13} />{viaje.seats_needed}</span>
                         </div>
@@ -1529,67 +1554,74 @@ const Dashboard = () => {
                       <div className="viaje-pasaje__talon" />
                       <div style={{ padding: '14px 18px 16px' }}>
                         {/* Info estado */}
-                        <div style={{ backgroundColor: cfg.badgeBg, borderRadius: '8px', padding: '8px 11px', marginBottom: '12px', fontSize: '12px', color: cfg.badgeColor, fontWeight: '600' }}>
-                          {cfg.info}
-                        </div>
-
-                        {/* Barra de progreso del viaje */}
+                        {/* Línea de vida del viaje — reemplaza la barra de 3 pasos y
+                            absorbe el aviso de estado: el detalle cuelga del paso actual,
+                            así la tarjeta pierde una caja y gana claridad. */}
                         {(() => {
                           const pasos = [
-                            { key: 'ASSIGNED',    label: 'Confirmado' },
-                            { key: 'IN_PROGRESS', label: 'En camino' },
-                            { key: 'COMPLETED',   label: 'Completado' },
+                            { key: 'ASSIGNED',    label: 'Confirmado',  detalle: 'El conductor aceptó tu viaje.' },
+                            { key: 'IN_PROGRESS', label: 'En camino',   detalle: 'Va hacia el punto de recogida.' },
+                            { key: 'COMPLETED',   label: 'Completado',  detalle: 'Viaje finalizado.' },
                           ];
                           const idxActual = pasos.findIndex(p => p.key === viaje.trip_status);
                           return (
                             <div style={{ marginBottom: '13px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 0, position: 'relative' }}>
-                                {pasos.map((paso, idx) => {
-                                  const activo = idx <= idxActual;
-                                  const esCurrent = idx === idxActual;
-                                  return (
-                                    <div key={paso.key} style={{ display: 'flex', alignItems: 'center', flex: idx < pasos.length - 1 ? 1 : 'none' }}>
-                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                                        <div style={{
-                                          width: esCurrent ? '20px' : '14px',
-                                          height: esCurrent ? '20px' : '14px',
-                                          borderRadius: '50%',
-                                          backgroundColor: activo ? cfg.color : '#e2e8f0',
-                                          border: esCurrent ? `3px solid ${cfg.color}` : 'none',
-                                          boxShadow: esCurrent ? `0 0 0 3px ${cfg.color}22` : 'none',
-                                          transition: 'all 0.3s',
-                                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                          flexShrink: 0,
-                                        }}>
-                                          {activo && !esCurrent && <span style={{ color: '#fff', fontSize: '8px', fontWeight: '700' }}>✓</span>}
+                              {pasos.map((paso, idx) => {
+                                const hecho = idx < idxActual;
+                                const actual = idx === idxActual;
+                                const ultimo = idx === pasos.length - 1;
+                                return (
+                                  <div key={paso.key} style={{
+                                    display: 'grid', gridTemplateColumns: '16px 1fr', gap: '11px',
+                                    alignItems: 'start', position: 'relative',
+                                    paddingBottom: ultimo ? 0 : '13px',
+                                  }}>
+                                    {/* Riel vertical */}
+                                    {!ultimo && (
+                                      <span style={{
+                                        position: 'absolute', left: '7.2px', top: '13px', bottom: 0,
+                                        width: '1.5px', background: hecho ? cfg.color : 'var(--t-linea)',
+                                      }} />
+                                    )}
+                                    <span style={{
+                                      width: actual ? '11px' : '9px', height: actual ? '11px' : '9px',
+                                      borderRadius: '50%', margin: actual ? '4px auto 0' : '5px auto 0',
+                                      background: hecho || actual ? cfg.color : 'var(--t-linea)',
+                                      boxShadow: actual ? `0 0 0 4px ${cfg.color}22` : 'none',
+                                      position: 'relative', zIndex: 1, transition: 'all .3s',
+                                    }} />
+                                    <div>
+                                      <div style={{
+                                        fontSize: '12px', fontWeight: actual ? '700' : '500',
+                                        color: hecho || actual ? T.tinta : 'var(--t-piedra-clara)',
+                                      }}>{paso.label}</div>
+                                      {actual && (
+                                        <div style={{ fontSize: '11.5px', color: T.piedra, marginTop: '1px' }}>
+                                          {paso.detalle}
                                         </div>
-                                        <span style={{ fontSize: '9px', fontWeight: '600', color: activo ? cfg.badgeColor : '#94a3b8', whiteSpace: 'nowrap' }}>{paso.label}</span>
-                                      </div>
-                                      {idx < pasos.length - 1 && (
-                                        <div style={{ flex: 1, height: '3px', backgroundColor: idx < idxActual ? cfg.color : '#e2e8f0', margin: '0 4px', marginBottom: '14px', borderRadius: '2px', transition: 'background-color 0.3s' }} />
                                       )}
                                     </div>
-                                  );
-                                })}
-                              </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           );
                         })()}
                         {/* Info conductor */}
                         <div onClick={() => viaje.driver_id && abrirPerfilConductor(viaje.driver_id)}
                           title={viaje.driver_id ? 'Ver perfil del conductor' : undefined}
-                          style={{ backgroundColor: '#faf9f6', borderRadius: '9px', padding: '10px 12px', border: `1px solid ${cfg.color}33`, display: 'flex', alignItems: 'center', gap: '10px', cursor: viaje.driver_id ? 'pointer' : 'default' }}>
-                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#e2e8f0', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', flexShrink: 0 }}>
+                          style={{ backgroundColor: 'var(--t-niebla)', borderRadius: '9px', padding: '10px 12px', border: `1px solid ${cfg.color}33`, display: 'flex', alignItems: 'center', gap: '10px', cursor: viaje.driver_id ? 'pointer' : 'default' }}>
+                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'var(--t-linea)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)', flexShrink: 0 }}>
                             {viaje.conductor_foto
                               ? <img src={viaje.conductor_foto} alt="conductor" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                               : <IconAuto size={17} />}
                           </div>
                           <div>
-                            <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: '#1e293b', textDecoration: viaje.driver_id ? 'underline' : 'none', textDecorationColor: '#e2e8f0', textUnderlineOffset: '3px' }}>
+                            <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: 'var(--t-tinta)', textDecoration: viaje.driver_id ? 'underline' : 'none', textDecorationColor: 'var(--t-linea)', textUnderlineOffset: '3px' }}>
                               {viaje.conductor_nombre}
                             </p>
                             {viaje.precio_acordado > 0 && (
-                              <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                              <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>
                                 Precio acordado: <strong style={{ color: BRAND_GREEN }}>${Number(viaje.precio_acordado).toLocaleString()}</strong>
                               </p>
                             )}
@@ -1603,7 +1635,7 @@ const Dashboard = () => {
                               mapContainerStyle={{ width: '100%', height: '100%' }}
                               center={{ lat: viaje.conductor_lat, lng: viaje.conductor_lng }}
                               zoom={15}
-                              options={{ disableDefaultUI: true, gestureHandling: 'none', zoomControl: false }}
+                              options={{ disableDefaultUI: true, gestureHandling: 'none', zoomControl: false, styles: tema === 'oscuro' ? MAPA_OSCURO : undefined }}
                             >
                               <MarkerF
                                 position={{ lat: viaje.conductor_lat, lng: viaje.conductor_lng }}
@@ -1614,7 +1646,7 @@ const Dashboard = () => {
                           </div>
                         )}
                         {esEnCurso && (!viaje.conductor_lat || !viaje.conductor_lng) && (
-                          <p style={{ margin: '10px 0 0', fontSize: '11px', color: '#94a3b8', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                          <p style={{ margin: '10px 0 0', fontSize: '11px', color: 'var(--t-piedra-clara)', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
                             <IconRadar size={12} />Esperando la ubicación del conductor...
                           </p>
                         )}
@@ -1631,7 +1663,7 @@ const Dashboard = () => {
                             background: fuecEnviado[viaje.id] ? 'rgba(34,197,94,0.12)' : 'rgba(34,197,94,0.08)',
                             border: `1px solid ${fuecEnviado[viaje.id] ? BRAND_GREEN : 'rgba(34,197,94,0.35)'}`,
                             borderRadius: '8px',
-                            color: fuecEnviado[viaje.id] ? BRAND_GREEN : '#166534',
+                            color: fuecEnviado[viaje.id] ? BRAND_GREEN : 'var(--t-musgo-texto)',
                             fontSize: '12px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s'
                           }}>
                           {fuecEnviado[viaje.id] ? <IconVisto size={13} /> : <IconClipboard size={13} />}
@@ -1647,9 +1679,9 @@ const Dashboard = () => {
                           style={{
                             marginTop: '10px', width: '100%', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
                             background: viaje.ya_califico ? 'rgba(148,163,184,0.1)' : 'rgba(234,179,8,0.1)',
-                            border: `1px solid ${viaje.ya_califico ? '#cbd5e1' : '#eab308'}`,
+                            border: `1px solid ${viaje.ya_califico ? 'var(--t-linea)' : 'var(--t-chiva)'}`,
                             borderRadius: '8px',
-                            color: viaje.ya_califico ? '#94a3b8' : '#a16207',
+                            color: viaje.ya_califico ? 'var(--t-piedra-clara)' : 'var(--t-chiva-texto)',
                             fontSize: '12px', fontWeight: '700', cursor: viaje.ya_califico ? 'default' : 'pointer', transition: 'all 0.2s'
                           }}>
                           {viaje.ya_califico ? <IconVisto size={13} /> : <IconEstrella size={13} />}
@@ -1667,7 +1699,7 @@ const Dashboard = () => {
                             background: 'rgba(37,99,235,0.08)',
                             border: '1px solid rgba(37,99,235,0.3)',
                             borderRadius: '8px',
-                            color: '#1e40af',
+                            color: 'var(--t-cielo-texto)',
                             fontSize: '12px', fontWeight: '700', cursor: descargandoRecibo === viaje.id ? 'default' : 'pointer', transition: 'all 0.2s'
                           }}>
                           <IconRecibo size={13} />
@@ -1686,46 +1718,46 @@ const Dashboard = () => {
                       if (!viajeActualizado || viajeActualizado.ofertas.length === 0) {
                         return (
                           <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                            <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: BRAND_GREEN }}>
+                            <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--t-musgo)', border: '1px solid var(--t-musgo-linea)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: BRAND_GREEN }}>
                               <IconRadar size={20} />
                             </div>
-                            <div style={{ color: '#64748b', fontSize: '13.5px' }}>Esperando ofertas de conductores...</div>
+                            <div style={{ color: 'var(--t-piedra)', fontSize: '13.5px' }}>Esperando ofertas de conductores...</div>
                           </div>
                         );
                       }
                       return viajeActualizado.ofertas.map(oferta => (
-                        <div key={oferta.id} style={{ border: '1px solid #ecebe6', borderRadius: '14px', padding: '16px', marginBottom: '14px', background: '#fff', boxShadow: '0 1px 2px rgba(15,23,42,0.04)' }}>
+                        <div key={oferta.id} style={{ border: '1px solid var(--t-linea)', borderRadius: '14px', padding: '16px', marginBottom: '14px', background: 'var(--t-papel)', boxShadow: '0 1px 2px rgba(15,23,42,0.04)' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px' }}>
                             <div onClick={() => abrirPerfilConductor(oferta.driverId)}
                               style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', minWidth: 0 }}
                               title="Ver perfil del conductor">
-                              <div style={{ width: '40px', height: '40px', backgroundColor: '#e2e8f0', borderRadius: '50%', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#64748b', flexShrink: 0 }}>
+                              <div style={{ width: '40px', height: '40px', backgroundColor: 'var(--t-linea)', borderRadius: '50%', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'var(--t-piedra)', flexShrink: 0 }}>
                                 {oferta.foto ? <img src={oferta.foto} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <IconPersonas size={18} />}
                               </div>
                               <div style={{ minWidth: 0 }}>
-                                <div style={{ fontWeight: '700', fontSize: '14.5px', textDecoration: 'underline', textDecorationColor: '#e2e8f0', textUnderlineOffset: '3px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <div style={{ fontWeight: '700', fontSize: '14.5px', textDecoration: 'underline', textDecorationColor: 'var(--t-linea)', textUnderlineOffset: '3px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                   <span>{oferta.conductor}</span>
                                   {oferta.verificado && (
-                                    <span title="Experiencia verificada" style={{ color: '#a16207', display: 'flex' }}><IconGorro size={13} /></span>
+                                    <span title="Experiencia verificada" style={{ color: 'var(--t-chiva-texto)', display: 'flex' }}><IconGorro size={13} /></span>
                                   )}
                                 </div>
                                 {oferta.calificacion != null
-                                  ? <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#a16207', fontSize: '12px' }}><IconEstrella size={11} />{oferta.calificacion} <span style={{ color: '#94a3b8' }}>({oferta.calificacionCantidad})</span></span>
-                                  : <span style={{ color: '#94a3b8', fontSize: '11.5px' }}>Sin calificaciones aún</span>}
-                                <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '1px' }}>{oferta.vehiculo}</div>
+                                  ? <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--t-chiva-texto)', fontSize: '12px' }}><IconEstrella size={11} />{oferta.calificacion} <span style={{ color: 'var(--t-piedra-clara)' }}>({oferta.calificacionCantidad})</span></span>
+                                  : <span style={{ color: 'var(--t-piedra-clara)', fontSize: '11.5px' }}>Sin calificaciones aún</span>}
+                                <div style={{ fontSize: '11.5px', color: 'var(--t-piedra)', marginTop: '1px' }}>{oferta.vehiculo}</div>
                               </div>
                             </div>
-                            <div style={{ fontWeight: '800', fontSize: '17px', color: BRAND_GREEN, flexShrink: 0, fontFamily: "'Syne', sans-serif" }}>${oferta.precio.toLocaleString()}</div>
+                            <div style={{ fontWeight: '800', fontSize: '17px', color: BRAND_GREEN, flexShrink: 0, fontFamily: T.display }}>${oferta.precio.toLocaleString()}</div>
                           </div>
 
                           {oferta.comodidades && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
                               {oferta.recomendado && (
-                                <span style={{ background: '#f0fdf4', color: BRAND_GREEN, border: `1px solid ${BRAND_GREEN}`, borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '700' }}>
+                                <span style={{ background: 'var(--t-musgo)', color: BRAND_GREEN, border: `1px solid ${BRAND_GREEN}`, borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '700' }}>
                                   Buen ajuste para tu grupo
                                 </span>
                               )}
-                              <span style={{ background: '#f5f4ef', color: '#475569', border: '1px solid #ecebe6', borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '600' }}>
+                              <span style={{ background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '600' }}>
                                 {oferta.comodidades.categoria} · hasta {oferta.comodidades.capacidad} pasajeros
                               </span>
                               {[
@@ -1737,7 +1769,7 @@ const Dashboard = () => {
                                 [oferta.comodidades.tiene_sillas_bebe, 'Sillas para bebé'],
                                 [oferta.comodidades.acepta_mascotas, 'Acepta mascotas'],
                               ].filter(([activo]) => activo).map(([, etiqueta]) => (
-                                <span key={etiqueta} style={{ background: '#f5f4ef', color: '#475569', border: '1px solid #ecebe6', borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '600' }}>
+                                <span key={etiqueta} style={{ background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '600' }}>
                                   {etiqueta}
                                 </span>
                               ))}
@@ -1748,19 +1780,19 @@ const Dashboard = () => {
                               las tiene todas, se muestra igual (no se oculta), pero se avisa qué
                               le falta para que decidas tú si igual te sirve. */}
                           {oferta.comodidades && oferta.comodidades.comodidades_faltantes && oferta.comodidades.comodidades_faltantes.length > 0 && (
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '7px 10px', marginBottom: '10px', fontSize: '11px', color: '#92400e' }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', background: 'var(--t-chiva-suave)', border: '1px solid var(--t-chiva-linea)', borderRadius: '8px', padding: '7px 10px', marginBottom: '10px', fontSize: '11px', color: 'var(--t-chiva-texto)' }}>
                               <IconAlerta size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
                               <span>No tiene: {oferta.comodidades.comodidades_faltantes.join(', ')}</span>
                             </div>
                           )}
 
                           {oferta.created_at && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}><IconReloj size={11} />Oferta enviada {tiempoRelativo(oferta.created_at)}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--t-piedra-clara)', marginBottom: '4px' }}><IconReloj size={11} />Oferta enviada {tiempoRelativo(oferta.created_at)}</div>
                           )}
                           <div style={{ display: 'flex', gap: '8px', marginTop: '13px' }}>
                             <button onClick={() => handleAceptarOferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: BRAND_GREEN, color: '#fff', border: 'none', padding: '10px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Aceptar</button>
-                            <button onClick={() => handleContraoferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: '#e0f2fe', color: '#0369a1', border: 'none', padding: '10px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Contra ofertar</button>
-                            <button onClick={() => handleRechazarOferta(viajeActualizado.id, oferta.id)} title="Rechazar oferta" style={{ background: '#fee2e2', color: '#b91c1c', border: 'none', padding: '10px 13px', borderRadius: '9px', display: 'flex', alignItems: 'center', cursor: 'pointer' }}><IconEquis size={14} /></button>
+                            <button onClick={() => handleContraoferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: 'var(--t-cielo-suave)', color: 'var(--t-cielo-texto)', border: 'none', padding: '10px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Contra ofertar</button>
+                            <button onClick={() => handleRechazarOferta(viajeActualizado.id, oferta.id)} title="Rechazar oferta" style={{ background: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', border: 'none', padding: '10px 13px', borderRadius: '9px', display: 'flex', alignItems: 'center', cursor: 'pointer' }}><IconEquis size={14} /></button>
                           </div>
                         </div>
                       ));
@@ -1779,67 +1811,67 @@ const Dashboard = () => {
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setMostrarNotificaciones(false)}
-              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 2000 }} />
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(14,42,30,0.52)', zIndex: 2000 }} />
             <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'tween', duration: 0.3 }}
-              style={{ position: 'absolute', top: 0, left: 0, width: '380px', maxWidth: '100%', height: '100vh', backgroundColor: '#fff', zIndex: 2001, boxShadow: '5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, sans-serif' }}>
+              style={{ position: 'absolute', top: 0, left: 0, width: '380px', maxWidth: '100%', height: '100vh', backgroundColor: 'var(--t-papel)', zIndex: 2001, boxShadow: '5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', fontFamily: T.ui }}>
 
               {/* Header */}
-              <div style={{ padding: '20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc' }}>
+              <div style={{ padding: '20px', borderBottom: '1px solid var(--t-linea)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--t-niebla)' }}>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>🔔 Notificaciones</h2>
-                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: 'var(--t-tinta)' }}>🔔 Notificaciones</h2>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>
                     {notificaciones.filter(n => !n.is_read).length} sin leer
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {notificaciones.filter(n => !n.is_read).length > 0 && (
                     <button onClick={marcarTodasLeidas}
-                      style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '600', color: '#475569', cursor: 'pointer' }}>
+                      style={{ background: 'none', border: '1px solid var(--t-linea)', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '600', color: 'var(--t-piedra)', cursor: 'pointer' }}>
                       ✓ Leer todas
                     </button>
                   )}
                   <button onClick={() => setMostrarNotificaciones(false)}
-                    style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#64748b' }}>×</button>
+                    style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: 'var(--t-piedra)' }}>×</button>
                 </div>
               </div>
 
               {/* Lista */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
                 {notificaciones.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '50px 20px', color: '#94a3b8' }}>
+                  <div style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--t-piedra-clara)' }}>
                     <div style={{ fontSize: '40px', marginBottom: '10px' }}>🔕</div>
-                    <p style={{ margin: 0, fontWeight: '600', color: '#475569' }}>Sin notificaciones</p>
+                    <p style={{ margin: 0, fontWeight: '600', color: 'var(--t-piedra)' }}>Sin notificaciones</p>
                     <p style={{ margin: '4px 0 0', fontSize: '13px' }}>Las notificaciones aparecerán aquí.</p>
                   </div>
                 )}
                 {notificaciones.map((notif) => {
                   const cfgTipo = {
-                    NEW_OFFER:     { icono: '💰', color: '#7c3aed', bg: '#f5f3ff' },
-                    COUNTER_OFFER: { icono: '🔄', color: '#1d4ed8', bg: '#eff6ff' },
-                    TRIP_ACCEPTED: { icono: '✅', color: '#15803d', bg: '#f0fdf4' },
-                    TRIP_REJECTED: { icono: '❌', color: '#dc2626', bg: '#fef2f2' },
-                    TRIP_STARTED:  { icono: '🚗', color: '#0369a1', bg: '#f0f9ff' },
-                    TRIP_COMPLETED:{ icono: '🏁', color: '#4f46e5', bg: '#eef2ff' },
-                    SYSTEM:        { icono: '📢', color: '#64748b', bg: '#f8fafc' },
+                    NEW_OFFER:     { icono: '💰', color: 'var(--t-cielo-texto)', bg: '#f5f3ff' },
+                    COUNTER_OFFER: { icono: '🔄', color: 'var(--t-cielo-texto)', bg: 'var(--t-cielo-suave)' },
+                    TRIP_ACCEPTED: { icono: '✅', color: 'var(--t-musgo-texto)', bg: 'var(--t-musgo)' },
+                    TRIP_REJECTED: { icono: '❌', color: '#C2410C', bg: 'var(--t-alerta-suave)' },
+                    TRIP_STARTED:  { icono: '🚗', color: 'var(--t-cielo-texto)', bg: 'var(--t-cielo-suave)' },
+                    TRIP_COMPLETED:{ icono: '🏁', color: 'var(--t-cielo-texto)', bg: '#eef2ff' },
+                    SYSTEM:        { icono: '📢', color: 'var(--t-piedra)', bg: 'var(--t-niebla)' },
                   };
                   const cfg = cfgTipo[notif.type] || cfgTipo.SYSTEM;
                   return (
                     <div key={notif.notification_id}
                       onClick={() => !notif.is_read && marcarLeida(notif.notification_id)}
-                      style={{ backgroundColor: notif.is_read ? '#fff' : cfg.bg, borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', border: `1px solid ${notif.is_read ? '#e2e8f0' : cfg.color + '33'}`, cursor: notif.is_read ? 'default' : 'pointer', transition: 'all 0.2s' }}>
+                      style={{ backgroundColor: notif.is_read ? '#fff' : cfg.bg, borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', border: `1px solid ${notif.is_read ? 'var(--t-linea)' : cfg.color + '33'}`, cursor: notif.is_read ? 'default' : 'pointer', transition: 'all 0.2s' }}>
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                         <span style={{ fontSize: '20px', flexShrink: 0 }}>{cfg.icono}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
-                            <p style={{ margin: 0, fontWeight: notif.is_read ? '600' : '700', fontSize: '13px', color: notif.is_read ? '#475569' : '#1e293b' }}>
+                            <p style={{ margin: 0, fontWeight: notif.is_read ? '600' : '700', fontSize: '13px', color: notif.is_read ? 'var(--t-piedra)' : 'var(--t-tinta)' }}>
                               {notif.title}
                             </p>
                             {!notif.is_read && (
                               <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: cfg.color, flexShrink: 0, marginTop: '3px' }} />
                             )}
                           </div>
-                          <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>{notif.message}</p>
-                          <p style={{ margin: '5px 0 0', fontSize: '11px', color: '#94a3b8' }}>
+                          <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--t-piedra)', lineHeight: '1.4' }}>{notif.message}</p>
+                          <p style={{ margin: '5px 0 0', fontSize: '11px', color: 'var(--t-piedra-clara)' }}>
                             {new Date(notif.created_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
@@ -1860,7 +1892,7 @@ const Dashboard = () => {
             {/* Backdrop — fixed para cubrir toda la pantalla */}
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setModalFuec(null)}
-              style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9000 }} />
+              style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(14,42,30,0.78)', zIndex: 9000 }} />
 
             {/* Wrapper centrador — fixed con flex centra sin transform */}
             <div style={{ position: 'fixed', inset: 0, zIndex: 9001, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
@@ -1869,11 +1901,11 @@ const Dashboard = () => {
                 pointerEvents: 'all',
                 width: '500px', maxWidth: '95vw',
                 maxHeight: '85vh',
-                backgroundColor: '#081208',
+                backgroundColor: 'var(--t-monte)',
                 border: '1px solid rgba(34,197,94,0.25)',
                 borderRadius: '16px',
                 boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
-                fontFamily: "'DM Sans', sans-serif",
+                fontFamily: T.ui,
                 display: 'flex',
                 flexDirection: 'column',
               }}>
@@ -1883,7 +1915,7 @@ const Dashboard = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
                     <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: BRAND_GREEN }}>Documento de viaje</p>
-                    <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#f0fdf4', fontFamily: "'Syne', sans-serif" }}>Registrar ocupantes</h3>
+                    <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: 'var(--t-musgo)', fontFamily: T.display }}>Registrar ocupantes</h3>
                   </div>
                   <button onClick={() => setModalFuec(null)}
                     style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '30px', height: '30px', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
@@ -1894,14 +1926,14 @@ const Dashboard = () => {
               </div>
 
               {/* CONTENIDO — scrollable */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', backgroundColor: '#081208' }}>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', backgroundColor: 'var(--t-monte)' }}>
                 {ocupantesFuec.map((ocupante, idx) => (
                   <div key={idx} style={{ backgroundColor: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.12)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                       <span style={{ fontSize: '12px', fontWeight: '700', color: 'rgba(255,255,255,0.5)' }}>Ocupante {idx + 1}</span>
                       {ocupantesFuec.length > 1 && (
                         <button onClick={() => quitarOcupante(idx)}
-                          style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '6px', color: '#fca5a5', cursor: 'pointer', fontSize: '11px', padding: '3px 8px', fontWeight: '600' }}>
+                          style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '6px', color: 'var(--t-alerta-linea)', cursor: 'pointer', fontSize: '11px', padding: '3px 8px', fontWeight: '600' }}>
                           Quitar
                         </button>
                       )}
@@ -1949,7 +1981,7 @@ const Dashboard = () => {
                   Cancelar
                 </button>
                 <button onClick={enviarFuec} disabled={enviandoFuec}
-                  style={{ flex: 2, padding: '12px', background: enviandoFuec ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${BRAND_GREEN}, #16a34a)`, border: 'none', borderRadius: '9px', color: enviandoFuec ? 'rgba(255,255,255,0.4)' : '#052e16', fontWeight: '700', fontSize: '14px', cursor: enviandoFuec ? 'not-allowed' : 'pointer', fontFamily: "'Syne', sans-serif" }}>
+                  style={{ flex: 2, padding: '12px', background: enviandoFuec ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${BRAND_GREEN}, var(--t-ruta))`, border: 'none', borderRadius: '9px', color: enviandoFuec ? 'rgba(255,255,255,0.4)' : 'var(--t-monte)', fontWeight: '700', fontSize: '14px', cursor: enviandoFuec ? 'not-allowed' : 'pointer', fontFamily: T.display }}>
                   {enviandoFuec ? 'Guardando...' : '✓ Confirmar ocupantes'}
                 </button>
               </div>
@@ -1967,14 +1999,14 @@ const Dashboard = () => {
               onClick={() => setModalCalificar(null)}
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
             <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
-              style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: '#fff', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '360px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: 'Inter, sans-serif' }}>
-              <h3 style={{ margin: '0 0 6px', color: '#1e293b', fontSize: '17px' }}>⭐ ¿Cómo estuvo tu viaje?</h3>
-              <p style={{ margin: '0 0 18px', color: '#64748b', fontSize: '13px' }}>Tu calificación ayuda a otros pasajeros a elegir mejor.</p>
+              style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '360px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: T.ui }}>
+              <h3 style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px' }}>⭐ ¿Cómo estuvo tu viaje?</h3>
+              <p style={{ margin: '0 0 18px', color: 'var(--t-piedra)', fontSize: '13px' }}>Tu calificación ayuda a otros pasajeros a elegir mejor.</p>
 
               <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '16px' }}>
                 {[1, 2, 3, 4, 5].map(n => (
                   <button key={n} type="button" onClick={() => setEstrellasCalificar(n)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '30px', padding: 0, color: n <= estrellasCalificar ? '#eab308' : '#e2e8f0', transition: 'color 0.15s' }}>
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '30px', padding: 0, color: n <= estrellasCalificar ? 'var(--t-chiva)' : 'var(--t-linea)', transition: 'color 0.15s' }}>
                     ★
                   </button>
                 ))}
@@ -1982,15 +2014,15 @@ const Dashboard = () => {
 
               <textarea value={comentarioCalificar} onChange={e => setComentarioCalificar(e.target.value)}
                 placeholder="Cuéntanos más (opcional)" rows={3}
-                style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', boxSizing: 'border-box', outline: 'none', resize: 'none', fontFamily: 'inherit', marginBottom: '16px' }} />
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '13px', boxSizing: 'border-box', outline: 'none', resize: 'none', fontFamily: 'inherit', marginBottom: '16px' }} />
 
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button onClick={() => setModalCalificar(null)}
-                  style={{ flex: 1, background: '#f1f5f9', color: '#475569', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
+                  style={{ flex: 1, background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
                   Cancelar
                 </button>
                 <button onClick={enviarCalificacion} disabled={enviandoCalificacion || estrellasCalificar < 1}
-                  style={{ flex: 1, background: (enviandoCalificacion || estrellasCalificar < 1) ? '#9ca3af' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: (enviandoCalificacion || estrellasCalificar < 1) ? 'not-allowed' : 'pointer' }}>
+                  style={{ flex: 1, background: (enviandoCalificacion || estrellasCalificar < 1) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: (enviandoCalificacion || estrellasCalificar < 1) ? 'not-allowed' : 'pointer' }}>
                   {enviandoCalificacion ? 'Enviando...' : 'Enviar calificación'}
                 </button>
               </div>

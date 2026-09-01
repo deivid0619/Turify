@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 
-const FOREST = '#052e16';
-const GOLD = '#eab308';
+const FOREST = 'var(--t-monte)';
+const GOLD = 'var(--t-chiva)';
 
 // HU21 — Perfil público del conductor: el pasajero lo abre tocando el nombre/foto
 // del conductor en una tarjeta de oferta. Formato "pase de abordar" (coherente con
@@ -28,15 +28,15 @@ const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
 
           <motion.div initial={{ opacity: 0, y: 28, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 14, scale: 0.96 }}
             transition={{ type: 'tween', duration: 0.24 }}
-            style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '480px', maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', zIndex: 4001, borderRadius: '26px', boxShadow: '0 30px 80px rgba(5,46,22,0.45)', backgroundColor: '#fff', fontFamily: 'Inter, sans-serif' }}>
+            style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '480px', maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', zIndex: 4001, borderRadius: '26px', boxShadow: '0 30px 80px rgba(5,46,22,0.45)', backgroundColor: 'var(--t-papel)', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
 
             {(cargando || !datos) ? (
-              <div style={{ padding: '100px 20px', textAlign: 'center', color: '#64748b', fontSize: '15px' }}>⏳ Cargando perfil...</div>
+              <div style={{ padding: '100px 20px', textAlign: 'center', color: 'var(--t-piedra)', fontSize: '15px' }}>⏳ Cargando perfil...</div>
             ) : (
               <div>
                 {/* CABECERA — pase de abordar */}
                 <div style={{
-                  position: 'relative', padding: '36px 34px 54px', color: '#f0fdf4',
+                  position: 'relative', padding: '36px 34px 54px', color: 'var(--t-musgo)',
                   background: `radial-gradient(circle at 15% -10%, rgba(34,197,94,0.35), transparent 55%), linear-gradient(155deg, #0a3d1f, ${FOREST} 65%)`
                 }}>
                   <button onClick={onCerrar}
@@ -65,7 +65,7 @@ const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
                         </div>
                       )}
                       {datos.rating_avg != null ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', fontSize: '14px', fontWeight: 700, color: '#fde68a' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', fontSize: '14px', fontWeight: 700, color: 'var(--t-chiva-linea)' }}>
                           ★ {Number(datos.rating_avg).toFixed(1)}
                           <span style={{ color: 'rgba(240,253,244,0.55)', fontWeight: 500 }}>· {datos.rating_count} calificaciones</span>
                         </div>
@@ -78,7 +78,7 @@ const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
                   {datos.conductor_verificado && (
                     <div style={{
                       position: 'absolute', right: '30px', bottom: '-32px', width: '78px', height: '78px', borderRadius: '50%',
-                      background: `radial-gradient(circle at 32% 28%, #fde047, ${GOLD} 55%, #a16207 100%)`,
+                      background: `radial-gradient(circle at 32% 28%, #fde047, ${GOLD} 55%, var(--t-chiva-texto) 100%)`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
                       boxShadow: '0 10px 22px rgba(161,98,7,0.4), 0 0 0 5px #fff', transform: 'rotate(-11deg)', zIndex: 2
                     }}>
@@ -89,33 +89,33 @@ const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
                   )}
                 </div>
 
-                <div style={{ borderTop: '2px dashed #e2e8f0' }} />
+                <div style={{ borderTop: '2px dashed var(--t-linea)' }} />
 
                 {/* DETALLE */}
                 <div style={{ padding: '48px 34px 34px' }}>
                   {datos.empresa_afiliada && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px dashed #e2e8f0' }}>
-                      <span style={{ fontSize: '11.5px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#94a3b8' }}>Empresa afiliada</span>
-                      <span style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>🏢 {datos.empresa_afiliada.name}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px dashed var(--t-linea)' }}>
+                      <span style={{ fontSize: '11.5px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--t-piedra-clara)' }}>Empresa afiliada</span>
+                      <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--t-tinta)' }}>🏢 {datos.empresa_afiliada.name}</span>
                     </div>
                   )}
 
                   {datos.conductor_verificado && datos.years_experience != null && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px dashed #e2e8f0' }}>
-                      <span style={{ fontSize: '11.5px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#94a3b8' }}>Experiencia verificada</span>
-                      <span style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>{datos.years_experience} años</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px dashed var(--t-linea)' }}>
+                      <span style={{ fontSize: '11.5px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--t-piedra-clara)' }}>Experiencia verificada</span>
+                      <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--t-tinta)' }}>{datos.years_experience} años</span>
                     </div>
                   )}
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0' }}>
-                    <span style={{ fontSize: '11.5px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#94a3b8' }}>Viajes completados</span>
-                    <span style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>{datos.viajes_completados}</span>
+                    <span style={{ fontSize: '11.5px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--t-piedra-clara)' }}>Viajes completados</span>
+                    <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--t-tinta)' }}>{datos.viajes_completados}</span>
                   </div>
 
                   {datos.vehiculo && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '20px' }}>
                       {ETIQUETAS_COMODIDAD.filter(([campo]) => datos.vehiculo[campo]).map(([campo, etiqueta]) => (
-                        <span key={campo} style={{ fontSize: '12.5px', fontWeight: 600, padding: '6px 13px', borderRadius: '100px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}>
+                        <span key={campo} style={{ fontSize: '12.5px', fontWeight: 600, padding: '6px 13px', borderRadius: '100px', background: 'var(--t-niebla)', border: '1px solid var(--t-linea)', color: 'var(--t-tinta)' }}>
                           {etiqueta}
                         </span>
                       ))}
@@ -123,10 +123,10 @@ const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
                   )}
 
                   {datos.conductor_verificado && (
-                    <div style={{ marginTop: '24px', display: 'flex', gap: '12px', alignItems: 'flex-start', background: 'linear-gradient(135deg,#fffbeb,#fef9c3)', border: '1px solid #fde68a', borderRadius: '12px', padding: '15px 17px' }}>
+                    <div style={{ marginTop: '24px', display: 'flex', gap: '12px', alignItems: 'flex-start', background: 'var(--t-chiva-suave)', border: '1px solid var(--t-chiva-linea)', borderRadius: '12px', padding: '15px 17px' }}>
                       <span style={{ fontSize: '21px' }}>🎓</span>
                       <div>
-                        <b style={{ display: 'block', fontSize: '14px', color: '#854d0e', marginBottom: '3px' }}>Experiencia verificada por Turify</b>
+                        <b style={{ display: 'block', fontSize: '14px', color: 'var(--t-chiva-texto)', marginBottom: '3px' }}>Experiencia verificada por Turify</b>
                         <span style={{ fontSize: '12.5px', color: '#92702f', lineHeight: 1.55 }}>El administrador confirmó los años de experiencia de este conductor a partir de su RUNT.</span>
                       </div>
                     </div>
