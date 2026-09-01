@@ -7,6 +7,7 @@ import { AuthContext } from './AuthContext';
 import PanelConductor from './PanelConductor';
 import AdminConductores from './Adminconductores';
 import InputDireccion from './InputDireccion';
+import SelectorFechaHora from './SelectorFechaHora';
 import PerfilDrawer from './PerfilDrawer';
 import { ToastContainer, useToast } from './Toast';
 import { SkeletonDashboard, SkeletonTarjetaConfirmado, ErrorConexion } from './Skeleton';
@@ -23,6 +24,25 @@ const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 const mapContainerStyle = { width: '100%', height: '100%' };
 const centroDefaultColombia = { lat: 4.6097, lng: -74.0817 };
+
+// ── Iconos de trazo — mismo lenguaje visual que PerfilConductorPagina (sin emojis) ──
+const IconTrazo = ({ children, size = 16, color = 'currentColor', strokeWidth = 1.7, style, ...rest }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style} {...rest}>{children}</svg>
+);
+const IconReloj = (p) => <IconTrazo {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.2 2" /></IconTrazo>;
+const IconVisto = (p) => <IconTrazo {...p}><circle cx="12" cy="12" r="9" /><path d="M8 12.5l2.5 2.5L16 9.5" /></IconTrazo>;
+const IconBandera = (p) => <IconTrazo {...p}><path d="M6 21V4" /><path d="M6 4h12l-3 4 3 4H6" /></IconTrazo>;
+const IconAuto = (p) => <IconTrazo {...p}><path d="M4 16v-3.2a1.4 1.4 0 0 1 .12-.57L5.9 8.4A2 2 0 0 1 7.75 7h8.5a2 2 0 0 1 1.85 1.4l1.78 3.83c.11.24.12.4.12.57V16" /><path d="M4 16h16v2a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H7v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2Z" /><circle cx="7.5" cy="16" r="1.4" /><circle cx="16.5" cy="16" r="1.4" /></IconTrazo>;
+const IconCalendario = (p) => <IconTrazo {...p}><rect x="3.5" y="5" width="17" height="15" rx="2.5" /><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5" /></IconTrazo>;
+const IconPersonas = (p) => <IconTrazo {...p}><circle cx="9" cy="8.5" r="2.6" /><path d="M4 19c0-3 2.2-5 5-5s5 2 5 5" /><path d="M15.5 6.5a2.4 2.4 0 1 1 0 4.8" /><path d="M17 14.3c1.9.5 3 2.1 3 4.7" /></IconTrazo>;
+const IconRadar = (p) => <IconTrazo {...p}><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" /><path d="M12 12l6-3.2" /><path d="M6 12a6 6 0 0 1 6-6" opacity="0.55" /><path d="M4 12a8 8 0 0 1 8-8" opacity="0.3" /></IconTrazo>;
+const IconRecibo = (p) => <IconTrazo {...p}><path d="M6 3.5h12v17l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3-2 1.3v-17Z" /><path d="M8.5 8h7M8.5 11.5h7M8.5 15h4.5" /></IconTrazo>;
+const IconEstrella = (p) => <IconTrazo {...p}><path d="M12 3.7l2.4 5 5.4.6-4 3.8 1 5.4-4.8-2.6-4.8 2.6 1-5.4-4-3.8 5.4-.6Z" /></IconTrazo>;
+const IconClipboard = (p) => <IconTrazo {...p}><rect x="5" y="4.5" width="14" height="16" rx="2.3" /><rect x="8.7" y="3" width="6.6" height="3" rx="1.3" /><path d="M8.5 11.5h7M8.5 15h5" /></IconTrazo>;
+const IconEquis = (p) => <IconTrazo {...p}><path d="M6 6l12 12M18 6L6 18" /></IconTrazo>;
+const IconFlecha = (p) => <IconTrazo {...p}><path d="M13 6l6 6-6 6M19 12H5" /></IconTrazo>;
+const IconAlerta = (p) => <IconTrazo {...p}><path d="M12 4l9 15.5H3Z" /><path d="M12 10v4M12 17h.01" /></IconTrazo>;
+const IconGorro = (p) => <IconTrazo {...p}><path d="M12 5 3 9.2 12 13l9-3.8L12 5Z" /><path d="M7 11.3V15c0 1.4 2.2 2.6 5 2.6s5-1.2 5-2.6v-3.7" /></IconTrazo>;
 
 const ModalErrorDireccion = ({ textoDireccion, onCerrar, onContinuar }) => (
   <>
@@ -82,11 +102,13 @@ const Dashboard = () => {
   const [pasajeros, setPasajeros] = useState({ adultos: 1, ninos: 0, mascotas: false });
   const [cargandoMapa, setCargandoMapa] = useState(false);
   const [datosMapa, setDatosMapa] = useState({ origen: null, destino: null, ruta: [] });
-  // HU09 — el pasajero puede mover el punto desde el que se buscan conductores
-  // (por defecto es el origen, útil si vive en una zona con pocos conductores cerca, ej. una finca)
-  const [puntoBusqueda, setPuntoBusqueda] = useState(null); // { lat, lng } | null = usar el origen
-  const [radioBusqueda, setRadioBusqueda] = useState(15);
-  const [eligiendoPuntoBusqueda, setEligiendoPuntoBusqueda] = useState(false);
+  // HU09 — la búsqueda de conductores es automática (por origen del viaje, con
+  // radio ampliable), ya no la elige el pasajero.
+  // HU38 — comodidades que el pasajero puede exigir del vehículo al publicar el viaje
+  const [comodidadesFiltro, setComodidadesFiltro] = useState({
+    tiene_ac: false, tiene_wifi: false, tiene_bano: false, tiene_musica: false,
+    tiene_maletero_amplio: false, tiene_sillas_bebe: false, acepta_mascotas: false,
+  });
   const [infoRuta, setInfoRuta] = useState(null);
 
   // Equivalente al viejo <AjustarCamara> de Leaflet: cuando hay origen y destino, encuadra ambos;
@@ -107,7 +129,9 @@ const Dashboard = () => {
   const [mostrarMisSolicitudes, setMostrarMisSolicitudes] = useState(false);
   const [listaSolicitudes, setListaSolicitudes] = useState([]);
   const [viajesConfirmados, setViajesConfirmados] = useState([]);
-  const [pestanaViajes, setPestanaViajes] = useState('activos'); // 'activos' | 'confirmados'
+  const [pestanaViajes, setPestanaViajes] = useState('activos'); // 'activos' | 'confirmados' | 'completados'
+  const [confirmandoCancelarId, setConfirmandoCancelarId] = useState(null);
+  const [cancelandoId, setCancelandoId] = useState(null);
   const [actualizandoViajes, setActualizandoViajes] = useState(false);
 
   // HU21 — Perfil público del conductor: se abre en una pestaña nueva
@@ -398,13 +422,14 @@ const Dashboard = () => {
         }
       }
 
-      // HU09 — punto y radio de búsqueda de conductores (por defecto: el origen del viaje)
-      const puntoDeBusqueda = puntoBusqueda || datosMapa.origen;
-      if (puntoDeBusqueda) {
-        payload.search_lat = puntoDeBusqueda.lat;
-        payload.search_lng = puntoDeBusqueda.lng;
-        payload.radius_km = radioBusqueda;
-      }
+      // HU38 — comodidades que el pasajero exige del vehículo (filtro de búsqueda)
+      payload.requiere_ac = comodidadesFiltro.tiene_ac;
+      payload.requiere_wifi = comodidadesFiltro.tiene_wifi;
+      payload.requiere_bano = comodidadesFiltro.tiene_bano;
+      payload.requiere_musica = comodidadesFiltro.tiene_musica;
+      payload.requiere_maletero_amplio = comodidadesFiltro.tiene_maletero_amplio;
+      payload.requiere_sillas_bebe = comodidadesFiltro.tiene_sillas_bebe;
+      payload.requiere_acepta_mascotas = comodidadesFiltro.acepta_mascotas;
 
       const res = await fetch(`${API_BASE_URL}/api/service-requests/`, {
         method: 'POST',
@@ -412,12 +437,25 @@ const Dashboard = () => {
         body: JSON.stringify(payload)
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Error al publicar el viaje'); }
+
+      // HU09 — el filtro de comodidades (HU38) ya NO excluye a nadie de la
+      // notificación inicial (es flexible: se avisa a todos los cercanos, y el
+      // pasajero decide al ver las ofertas quién cumple qué). Si nadie fue
+      // notificado es sencillamente porque no hay ningún conductor conectado
+      // en este momento — no tiene que ver con los filtros elegidos.
+      const data = await res.json().catch(() => null);
+      const sinConductoresConectados = data && data.conductores_notificados === 0;
+      if (sinConductoresConectados) {
+        toast.warning('Publicado, pero no hay ningún conductor conectado en este momento. Tu viaje queda visible y te avisaremos apenas alguno se conecte.');
+      }
+
       setInfoRuta(null);
       setDatosMapa({ origen: null, destino: null, ruta: [] });
-      setPuntoBusqueda(null);
-      setRadioBusqueda(15);
+      setComodidadesFiltro({ tiene_ac: false, tiene_wifi: false, tiene_bano: false, tiene_musica: false, tiene_maletero_amplio: false, tiene_sillas_bebe: false, acepta_mascotas: false });
       setBusqueda({ origen: '', destino: '', departure_time: '', return_time: '' });
-      toast.success('¡Viaje publicado exitosamente! Los conductores podrán hacerte ofertas.');
+      if (!sinConductoresConectados) {
+        toast.success('¡Viaje publicado exitosamente! Los conductores podrán hacerte ofertas.');
+      }
     } catch (error) {
       toast.error(`Error: ${error.message}`);
     } finally {
@@ -618,6 +656,7 @@ const Dashboard = () => {
           seats_needed: (v.adults_count || 1) + (v.children_count || 0),
           estado: ofertas.length > 0 ? 'Oferta recibida' : 'Buscando conductor',
           fechaCreacion: new Date(v.created_at || Date.now()).toLocaleDateString(),
+          created_at: v.created_at,
           ofertas
         };
       }));
@@ -676,6 +715,29 @@ const Dashboard = () => {
       cargarMisViajes();
     } catch (error) {
       toast.error(`Error: ${error.message}`);
+    }
+  };
+
+  // HU09 — el pasajero puede cancelar la búsqueda mientras el viaje sigue
+  // pendiente (aún no aceptó ninguna oferta). Una vez cancelado, el backend lo
+  // marca CANCELLED y ya no aparece en /pending, así que simplemente lo
+  // quitamos de la lista local sin esperar al próximo refresco.
+  const cancelarBusqueda = async (viajeId) => {
+    setCancelandoId(viajeId);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${viajeId}/cancel`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'No se pudo cancelar la búsqueda.'); }
+      setListaSolicitudes(prev => prev.filter(v => v.id !== viajeId));
+      setViajeSeleccionado(prev => (prev && prev.id === viajeId ? null : prev));
+      toast.success('Búsqueda cancelada.');
+    } catch (error) {
+      toast.error(`Error: ${error.message}`);
+    } finally {
+      setCancelandoId(null);
+      setConfirmandoCancelarId(null);
     }
   };
 
@@ -816,6 +878,15 @@ const Dashboard = () => {
     return `hace ${Math.floor(diff / 86400)}d`;
   };
 
+  // HU09 — a partir de cuánto tiempo sin ninguna oferta le avisamos al pasajero
+  // que la búsqueda sigue en curso (útil sobre todo en veredas/zonas con pocos
+  // conductores conectados, donde una respuesta puede tardar más).
+  const MINUTOS_AVISO_SIN_OFERTAS = 15;
+  const minutosTranscurridos = (fechaStr) => {
+    if (!fechaStr) return 0;
+    return Math.floor((Date.now() - new Date(fechaStr).getTime()) / 60000);
+  };
+
   // ── Estilos del sidebar (rediseño HU05 — inspirado en el layout de Uber, pero
   // sin adoptar su paleta: el mapa deja de ser el fondo de toda la pantalla y pasa
   // a ser un panel contenido junto a un panel fijo con el formulario de búsqueda) ──
@@ -860,6 +931,25 @@ const Dashboard = () => {
   if (usuario?.role === 'ADMIN') {
     return <AdminConductores />;
   }
+
+  // "Confirmados" y "Completados" ahora son pestañas separadas — antes
+  // compartían una sola lista (ordenada por fecha de creación), así que un
+  // historial largo de viajes completados terminaba empujando los viajes
+  // activos hacia abajo y había que bajar a buscarlos.
+  // "Confirmados": solo ASSIGNED/IN_PROGRESS, con el que está en curso ahora
+  // mismo primero, y el resto por la salida más próxima — siempre arriba lo
+  // que necesita tu atención ahora.
+  const viajesActivosConfirmados = viajesConfirmados
+    .filter(v => v.trip_status !== 'COMPLETED')
+    .sort((a, b) => {
+      if (a.trip_status === 'IN_PROGRESS' && b.trip_status !== 'IN_PROGRESS') return -1;
+      if (b.trip_status === 'IN_PROGRESS' && a.trip_status !== 'IN_PROGRESS') return 1;
+      return new Date(a.departure_time) - new Date(b.departure_time);
+    });
+  // "Completados": el historial, con el más reciente primero, en su propia pestaña.
+  const viajesCompletadosOrdenados = viajesConfirmados
+    .filter(v => v.trip_status === 'COMPLETED')
+    .sort((a, b) => new Date(b.departure_time) - new Date(a.departure_time));
 
   return (
     <>
@@ -938,6 +1028,61 @@ const Dashboard = () => {
           grid-template-columns: 1fr !important;
         }
       }
+
+      /* ── PANEL "MIS VIAJES" — pasajes de viaje ── */
+      @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+      @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.45; transform: scale(0.7); }
+      }
+      @keyframes ticket-entra {
+        from { opacity: 0; transform: translateY(6px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      .viaje-pasaje {
+        position: relative;
+        background: #fff;
+        border-radius: 14px;
+        margin-bottom: 16px;
+        box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 8px 20px -12px rgba(15,23,42,0.18);
+        border: 1px solid #ecebe6;
+        animation: ticket-entra 0.25s ease-out;
+        overflow: hidden;
+      }
+      .viaje-pasaje__talon {
+        position: relative;
+        border-top: 1.5px dashed #d8d5cc;
+        margin: 0 18px;
+      }
+      .viaje-pasaje__talon::before,
+      .viaje-pasaje__talon::after {
+        content: '';
+        position: absolute;
+        top: -9px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #faf9f6;
+        border: 1px solid #ecebe6;
+      }
+      .viaje-pasaje__talon::before { left: -27px; }
+      .viaje-pasaje__talon::after { right: -27px; }
+      .pestana-mv {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        flex: 1;
+        padding: 9px 4px;
+        border-radius: 9px;
+        border: none;
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 11.5px;
+        font-family: 'DM Sans', sans-serif;
+        letter-spacing: 0.01em;
+        transition: background-color 0.18s, color 0.18s;
+      }
     `}</style>
     <div style={{ height: '100vh', width: '100%', position: 'relative', fontFamily: 'Inter, sans-serif', overflow: 'hidden', display: 'flex' }}>
 
@@ -992,19 +1137,28 @@ const Dashboard = () => {
                 <InputDireccion name="destino" placeholder="¿A dónde vas?" value={busqueda.destino} onChange={handleBusqueda} mapsLoaded={mapsLoaded} ancho="260px" />
               </div>
             </div>
-            <div style={{ ...fieldBoxStyle, flexDirection: 'column', alignItems: 'flex-start' }}>
-              <div style={fieldLabelStyle}>Fecha y hora</div>
-              <div style={{ display: 'flex', gap: '5px', alignItems: 'center', width: '100%' }}>
-                <input type="datetime-local" name="departure_time" value={busqueda.departure_time} onChange={handleBusqueda} style={{ ...inputStyle, width: '100%', color: busqueda.departure_time ? '#000' : '#888' }} required />
-                <AnimatePresence>
-                  {tipoViaje === 'redondo' && (
-                    <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} style={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
-                      <span style={{ fontSize: '12px', color: '#888', marginRight: '5px' }}>→</span>
-                      <input type="datetime-local" name="return_time" value={busqueda.return_time} onChange={handleBusqueda} style={{ ...inputStyle, width: '130px', color: busqueda.return_time ? '#000' : '#888' }} required={tipoViaje === 'redondo'} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', width: '100%' }}>
+              <SelectorFechaHora
+                label="Salida"
+                value={busqueda.departure_time}
+                onChange={val => setBusqueda(prev => ({ ...prev, departure_time: val }))}
+                placeholder="Fecha y hora de salida"
+                required
+              />
+              <AnimatePresence>
+                {tipoViaje === 'redondo' && (
+                  <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} style={{ overflow: 'hidden', flexShrink: 0 }}>
+                    <SelectorFechaHora
+                      label="Regreso"
+                      value={busqueda.return_time}
+                      onChange={val => setBusqueda(prev => ({ ...prev, return_time: val }))}
+                      min={busqueda.departure_time || undefined}
+                      placeholder="Fecha y hora de regreso"
+                      required={tipoViaje === 'redondo'}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
             <div style={{ position: 'relative' }}>
               <div onClick={() => setMostrarPasajeros(!mostrarPasajeros)} style={{ ...fieldBoxStyle, cursor: 'pointer', userSelect: 'none', justifyContent: 'space-between' }}>
@@ -1074,26 +1228,10 @@ const Dashboard = () => {
               center={datosMapa.origen || centroDefaultColombia}
               zoom={datosMapa.origen ? 15 : 6}
               onLoad={onMapLoad}
-              onClick={(e) => {
-                // HU09 — si el pasajero activó "elegir otro punto de búsqueda", el siguiente
-                // click en el mapa define desde dónde se buscarán conductores.
-                if (!eligiendoPuntoBusqueda) return;
-                setPuntoBusqueda({ lat: e.latLng.lat(), lng: e.latLng.lng() });
-                setEligiendoPuntoBusqueda(false);
-              }}
-              options={{ disableDefaultUI: true, zoomControl: true, draggableCursor: eligiendoPuntoBusqueda ? 'crosshair' : undefined }}
+              options={{ disableDefaultUI: true, zoomControl: true }}
             >
               {datosMapa.origen && <MarkerF position={datosMapa.origen} title="Origen" />}
               {datosMapa.destino && <MarkerF position={datosMapa.destino} title="Destino" />}
-              {puntoBusqueda && (
-                <MarkerF
-                  position={puntoBusqueda}
-                  draggable
-                  onDragEnd={(e) => setPuntoBusqueda({ lat: e.latLng.lat(), lng: e.latLng.lng() })}
-                  title="Punto de búsqueda de conductores"
-                  icon={mapsLoaded ? { path: window.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: '#f59e0b', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 } : undefined}
-                />
-              )}
               {datosMapa.ruta.length > 0 && (
                 <PolylineF path={datosMapa.ruta} options={{ strokeColor: BRAND_GREEN, strokeWeight: 4 }} />
               )}
@@ -1117,36 +1255,37 @@ const Dashboard = () => {
                   </p>
                 )}
 
-                {/* HU09 — Rango de búsqueda de conductores */}
-                <div style={{ textAlign: 'left', margin: '4px 0 14px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-                  <p style={{ margin: '0 0 6px', fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Buscar conductores en un radio de
+                {/* HU09 — la búsqueda de conductores es automática desde el origen del
+                    viaje: empieza cerca y se amplía sola si no hay nadie disponible. */}
+                <p style={{ margin: '0 0 12px', fontSize: '11px', color: '#64748b', textAlign: 'left' }}>
+                  Buscamos automáticamente a los conductores disponibles más cercanos a tu origen.
+                </p>
+
+                {/* HU38 — Filtro de comodidades del vehículo */}
+                <div style={{ textAlign: 'left', margin: '0 0 14px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+                  <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    ¿Necesitas alguna comodidad? (opcional)
                   </p>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                    {[5, 10, 15, 20, 30].map(km => (
-                      <button key={km} onClick={() => setRadioBusqueda(km)}
-                        style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: '600', backgroundColor: radioBusqueda === km ? BRAND_GREEN : '#e2e8f0', color: radioBusqueda === km ? '#fff' : '#475569' }}>
-                        {km} km
-                      </button>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                    {[
+                      ['tiene_ac', 'Aire acondicionado'],
+                      ['tiene_wifi', 'WiFi'],
+                      ['tiene_bano', 'Baño'],
+                      ['tiene_musica', 'Música'],
+                      ['tiene_maletero_amplio', 'Maletero amplio'],
+                      ['tiene_sillas_bebe', 'Sillas para bebé'],
+                      ['acepta_mascotas', 'Acepta mascotas'],
+                    ].map(([campo, etiqueta]) => (
+                      <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#334155', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={!!comodidadesFiltro[campo]}
+                          onChange={e => setComodidadesFiltro({ ...comodidadesFiltro, [campo]: e.target.checked })} />
+                        {etiqueta}
+                      </label>
                     ))}
                   </div>
-                  <p style={{ margin: '0 0 6px', fontSize: '12px', color: '#64748b' }}>
-                    {puntoBusqueda
-                      ? '📍 Buscando desde el punto que elegiste en el mapa (arrástralo para ajustarlo).'
-                      : '📍 Por defecto se busca desde tu origen. Si vives en una zona con pocos conductores cerca (ej. una finca), puedes elegir otro punto.'}
+                  <p style={{ margin: '8px 0 0', fontSize: '10.5px', color: '#94a3b8' }}>
+                    Solo se te notificarán ofertas de conductores cuyo vehículo cumpla lo que marques aquí.
                   </p>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={() => setEligiendoPuntoBusqueda(true)}
-                      style={{ flex: 1, background: eligiendoPuntoBusqueda ? BRAND_GREEN : '#fff', color: eligiendoPuntoBusqueda ? '#fff' : BRAND_GREEN, border: `1px solid ${BRAND_GREEN}`, padding: '7px', borderRadius: '8px', fontWeight: '600', fontSize: '11px', cursor: 'pointer' }}>
-                      {eligiendoPuntoBusqueda ? 'Toca el mapa...' : (puntoBusqueda ? 'Cambiar punto' : 'Elegir otro punto en el mapa')}
-                    </button>
-                    {puntoBusqueda && (
-                      <button onClick={() => { setPuntoBusqueda(null); setEligiendoPuntoBusqueda(false); }}
-                        style={{ background: '#fff', color: '#ef4444', border: '1px solid #fecaca', padding: '7px 10px', borderRadius: '8px', fontWeight: '600', fontSize: '11px', cursor: 'pointer' }}>
-                        Usar mi origen
-                      </button>
-                    )}
-                  </div>
                 </div>
 
                 <button onClick={crearViaje} disabled={enviandoSolicitud}
@@ -1217,304 +1356,366 @@ const Dashboard = () => {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => { setMostrarMisSolicitudes(false); setViajeSeleccionado(null); }}
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 2000 }} />
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.3 }}
-              style={{ position: 'absolute', top: 0, right: 0, width: '420px', maxWidth: '100%', height: '100vh', backgroundColor: '#fff', zIndex: 2001, boxShadow: '-5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ padding: '20px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+            <motion.div className="turify-panel-lateral" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.3 }}
+              style={{ position: 'absolute', top: 0, right: 0, width: '420px', maxWidth: '100%', height: '100vh', backgroundColor: '#faf9f6', zIndex: 2001, boxShadow: '-5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '18px 20px', borderBottom: '1px solid #ecebe6', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   {viajeSeleccionado && (
-                    <button onClick={() => setViajeSeleccionado(null)} style={{ border: 'none', background: '#e2e8f0', width: '30px', height: '30px', borderRadius: '50%', cursor: 'pointer', fontWeight: 'bold' }}>←</button>
+                    <button onClick={() => setViajeSeleccionado(null)} title="Volver"
+                      style={{ border: '1px solid #ecebe6', background: '#faf9f6', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1e293b' }}>
+                      <IconFlecha size={15} style={{ transform: 'rotate(180deg)' }} />
+                    </button>
                   )}
-                  <h2 style={{ margin: 0, fontSize: '18px', color: '#1e293b' }}>{viajeSeleccionado ? 'Ofertas del viaje' : 'Mis Viajes'}</h2>
+                  <div>
+                    <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a', fontFamily: "'Syne', sans-serif", letterSpacing: '-0.01em' }}>
+                      {viajeSeleccionado ? 'Ofertas del viaje' : 'Mis viajes'}
+                    </h2>
+                    {viajeSeleccionado && (
+                      <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#94a3b8' }}>{viajeSeleccionado.origin} → {viajeSeleccionado.destination}</p>
+                    )}
+                  </div>
                 </div>
-                <button onClick={() => { setMostrarMisSolicitudes(false); setViajeSeleccionado(null); }} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#64748b' }}>×</button>
+                <button onClick={() => { setMostrarMisSolicitudes(false); setViajeSeleccionado(null); }} title="Cerrar"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconEquis size={17} />
+                </button>
               </div>
               {/* PESTAÑAS */}
               {!viajeSeleccionado && (
-                <div style={{ display: 'flex', padding: '0 16px 12px', gap: '8px', borderBottom: '1px solid #eee', backgroundColor: '#f8fafc' }}>
+                <div style={{ display: 'flex', padding: '12px 16px', gap: '6px', borderBottom: '1px solid #ecebe6', backgroundColor: '#fff' }}>
                   {[
-                    { id: 'activos', label: '⏳ En búsqueda', count: listaSolicitudes.length },
-                    { id: 'confirmados', label: '✅ Confirmados', count: viajesConfirmados.length }
+                    { id: 'activos', label: 'Buscando', icon: IconReloj, count: listaSolicitudes.length },
+                    { id: 'confirmados', label: 'Confirmados', icon: IconVisto, count: viajesActivosConfirmados.length },
+                    { id: 'completados', label: 'Completados', icon: IconBandera, count: viajesCompletadosOrdenados.length }
                   ].map(tab => (
-                    <button key={tab.id} onClick={() => setPestanaViajes(tab.id)}
-                      style={{ flex: 1, padding: '7px 10px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '12px', transition: 'all 0.2s',
-                        backgroundColor: pestanaViajes === tab.id ? BRAND_GREEN : '#e2e8f0',
-                        color: pestanaViajes === tab.id ? '#fff' : '#475569' }}>
+                    <button key={tab.id} className="pestana-mv" onClick={() => setPestanaViajes(tab.id)}
+                      style={{
+                        backgroundColor: pestanaViajes === tab.id ? BRAND_GREEN : '#f1f0eb',
+                        color: pestanaViajes === tab.id ? '#fff' : '#64748b' }}>
+                      <tab.icon size={13} />
                       {tab.label}
-                      {tab.count > 0 && <span style={{ marginLeft: '5px', background: 'rgba(0,0,0,0.15)', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '10px' }}>{tab.count}</span>}
+                      {tab.count > 0 && <span style={{ background: pestanaViajes === tab.id ? 'rgba(255,255,255,0.28)' : '#e2e8f0', color: pestanaViajes === tab.id ? '#fff' : '#64748b', borderRadius: '10px', padding: '1px 6px', fontSize: '10px' }}>{tab.count}</span>}
                     </button>
                   ))}
                   <button onClick={refrescarViajes} disabled={actualizandoViajes} title="Actualizar"
-                    style={{ flexShrink: 0, width: '32px', padding: '7px 0', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', cursor: actualizandoViajes ? 'default' : 'pointer', fontSize: '13px', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ display: 'inline-block', animation: actualizandoViajes ? 'girar 0.8s linear infinite' : 'none' }}>↻</span>
+                    style={{ flexShrink: 0, width: '32px', borderRadius: '9px', border: '1px solid #ecebe6', background: '#fff', cursor: actualizandoViajes ? 'default' : 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <IconTrazo size={14} style={{ display: 'inline-flex', animation: actualizandoViajes ? 'girar 0.8s linear infinite' : 'none' }}>
+                      <path d="M4 4v5h5" /><path d="M20 20v-5h-5" /><path d="M5.5 15A7.5 7.5 0 0 0 19 9.5" /><path d="M18.5 9A7.5 7.5 0 0 0 5 14.5" />
+                    </IconTrazo>
                   </button>
                 </div>
               )}
-              <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
+              <div style={{ padding: '18px', overflowY: 'auto', flex: 1 }}>
 
                 {/* PESTAÑA: EN BÚSQUEDA */}
                 {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '50px 20px' }}>
-                    <svg width="120" height="90" viewBox="0 0 120 90" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginBottom: '16px', opacity: 0.7 }}>
-                      <rect x="10" y="30" width="100" height="48" rx="10" fill="#f0fdf4" stroke="#bbf7d0" strokeWidth="1.5"/>
-                      <rect x="22" y="42" width="36" height="6" rx="3" fill="#86efac"/>
-                      <rect x="22" y="54" width="24" height="4" rx="2" fill="#d1fae5"/>
-                      <circle cx="88" cy="52" r="12" fill="#22c55e" opacity="0.15" stroke="#22c55e" strokeWidth="1.5"/>
-                      <path d="M83 52 L87 56 L93 48" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <circle cx="30" cy="16" r="8" fill="#dcfce7" stroke="#86efac" strokeWidth="1.5"/>
-                      <path d="M27 16 L29.5 18.5 L33 13" stroke="#16a34a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      <circle cx="60" cy="10" r="5" fill="#f0fdf4" stroke="#bbf7d0" strokeWidth="1"/>
-                      <circle cx="90" cy="18" r="6" fill="#dcfce7" stroke="#86efac" strokeWidth="1"/>
-                    </svg>
+                    <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: BRAND_GREEN }}>
+                      <IconRadar size={24} />
+                    </div>
                     <p style={{ margin: '0 0 6px', fontWeight: '700', color: '#1e293b', fontSize: '15px' }}>Sin viajes activos</p>
                     <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>Busca una ruta en el mapa y<br/>publica tu primer viaje.</p>
                   </div>
                 )}
-                {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.map((viaje) => (
-                  <div key={viaje.id} onClick={() => setViajeSeleccionado(viaje)}
-                    style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '15px', marginBottom: '15px', cursor: 'pointer', backgroundColor: viaje.ofertas.length > 0 ? '#f0fdf4' : '#fff', borderLeft: viaje.ofertas.length > 0 ? `4px solid ${BRAND_GREEN}` : '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '12px', color: '#64748b' }}>{viaje.fechaCreacion}</span>
-                      <span style={{ color: viaje.ofertas.length > 0 ? BRAND_GREEN : '#ca8a04', fontSize: '12px', fontWeight: 'bold' }}>
-                        {viaje.ofertas.length > 0 ? `🎉 ${viaje.ofertas.length} Oferta(s)` : '⏳ ' + viaje.estado}
+                {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.map((viaje) => {
+                  const avisoSinOfertas = viaje.ofertas.length === 0 && minutosTranscurridos(viaje.created_at) >= MINUTOS_AVISO_SIN_OFERTAS;
+                  return (
+                  <div key={viaje.id} onClick={() => setViajeSeleccionado(viaje)} className="viaje-pasaje" style={{ cursor: 'pointer', padding: '13px 16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ fontWeight: '700', color: '#0f172a', fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viaje.origin}</span>
+                        <IconFlecha size={11} color={BRAND_GREEN} style={{ flexShrink: 0 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viaje.destination}</span>
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, marginLeft: '8px', color: viaje.ofertas.length > 0 ? BRAND_GREEN : '#b45309', fontSize: '11px', fontWeight: '700' }}>
+                        {viaje.ofertas.length > 0
+                          ? <><IconVisto size={12} />{viaje.ofertas.length}</>
+                          : <IconReloj size={12} />}
                       </span>
                     </div>
-                    <div style={{ fontWeight: 'bold', color: '#0f172a', fontSize: '15px', marginBottom: '5px' }}>
-                      {viaje.origin} <span style={{ color: BRAND_GREEN }}>→</span> {viaje.destination}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', color: '#94a3b8' }}>
+                      <IconCalendario size={11} />
+                      <span>{new Date(viaje.departure_time).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                      <span style={{ margin: '0 1px' }}>·</span>
+                      <IconPersonas size={11} />
+                      <span>{viaje.seats_needed}</span>
                     </div>
-                    <div style={{ fontSize: '13px', color: '#555', marginBottom: '5px' }}>🗓️ Salida: {new Date(viaje.departure_time).toLocaleString()}</div>
-                    <div style={{ fontSize: '13px', color: '#555' }}>👥 {viaje.seats_needed} asientos solicitados</div>
+
+                    {avisoSinOfertas && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '8px', fontSize: '11px', color: '#b45309' }}>
+                        <IconAlerta size={12} style={{ flexShrink: 0 }} />
+                        <span>Seguimos buscando conductores en tu zona.</span>
+                      </div>
+                    )}
+
+                    {/* Cancelar búsqueda — con confirmación inline, no window.confirm */}
+                    {confirmandoCancelarId === viaje.id ? (
+                      <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '9px' }}>
+                        <span style={{ fontSize: '11.5px', color: '#b91c1c', flex: 1 }}>¿Cancelar?</span>
+                        <button onClick={() => setConfirmandoCancelarId(null)} disabled={cancelandoId === viaje.id}
+                          style={{ background: '#fff', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '7px', padding: '4px 9px', fontSize: '10.5px', fontWeight: '600', cursor: 'pointer' }}>
+                          No
+                        </button>
+                        <button onClick={() => cancelarBusqueda(viaje.id)} disabled={cancelandoId === viaje.id}
+                          style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '7px', padding: '4px 9px', fontSize: '10.5px', fontWeight: '700', cursor: cancelandoId === viaje.id ? 'default' : 'pointer' }}>
+                          {cancelandoId === viaje.id ? 'Cancelando…' : 'Sí, cancelar'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                        <button onClick={(e) => { e.stopPropagation(); setConfirmandoCancelarId(viaje.id); }}
+                          style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '11px', fontWeight: '600', cursor: 'pointer', padding: '2px 0' }}>
+                          Cancelar búsqueda
+                        </button>
+                      </div>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
 
                 {/* PESTAÑA: CONFIRMADOS */}
-                {!viajeSeleccionado && pestanaViajes === 'confirmados' && viajesConfirmados.length === 0 && (
+                {!viajeSeleccionado && pestanaViajes === 'confirmados' && viajesActivosConfirmados.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '50px 20px' }}>
-                    <svg width="120" height="90" viewBox="0 0 120 90" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginBottom: '16px', opacity: 0.7 }}>
-                      <rect x="15" y="38" width="90" height="38" rx="8" fill="#f0fdf4" stroke="#bbf7d0" strokeWidth="1.5"/>
-                      <rect x="15" y="44" width="90" height="12" rx="0" fill="#dcfce7" opacity="0.5"/>
-                      <circle cx="28" cy="62" r="7" fill="#fff" stroke="#86efac" strokeWidth="2"/>
-                      <circle cx="92" cy="62" r="7" fill="#fff" stroke="#86efac" strokeWidth="2"/>
-                      <rect x="38" y="32" width="16" height="10" rx="3" fill="#86efac"/>
-                      <rect x="66" y="32" width="16" height="10" rx="3" fill="#86efac"/>
-                      <path d="M50 20 Q60 10 70 20" stroke="#22c55e" strokeWidth="2" fill="none" strokeLinecap="round" strokeDasharray="3 3"/>
-                      <circle cx="60" cy="20" r="4" fill="#22c55e" opacity="0.3"/>
-                    </svg>
+                    <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: BRAND_GREEN }}>
+                      <IconVisto size={24} />
+                    </div>
                     <p style={{ margin: '0 0 6px', fontWeight: '700', color: '#1e293b', fontSize: '15px' }}>Sin viajes confirmados</p>
                     <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>Cuando un conductor acepte<br/>tu oferta aparecerá aquí.</p>
                   </div>
                 )}
-                {!viajeSeleccionado && pestanaViajes === 'confirmados' && viajesConfirmados.map((viaje) => {
+
+                {/* PESTAÑA: COMPLETADOS — historial aparte, no compite con los activos */}
+                {!viajeSeleccionado && pestanaViajes === 'completados' && viajesCompletadosOrdenados.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '50px 20px' }}>
+                    <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#f5f3ff', border: '1px solid #ddd6fe', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: '#7c3aed' }}>
+                      <IconBandera size={24} />
+                    </div>
+                    <p style={{ margin: '0 0 6px', fontWeight: '700', color: '#1e293b', fontSize: '15px' }}>Aún no tienes viajes completados</p>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>Cuando termines un viaje,<br/>quedará aquí en tu historial.</p>
+                  </div>
+                )}
+
+                {!viajeSeleccionado && (pestanaViajes === 'confirmados' || pestanaViajes === 'completados') &&
+                  (pestanaViajes === 'completados' ? viajesCompletadosOrdenados : viajesActivosConfirmados).map((viaje) => {
                   const cfgEstadoViaje = {
-                    ASSIGNED:    { border: BRAND_GREEN, bg: '#f0fdf4', badgeBg: '#dcfce7', badgeColor: '#166534', badgeLabel: '✅ Confirmado', info: 'El conductor está listo para recogerte.' },
-                    IN_PROGRESS: { border: '#2563eb',   bg: '#eff6ff', badgeBg: '#dbeafe', badgeColor: '#1e40af', badgeLabel: '🚗 En camino', info: '¡Tu conductor está en camino!' },
-                    COMPLETED:   { border: '#7c3aed',   bg: '#f5f3ff', badgeBg: '#e0e7ff', badgeColor: '#3730a3', badgeLabel: '🏁 Completado', info: 'Viaje finalizado exitosamente.' },
+                    ASSIGNED:    { color: BRAND_GREEN, badgeBg: '#dcfce7', badgeColor: '#166534', Icono: IconVisto, badgeLabel: 'Confirmado', info: 'El conductor está listo para recogerte.' },
+                    IN_PROGRESS: { color: '#2563eb',   badgeBg: '#dbeafe', badgeColor: '#1e40af', Icono: IconAuto,  badgeLabel: 'En camino',   info: '¡Tu conductor está en camino!' },
+                    COMPLETED:   { color: '#7c3aed',   badgeBg: '#e0e7ff', badgeColor: '#3730a3', Icono: IconBandera, badgeLabel: 'Completado', info: 'Viaje finalizado exitosamente.' },
                   };
                   const cfg = cfgEstadoViaje[viaje.trip_status] || cfgEstadoViaje.ASSIGNED;
                   const esEnCurso = viaje.trip_status === 'IN_PROGRESS';
 
                   return (
-                    <div key={viaje.id}
-                      style={{ border: `1px solid ${cfg.border}`, borderRadius: '12px', padding: '16px', marginBottom: '15px', backgroundColor: cfg.bg, borderLeft: `4px solid ${cfg.border}`, transition: 'all 0.3s' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <span style={{ fontSize: '12px', color: '#64748b' }}>{viaje.fechaCreacion}</span>
-                        <span style={{ backgroundColor: cfg.badgeBg, color: cfg.badgeColor, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          {cfg.badgeLabel}
-                          {esEnCurso && (
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#2563eb', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
-                          )}
-                        </span>
+                    <div key={viaje.id} className="viaje-pasaje">
+                      <div style={{ padding: '16px 18px 14px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '11.5px', color: '#94a3b8' }}>{viaje.fechaCreacion}</span>
+                          <span style={{ backgroundColor: cfg.badgeBg, color: cfg.badgeColor, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <cfg.Icono size={12} />
+                            {cfg.badgeLabel}
+                            {esEnCurso && (
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#2563eb', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
+                            )}
+                          </span>
+                        </div>
+                        <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '15.5px', marginBottom: '9px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{viaje.origin}</span><IconFlecha size={13} color={cfg.color} /><span>{viaje.destination}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '16px', fontSize: '12.5px', color: '#64748b' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><IconCalendario size={13} />{new Date(viaje.departure_time).toLocaleString()}</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><IconPersonas size={13} />{viaje.seats_needed}</span>
+                        </div>
                       </div>
-                      <div style={{ fontWeight: 'bold', color: '#0f172a', fontSize: '15px', marginBottom: '6px' }}>
-                        {viaje.origin} <span style={{ color: cfg.border }}>→</span> {viaje.destination}
-                      </div>
-                      <div style={{ fontSize: '13px', color: '#555', marginBottom: '4px' }}>🗓️ Salida: {new Date(viaje.departure_time).toLocaleString()}</div>
-                      <div style={{ fontSize: '13px', color: '#555', marginBottom: '10px' }}>👥 {viaje.seats_needed} asiento(s)</div>
-                      {/* Info estado */}
-                      <div style={{ backgroundColor: cfg.badgeBg, borderRadius: '6px', padding: '7px 10px', marginBottom: '10px', fontSize: '12px', color: cfg.badgeColor, fontWeight: '600' }}>
-                        {cfg.info}
-                      </div>
+                      <div className="viaje-pasaje__talon" />
+                      <div style={{ padding: '14px 18px 16px' }}>
+                        {/* Info estado */}
+                        <div style={{ backgroundColor: cfg.badgeBg, borderRadius: '8px', padding: '8px 11px', marginBottom: '12px', fontSize: '12px', color: cfg.badgeColor, fontWeight: '600' }}>
+                          {cfg.info}
+                        </div>
 
-                      {/* Barra de progreso del viaje */}
-                      {(() => {
-                        const pasos = [
-                          { key: 'ASSIGNED',    label: 'Confirmado' },
-                          { key: 'IN_PROGRESS', label: 'En camino' },
-                          { key: 'COMPLETED',   label: 'Completado' },
-                        ];
-                        const idxActual = pasos.findIndex(p => p.key === viaje.trip_status);
-                        return (
-                          <div style={{ marginBottom: '12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 0, position: 'relative' }}>
-                              {pasos.map((paso, idx) => {
-                                const activo = idx <= idxActual;
-                                const esCurrent = idx === idxActual;
-                                return (
-                                  <div key={paso.key} style={{ display: 'flex', alignItems: 'center', flex: idx < pasos.length - 1 ? 1 : 'none' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                                      <div style={{
-                                        width: esCurrent ? '20px' : '14px',
-                                        height: esCurrent ? '20px' : '14px',
-                                        borderRadius: '50%',
-                                        backgroundColor: activo ? cfg.border : '#e2e8f0',
-                                        border: esCurrent ? `3px solid ${cfg.border}` : 'none',
-                                        boxShadow: esCurrent ? `0 0 0 3px ${cfg.border}22` : 'none',
-                                        transition: 'all 0.3s',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        flexShrink: 0,
-                                      }}>
-                                        {activo && !esCurrent && <span style={{ color: '#fff', fontSize: '8px', fontWeight: '700' }}>✓</span>}
+                        {/* Barra de progreso del viaje */}
+                        {(() => {
+                          const pasos = [
+                            { key: 'ASSIGNED',    label: 'Confirmado' },
+                            { key: 'IN_PROGRESS', label: 'En camino' },
+                            { key: 'COMPLETED',   label: 'Completado' },
+                          ];
+                          const idxActual = pasos.findIndex(p => p.key === viaje.trip_status);
+                          return (
+                            <div style={{ marginBottom: '13px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 0, position: 'relative' }}>
+                                {pasos.map((paso, idx) => {
+                                  const activo = idx <= idxActual;
+                                  const esCurrent = idx === idxActual;
+                                  return (
+                                    <div key={paso.key} style={{ display: 'flex', alignItems: 'center', flex: idx < pasos.length - 1 ? 1 : 'none' }}>
+                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                                        <div style={{
+                                          width: esCurrent ? '20px' : '14px',
+                                          height: esCurrent ? '20px' : '14px',
+                                          borderRadius: '50%',
+                                          backgroundColor: activo ? cfg.color : '#e2e8f0',
+                                          border: esCurrent ? `3px solid ${cfg.color}` : 'none',
+                                          boxShadow: esCurrent ? `0 0 0 3px ${cfg.color}22` : 'none',
+                                          transition: 'all 0.3s',
+                                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                          flexShrink: 0,
+                                        }}>
+                                          {activo && !esCurrent && <span style={{ color: '#fff', fontSize: '8px', fontWeight: '700' }}>✓</span>}
+                                        </div>
+                                        <span style={{ fontSize: '9px', fontWeight: '600', color: activo ? cfg.badgeColor : '#94a3b8', whiteSpace: 'nowrap' }}>{paso.label}</span>
                                       </div>
-                                      <span style={{ fontSize: '9px', fontWeight: '600', color: activo ? cfg.badgeColor : '#94a3b8', whiteSpace: 'nowrap' }}>{paso.label}</span>
+                                      {idx < pasos.length - 1 && (
+                                        <div style={{ flex: 1, height: '3px', backgroundColor: idx < idxActual ? cfg.color : '#e2e8f0', margin: '0 4px', marginBottom: '14px', borderRadius: '2px', transition: 'background-color 0.3s' }} />
+                                      )}
                                     </div>
-                                    {idx < pasos.length - 1 && (
-                                      <div style={{ flex: 1, height: '3px', backgroundColor: idx < idxActual ? cfg.border : '#e2e8f0', margin: '0 4px', marginBottom: '14px', borderRadius: '2px', transition: 'background-color 0.3s' }} />
-                                    )}
-                                  </div>
-                                );
-                              })}
+                                  );
+                                })}
+                              </div>
                             </div>
+                          );
+                        })()}
+                        {/* Info conductor */}
+                        <div onClick={() => viaje.driver_id && abrirPerfilConductor(viaje.driver_id)}
+                          title={viaje.driver_id ? 'Ver perfil del conductor' : undefined}
+                          style={{ backgroundColor: '#faf9f6', borderRadius: '9px', padding: '10px 12px', border: `1px solid ${cfg.color}33`, display: 'flex', alignItems: 'center', gap: '10px', cursor: viaje.driver_id ? 'pointer' : 'default' }}>
+                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#e2e8f0', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', flexShrink: 0 }}>
+                            {viaje.conductor_foto
+                              ? <img src={viaje.conductor_foto} alt="conductor" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : <IconAuto size={17} />}
                           </div>
-                        );
-                      })()}
-                      {/* Info conductor */}
-                      <div onClick={() => viaje.driver_id && abrirPerfilConductor(viaje.driver_id)}
-                        title={viaje.driver_id ? 'Ver perfil del conductor' : undefined}
-                        style={{ backgroundColor: '#fff', borderRadius: '8px', padding: '10px 12px', border: `1px solid ${cfg.border}33`, display: 'flex', alignItems: 'center', gap: '10px', cursor: viaje.driver_id ? 'pointer' : 'default' }}>
-                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#e2e8f0', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0 }}>
-                          {viaje.conductor_foto
-                            ? <img src={viaje.conductor_foto} alt="conductor" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            : '🚗'}
-                        </div>
-                        <div>
-                          <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: '#1e293b', textDecoration: viaje.driver_id ? 'underline' : 'none', textDecorationColor: '#e2e8f0', textUnderlineOffset: '3px' }}>
-                            {viaje.conductor_nombre}
-                          </p>
-                          {viaje.precio_acordado > 0 && (
-                            <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
-                              Precio acordado: <strong style={{ color: BRAND_GREEN }}>${Number(viaje.precio_acordado).toLocaleString()}</strong>
+                          <div>
+                            <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: '#1e293b', textDecoration: viaje.driver_id ? 'underline' : 'none', textDecorationColor: '#e2e8f0', textUnderlineOffset: '3px' }}>
+                              {viaje.conductor_nombre}
                             </p>
-                          )}
+                            {viaje.precio_acordado > 0 && (
+                              <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                                Precio acordado: <strong style={{ color: BRAND_GREEN }}>${Number(viaje.precio_acordado).toLocaleString()}</strong>
+                              </p>
+                            )}
+                          </div>
                         </div>
+
+                        {/* HU26 — Tracking en tiempo real del conductor */}
+                        {esEnCurso && viaje.conductor_lat && viaje.conductor_lng && mapsLoaded && (
+                          <div style={{ marginTop: '10px', borderRadius: '9px', overflow: 'hidden', border: `1px solid ${cfg.color}33`, height: '160px' }}>
+                            <GoogleMap
+                              mapContainerStyle={{ width: '100%', height: '100%' }}
+                              center={{ lat: viaje.conductor_lat, lng: viaje.conductor_lng }}
+                              zoom={15}
+                              options={{ disableDefaultUI: true, gestureHandling: 'none', zoomControl: false }}
+                            >
+                              <MarkerF
+                                position={{ lat: viaje.conductor_lat, lng: viaje.conductor_lng }}
+                                title="Tu conductor"
+                                icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#2563eb', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }}
+                              />
+                            </GoogleMap>
+                          </div>
+                        )}
+                        {esEnCurso && (!viaje.conductor_lat || !viaje.conductor_lng) && (
+                          <p style={{ margin: '10px 0 0', fontSize: '11px', color: '#94a3b8', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                            <IconRadar size={12} />Esperando la ubicación del conductor...
+                          </p>
+                        )}
+
+                      {/* Botón FUEC */}
+                      {(viaje.trip_status === 'ASSIGNED' || viaje.trip_status === 'IN_PROGRESS') && (
+                        <button
+                          onClick={() => {
+                            setOcupantesFuec([{ full_name: '', document_type: 'CC', document_number: '' }]);
+                            setModalFuec(viaje.id);
+                          }}
+                          style={{
+                            marginTop: '10px', width: '100%', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                            background: fuecEnviado[viaje.id] ? 'rgba(34,197,94,0.12)' : 'rgba(34,197,94,0.08)',
+                            border: `1px solid ${fuecEnviado[viaje.id] ? BRAND_GREEN : 'rgba(34,197,94,0.35)'}`,
+                            borderRadius: '8px',
+                            color: fuecEnviado[viaje.id] ? BRAND_GREEN : '#166534',
+                            fontSize: '12px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s'
+                          }}>
+                          {fuecEnviado[viaje.id] ? <IconVisto size={13} /> : <IconClipboard size={13} />}
+                          {fuecEnviado[viaje.id] ? 'Ocupantes registrados — Actualizar' : 'Registrar ocupantes del viaje'}
+                        </button>
+                      )}
+
+                      {/* Botón calificar — HU29 (SCRUM-194) */}
+                      {viaje.trip_status === 'COMPLETED' && (
+                        <button
+                          disabled={viaje.ya_califico}
+                          onClick={() => { setEstrellasCalificar(0); setComentarioCalificar(''); setModalCalificar(viaje.id); }}
+                          style={{
+                            marginTop: '10px', width: '100%', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                            background: viaje.ya_califico ? 'rgba(148,163,184,0.1)' : 'rgba(234,179,8,0.1)',
+                            border: `1px solid ${viaje.ya_califico ? '#cbd5e1' : '#eab308'}`,
+                            borderRadius: '8px',
+                            color: viaje.ya_califico ? '#94a3b8' : '#a16207',
+                            fontSize: '12px', fontWeight: '700', cursor: viaje.ya_califico ? 'default' : 'pointer', transition: 'all 0.2s'
+                          }}>
+                          {viaje.ya_califico ? <IconVisto size={13} /> : <IconEstrella size={13} />}
+                          {viaje.ya_califico ? 'Ya calificaste este viaje' : 'Calificar viaje'}
+                        </button>
+                      )}
+
+                      {/* Botón descargar recibo — HU25 (SCRUM-190) */}
+                      {viaje.trip_status === 'COMPLETED' && (
+                        <button
+                          disabled={descargandoRecibo === viaje.id}
+                          onClick={() => descargarRecibo(viaje.id)}
+                          style={{
+                            marginTop: '8px', width: '100%', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                            background: 'rgba(37,99,235,0.08)',
+                            border: '1px solid rgba(37,99,235,0.3)',
+                            borderRadius: '8px',
+                            color: '#1e40af',
+                            fontSize: '12px', fontWeight: '700', cursor: descargandoRecibo === viaje.id ? 'default' : 'pointer', transition: 'all 0.2s'
+                          }}>
+                          <IconRecibo size={13} />
+                          {descargandoRecibo === viaje.id ? 'Generando recibo…' : 'Descargar recibo (PDF)'}
+                        </button>
+                      )}
                       </div>
-
-                      {/* HU26 — Tracking en tiempo real del conductor */}
-                      {esEnCurso && viaje.conductor_lat && viaje.conductor_lng && mapsLoaded && (
-                        <div style={{ marginTop: '10px', borderRadius: '8px', overflow: 'hidden', border: `1px solid ${cfg.border}33`, height: '160px' }}>
-                          <GoogleMap
-                            mapContainerStyle={{ width: '100%', height: '100%' }}
-                            center={{ lat: viaje.conductor_lat, lng: viaje.conductor_lng }}
-                            zoom={15}
-                            options={{ disableDefaultUI: true, gestureHandling: 'none', zoomControl: false }}
-                          >
-                            <MarkerF
-                              position={{ lat: viaje.conductor_lat, lng: viaje.conductor_lng }}
-                              title="Tu conductor"
-                              icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#2563eb', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }}
-                            />
-                          </GoogleMap>
-                        </div>
-                      )}
-                      {esEnCurso && (!viaje.conductor_lat || !viaje.conductor_lng) && (
-                        <p style={{ margin: '10px 0 0', fontSize: '11px', color: '#94a3b8', textAlign: 'center' }}>
-                          📡 Esperando la ubicación del conductor...
-                        </p>
-                      )}
-
-                    {/* Botón FUEC */}
-                    {(viaje.trip_status === 'ASSIGNED' || viaje.trip_status === 'IN_PROGRESS') && (
-                      <button
-                        onClick={() => {
-                          setOcupantesFuec([{ full_name: '', document_type: 'CC', document_number: '' }]);
-                          setModalFuec(viaje.id);
-                        }}
-                        style={{
-                          marginTop: '10px', width: '100%', padding: '10px',
-                          background: fuecEnviado[viaje.id] ? 'rgba(34,197,94,0.12)' : 'rgba(34,197,94,0.08)',
-                          border: `1px solid ${fuecEnviado[viaje.id] ? BRAND_GREEN : 'rgba(34,197,94,0.35)'}`,
-                          borderRadius: '8px',
-                          color: fuecEnviado[viaje.id] ? BRAND_GREEN : '#166534',
-                          fontSize: '12px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s'
-                        }}>
-                        {fuecEnviado[viaje.id] ? '✅ Ocupantes registrados — Actualizar' : '📋 Registrar ocupantes del viaje'}
-                      </button>
-                    )}
-
-                    {/* Botón calificar — HU29 (SCRUM-194) */}
-                    {viaje.trip_status === 'COMPLETED' && (
-                      <button
-                        disabled={viaje.ya_califico}
-                        onClick={() => { setEstrellasCalificar(0); setComentarioCalificar(''); setModalCalificar(viaje.id); }}
-                        style={{
-                          marginTop: '10px', width: '100%', padding: '10px',
-                          background: viaje.ya_califico ? 'rgba(148,163,184,0.1)' : 'rgba(234,179,8,0.1)',
-                          border: `1px solid ${viaje.ya_califico ? '#cbd5e1' : '#eab308'}`,
-                          borderRadius: '8px',
-                          color: viaje.ya_califico ? '#94a3b8' : '#a16207',
-                          fontSize: '12px', fontWeight: '700', cursor: viaje.ya_califico ? 'default' : 'pointer', transition: 'all 0.2s'
-                        }}>
-                        {viaje.ya_califico ? '✅ Ya calificaste este viaje' : '⭐ Calificar viaje'}
-                      </button>
-                    )}
-
-                    {/* Botón descargar recibo — HU25 (SCRUM-190) */}
-                    {viaje.trip_status === 'COMPLETED' && (
-                      <button
-                        disabled={descargandoRecibo === viaje.id}
-                        onClick={() => descargarRecibo(viaje.id)}
-                        style={{
-                          marginTop: '8px', width: '100%', padding: '10px',
-                          background: 'rgba(37,99,235,0.08)',
-                          border: '1px solid rgba(37,99,235,0.3)',
-                          borderRadius: '8px',
-                          color: '#1e40af',
-                          fontSize: '12px', fontWeight: '700', cursor: descargandoRecibo === viaje.id ? 'default' : 'pointer', transition: 'all 0.2s'
-                        }}>
-                        {descargandoRecibo === viaje.id ? 'Generando recibo…' : '🧾 Descargar recibo (PDF)'}
-                      </button>
-                    )}
                     </div>
                   );
                 })}
 
                 {viajeSeleccionado && (
                   <div>
-                    <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px dashed #cbd5e1' }}>
-                      <div style={{ fontWeight: 'bold', color: '#333' }}>{viajeSeleccionado.origin} a {viajeSeleccionado.destination}</div>
-                      <div style={{ fontSize: '13px', color: '#666' }}>Salida: {new Date(viajeSeleccionado.departure_time).toLocaleString()}</div>
-                    </div>
                     {(() => {
                       const viajeActualizado = listaSolicitudes.find(v => v.id === viajeSeleccionado.id);
                       if (!viajeActualizado || viajeActualizado.ofertas.length === 0) {
                         return (
-                          <div style={{ textAlign: 'center', padding: '30px 0' }}>
-                            <div style={{ fontSize: '30px', marginBottom: '10px' }}>📡</div>
-                            <div style={{ color: '#64748b', fontSize: '14px' }}>Esperando ofertas de conductores...</div>
+                          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                            <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: BRAND_GREEN }}>
+                              <IconRadar size={20} />
+                            </div>
+                            <div style={{ color: '#64748b', fontSize: '13.5px' }}>Esperando ofertas de conductores...</div>
                           </div>
                         );
                       }
                       return viajeActualizado.ofertas.map(oferta => (
-                        <div key={oferta.id} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '15px', marginBottom: '15px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <div key={oferta.id} style={{ border: '1px solid #ecebe6', borderRadius: '14px', padding: '16px', marginBottom: '14px', background: '#fff', boxShadow: '0 1px 2px rgba(15,23,42,0.04)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px' }}>
                             <div onClick={() => abrirPerfilConductor(oferta.driverId)}
-                              style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+                              style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', minWidth: 0 }}
                               title="Ver perfil del conductor">
-                              <div style={{ width: '40px', height: '40px', backgroundColor: '#e2e8f0', borderRadius: '50%', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '18px' }}>
-                                {oferta.foto ? <img src={oferta.foto} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '👤'}
+                              <div style={{ width: '40px', height: '40px', backgroundColor: '#e2e8f0', borderRadius: '50%', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#64748b', flexShrink: 0 }}>
+                                {oferta.foto ? <img src={oferta.foto} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <IconPersonas size={18} />}
                               </div>
-                              <div>
-                                <div style={{ fontWeight: 'bold', fontSize: '15px', textDecoration: 'underline', textDecorationColor: '#e2e8f0', textUnderlineOffset: '3px' }}>
-                                  {oferta.conductor}{' '}
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontWeight: '700', fontSize: '14.5px', textDecoration: 'underline', textDecorationColor: '#e2e8f0', textUnderlineOffset: '3px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  <span>{oferta.conductor}</span>
                                   {oferta.verificado && (
-                                    <span title="Experiencia verificada" style={{ color: '#a16207', fontSize: '12px', fontWeight: '700', marginRight: '4px' }}>🎓</span>
+                                    <span title="Experiencia verificada" style={{ color: '#a16207', display: 'flex' }}><IconGorro size={13} /></span>
                                   )}
-                                  {oferta.calificacion != null
-                                    ? <span style={{ color: '#eab308', fontSize: '13px' }}>★ {oferta.calificacion} <span style={{ color: '#94a3b8' }}>({oferta.calificacionCantidad})</span></span>
-                                    : <span style={{ color: '#94a3b8', fontSize: '12px' }}>Sin calificaciones aún</span>}
                                 </div>
-                                <div style={{ fontSize: '12px', color: '#64748b' }}>{oferta.vehiculo}</div>
+                                {oferta.calificacion != null
+                                  ? <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#a16207', fontSize: '12px' }}><IconEstrella size={11} />{oferta.calificacion} <span style={{ color: '#94a3b8' }}>({oferta.calificacionCantidad})</span></span>
+                                  : <span style={{ color: '#94a3b8', fontSize: '11.5px' }}>Sin calificaciones aún</span>}
+                                <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '1px' }}>{oferta.vehiculo}</div>
                               </div>
                             </div>
-                            <div style={{ fontWeight: 'bold', fontSize: '18px', color: BRAND_GREEN }}>${oferta.precio.toLocaleString()}</div>
+                            <div style={{ fontWeight: '800', fontSize: '17px', color: BRAND_GREEN, flexShrink: 0, fontFamily: "'Syne', sans-serif" }}>${oferta.precio.toLocaleString()}</div>
                           </div>
 
                           {oferta.comodidades && (
@@ -1524,7 +1725,7 @@ const Dashboard = () => {
                                   Buen ajuste para tu grupo
                                 </span>
                               )}
-                              <span style={{ background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '600' }}>
+                              <span style={{ background: '#f5f4ef', color: '#475569', border: '1px solid #ecebe6', borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '600' }}>
                                 {oferta.comodidades.categoria} · hasta {oferta.comodidades.capacidad} pasajeros
                               </span>
                               {[
@@ -1536,20 +1737,30 @@ const Dashboard = () => {
                                 [oferta.comodidades.tiene_sillas_bebe, 'Sillas para bebé'],
                                 [oferta.comodidades.acepta_mascotas, 'Acepta mascotas'],
                               ].filter(([activo]) => activo).map(([, etiqueta]) => (
-                                <span key={etiqueta} style={{ background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '600' }}>
+                                <span key={etiqueta} style={{ background: '#f5f4ef', color: '#475569', border: '1px solid #ecebe6', borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '600' }}>
                                   {etiqueta}
                                 </span>
                               ))}
                             </div>
                           )}
 
-                          {oferta.created_at && (
-                            <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>🕐 Oferta enviada {tiempoRelativo(oferta.created_at)}</div>
+                          {/* HU38 — filtro flexible: si pediste comodidades y este conductor no
+                              las tiene todas, se muestra igual (no se oculta), pero se avisa qué
+                              le falta para que decidas tú si igual te sirve. */}
+                          {oferta.comodidades && oferta.comodidades.comodidades_faltantes && oferta.comodidades.comodidades_faltantes.length > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '7px 10px', marginBottom: '10px', fontSize: '11px', color: '#92400e' }}>
+                              <IconAlerta size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
+                              <span>No tiene: {oferta.comodidades.comodidades_faltantes.join(', ')}</span>
+                            </div>
                           )}
-                          <div style={{ display: 'flex', gap: '8px', marginTop: '15px' }}>
-                            <button onClick={() => handleAceptarOferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: BRAND_GREEN, color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Aceptar</button>
-                            <button onClick={() => handleContraoferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: '#e0f2fe', color: '#0369a1', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Contra ofertar</button>
-                            <button onClick={() => handleRechazarOferta(viajeActualizado.id, oferta.id)} style={{ background: '#fee2e2', color: '#b91c1c', border: 'none', padding: '10px 15px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>✕</button>
+
+                          {oferta.created_at && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}><IconReloj size={11} />Oferta enviada {tiempoRelativo(oferta.created_at)}</div>
+                          )}
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '13px' }}>
+                            <button onClick={() => handleAceptarOferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: BRAND_GREEN, color: '#fff', border: 'none', padding: '10px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Aceptar</button>
+                            <button onClick={() => handleContraoferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: '#e0f2fe', color: '#0369a1', border: 'none', padding: '10px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Contra ofertar</button>
+                            <button onClick={() => handleRechazarOferta(viajeActualizado.id, oferta.id)} title="Rechazar oferta" style={{ background: '#fee2e2', color: '#b91c1c', border: 'none', padding: '10px 13px', borderRadius: '9px', display: 'flex', alignItems: 'center', cursor: 'pointer' }}><IconEquis size={14} /></button>
                           </div>
                         </div>
                       ));

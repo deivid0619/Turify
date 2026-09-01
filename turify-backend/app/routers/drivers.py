@@ -123,6 +123,15 @@ async def register_driver_info(
     affiliated_company: int = Form(...),
     plate: str = Form(...),
     capacity: int = Form(...),
+    # HU38 — comodidades del vehículo, opcionales desde el registro (el conductor
+    # puede dejarlas todas sin marcar y configurarlas después en su panel).
+    tiene_ac: bool = Form(False),
+    tiene_wifi: bool = Form(False),
+    tiene_bano: bool = Form(False),
+    tiene_musica: bool = Form(False),
+    tiene_maletero_amplio: bool = Form(False),
+    tiene_sillas_bebe: bool = Form(False),
+    acepta_mascotas: bool = Form(False),
     profile_photo: UploadFile = File(...),
     vehicle_photo: UploadFile = File(...),
     doc_soat: UploadFile = File(...),
@@ -176,7 +185,15 @@ async def register_driver_info(
                 company_id=affiliated_company,
                 plate=plate.upper(),
                 capacity=capacity,
-                photo_url=vehicle_photo_url
+                photo_url=vehicle_photo_url,
+                # HU38 — comodidades declaradas desde el registro (opcionales)
+                tiene_ac=tiene_ac,
+                tiene_wifi=tiene_wifi,
+                tiene_bano=tiene_bano,
+                tiene_musica=tiene_musica,
+                tiene_maletero_amplio=tiene_maletero_amplio,
+                tiene_sillas_bebe=tiene_sillas_bebe,
+                acepta_mascotas=acepta_mascotas,
             )
             db.add(new_vehicle)
 

@@ -112,10 +112,16 @@ class ServiceRequestCreate(BaseModel):
     tolls_count: Optional[int] = None
     tolls_cost: Optional[float] = None
     tipo_via: Optional[str] = None  # 'PAVIMENTADA' | 'DESTAPADA' | 'MIXTA'
-    # HU09 — punto y radio de búsqueda de conductores (por defecto: el origen, 15 km)
-    search_lat: Optional[float] = None
-    search_lng: Optional[float] = None
-    radius_km: Optional[float] = None
+    # HU38 — comodidades que el pasajero exige del vehículo (filtro de búsqueda).
+    # Si no marca ninguna, no se filtra por comodidades: se notifica a todos los
+    # conductores cercanos, sea cual sea su vehículo.
+    requiere_ac: Optional[bool] = False
+    requiere_wifi: Optional[bool] = False
+    requiere_bano: Optional[bool] = False
+    requiere_musica: Optional[bool] = False
+    requiere_maletero_amplio: Optional[bool] = False
+    requiere_sillas_bebe: Optional[bool] = False
+    requiere_acepta_mascotas: Optional[bool] = False
 
     @model_validator(mode='after')
     def validate_dates(self) -> 'ServiceRequestCreate':
@@ -159,6 +165,19 @@ class ServiceRequestRead(BaseModel):
     # HU06 — coordenadas de origen, para pintar la solicitud como pin en el mapa del conductor
     origin_lat: Optional[float] = None
     origin_lng: Optional[float] = None
+    # HU38 — comodidades exigidas por el pasajero, visibles para el conductor en el radar
+    requiere_ac: Optional[bool] = False
+    requiere_wifi: Optional[bool] = False
+    requiere_bano: Optional[bool] = False
+    requiere_musica: Optional[bool] = False
+    requiere_maletero_amplio: Optional[bool] = False
+    requiere_sillas_bebe: Optional[bool] = False
+    requiere_acepta_mascotas: Optional[bool] = False
+    # HU38 — filtro flexible: solo presentes para el CONDUCTOR (indican cuántas de
+    # las comodidades exigidas cumple su propio vehículo y cuáles le faltan)
+    comodidades_exigidas: Optional[int] = None
+    comodidades_cumplidas: Optional[int] = None
+    comodidades_faltantes: Optional[list[str]] = None
 
     class Config:
         from_attributes = True # Permite mapear desde modelos de SQLAlchemy

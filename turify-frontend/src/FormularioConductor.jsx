@@ -114,7 +114,11 @@ const FormularioConductor = () => {
     age: '', affiliated_company: '', profile_photo: null,
     plate: '', capacity: '', vehicle_photo: null,
     doc_soat: null, doc_licencia: null, doc_tarjeta_operacion: null,
-    doc_tecnomecanica: null, doc_seguros: null
+    doc_tecnomecanica: null, doc_seguros: null,
+    // HU38 — comodidades del vehículo, opcionales (se pueden dejar sin marcar
+    // y configurar después desde el panel del conductor)
+    tiene_ac: false, tiene_wifi: false, tiene_bano: false, tiene_musica: false,
+    tiene_maletero_amplio: false, tiene_sillas_bebe: false, acepta_mascotas: false,
   });
 
   const datosUsuario = {
@@ -152,8 +156,11 @@ const FormularioConductor = () => {
   }, [token]);
 
   const handleInputConductor = (e) => {
-    const { name, value, type, files } = e.target;
-    setFormConductor(prev => ({ ...prev, [name]: type === 'file' ? files[0] : value }));
+    const { name, value, type, files, checked } = e.target;
+    setFormConductor(prev => ({
+      ...prev,
+      [name]: type === 'file' ? files[0] : type === 'checkbox' ? checked : value
+    }));
   };
 
   const enviarFormularioConductor = async (e) => {
@@ -165,6 +172,14 @@ const FormularioConductor = () => {
     formData.append('affiliated_company', formConductor.affiliated_company);
     formData.append('plate', formConductor.plate);
     formData.append('capacity', formConductor.capacity);
+    // HU38 — comodidades opcionales del vehículo
+    formData.append('tiene_ac', formConductor.tiene_ac);
+    formData.append('tiene_wifi', formConductor.tiene_wifi);
+    formData.append('tiene_bano', formConductor.tiene_bano);
+    formData.append('tiene_musica', formConductor.tiene_musica);
+    formData.append('tiene_maletero_amplio', formConductor.tiene_maletero_amplio);
+    formData.append('tiene_sillas_bebe', formConductor.tiene_sillas_bebe);
+    formData.append('acepta_mascotas', formConductor.acepta_mascotas);
     if (formConductor.profile_photo) formData.append('profile_photo', formConductor.profile_photo);
     if (formConductor.vehicle_photo) formData.append('vehicle_photo', formConductor.vehicle_photo);
     if (formConductor.doc_soat) formData.append('doc_soat', formConductor.doc_soat);
@@ -275,6 +290,33 @@ const FormularioConductor = () => {
             <input type="number" name="capacity" placeholder="Capacidad (asientos)" onChange={handleInputConductor} required min="1" max="44" style={{ padding: '14px', border: '1px solid #cbd5e1', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }} />
             <div style={{ gridColumn: 'span 2' }}>
               <DropZone label="Sube una Foto de tu Vehículo" name="vehicle_photo" onChange={handleInputConductor} file={formConductor.vehicle_photo} />
+            </div>
+          </div>
+
+          {/* HU38 — comodidades del vehículo, opcionales. Se preguntan aquí, en el
+              registro, para que la mayoría de conductores queden con esto
+              configurado desde el primer día; el que prefiera puede dejarlas
+              todas sin marcar y configurarlas después en su panel. */}
+          <div style={{ marginBottom: '40px' }}>
+            <p style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Comodidades de tu vehículo (opcional)</p>
+            <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '12px' }}>
+              Algunos pasajeros filtran su búsqueda por esto. Puedes dejarlas todas sin marcar y configurarlas más adelante desde tu panel.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              {[
+                ['tiene_ac', 'Aire acondicionado'],
+                ['tiene_wifi', 'WiFi'],
+                ['tiene_bano', 'Baño'],
+                ['tiene_musica', 'Música'],
+                ['tiene_maletero_amplio', 'Maletero amplio'],
+                ['tiene_sillas_bebe', 'Sillas para bebé'],
+                ['acepta_mascotas', 'Acepta mascotas'],
+              ].map(([campo, etiqueta]) => (
+                <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 12px', cursor: 'pointer' }}>
+                  <input type="checkbox" name={campo} checked={formConductor[campo]} onChange={handleInputConductor} />
+                  {etiqueta}
+                </label>
+              ))}
             </div>
           </div>
 

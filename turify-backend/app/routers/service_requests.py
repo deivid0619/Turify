@@ -75,11 +75,23 @@ def create_service_request(
             tolls_count=request_data.tolls_count or 0,
             tolls_cost=request_data.tolls_cost or 0,
             tipo_via=request_data.tipo_via or "PAVIMENTADA",
-            # HU09 — punto/radio de búsqueda de conductores. Si el pasajero no eligió
-            # un punto distinto, usamos el origen del viaje como valor por defecto.
-            search_lat=request_data.search_lat if request_data.search_lat is not None else request_data.origin_lat,
-            search_lng=request_data.search_lng if request_data.search_lng is not None else request_data.origin_lng,
-            search_radius_km=request_data.radius_km or 15,
+            # HU09 — búsqueda de conductores 100% automática: ya no la elige el
+            # pasajero. El centro de búsqueda es siempre el origen del viaje, y el
+            # radio guardado es amplio y fijo (RADIO_VISIBILIDAD_KM) para que la
+            # solicitud siga siendo visible en el radar (GET /pending) de cualquier
+            # conductor que se conecte más tarde, sin importar qué tan lejos esté el
+            # conductor más cercano en el momento exacto de publicar el viaje.
+            search_lat=request_data.origin_lat,
+            search_lng=request_data.origin_lng,
+            search_radius_km=RADIO_VISIBILIDAD_KM,
+            # HU38 — comodidades que el pasajero exige del vehículo
+            requiere_ac=request_data.requiere_ac or False,
+            requiere_wifi=request_data.requiere_wifi or False,
+            requiere_bano=request_data.requiere_bano or False,
+            requiere_musica=request_data.requiere_musica or False,
+            requiere_maletero_amplio=request_data.requiere_maletero_amplio or False,
+            requiere_sillas_bebe=request_data.requiere_sillas_bebe or False,
+            requiere_acepta_mascotas=request_data.requiere_acepta_mascotas or False,
         )
         
         db.add(new_request)
@@ -97,27 +109,59 @@ def create_service_request(
         )
 
         # HU09 — Notificar (push, vía Supabase Realtime + tabla Notification) a los
-        # conductores DISPONIBLES cuya ubicación cae dentro del radio de búsqueda
-        # que eligió el pasajero, en vez de que dependan de refrescar el radar.
+        # conductores DISPONIBLES más cercanos al origen del viaje. En vez de un
+        # radio fijo elegido por el pasajero, probamos radios cada vez más amplios
+        # (RADIOS_NOTIFICACION_KM) y nos quedamos con el primero que encuentre al
+        # menos un conductor — así siempre se prioriza "lo más cerca posible", y si
+        # no hay nadie cerca, la búsqueda se amplía sola en vez de dejar al
+        # pasajero sin notificar a nadie.
         if new_request.search_lat is not None and new_request.search_lng is not None:
-            radio = float(new_request.search_radius_km or 15)
             conductores_online = db.query(models.User).filter(
                 models.User.role == "DRIVER",
                 models.User.is_online == True,
                 models.User.current_lat.isnot(None),
                 models.User.current_lng.isnot(None),
             ).all()
-            for conductor in conductores_online:
-                if _distancia_km(new_request.search_lat, new_request.search_lng, conductor.current_lat, conductor.current_lng) <= radio:
-                    crear_notificacion(
-                        db,
-                        user_id=conductor.user_id,
-                        title="Nuevo viaje disponible cerca de ti",
-                        message=f"{request_data.origin} → {request_data.destination}",
-                        tipo="SYSTEM",
-                    )
 
-        return new_request
+            # HU38 — las comodidades ya NO excluyen a nadie de la notificación inicial
+            # (filtro flexible): un conductor que cumple 2 de 3 comodidades pedidas
+            # igual se entera del viaje y puede ofertar — el pasajero ve, al revisar
+            # las ofertas, cuáles comodidades cumple cada uno y cuáles le faltan, y
+            # decide con esa información. El filtro solo se usa para PRIORIZAR el
+            # orden en que se notifica dentro de cada radio (primero los que más
+            # coinciden), no para dejar a nadie fuera.
+            conductores_a_notificar = []
+            for radio in RADIOS_NOTIFICACION_KM:
+                candidatos_en_radio = [
+                    c for c in conductores_online
+                    if _distancia_km(new_request.search_lat, new_request.search_lng, c.current_lat, c.current_lng) <= radio
+                ]
+                if candidatos_en_radio:
+                    conductores_a_notificar = sorted(
+                        candidatos_en_radio,
+                        key=lambda c: -_match_comodidades(db, c, new_request)["cumplidas"]
+                    )
+                    break
+
+            for conductor in conductores_a_notificar:
+                crear_notificacion(
+                    db,
+                    user_id=conductor.user_id,
+                    title="Nuevo viaje disponible cerca de ti",
+                    message=f"{request_data.origin} → {request_data.destination}",
+                    tipo="SYSTEM",
+                )
+
+            conductores_notificados = len(conductores_a_notificar)
+        else:
+            conductores_notificados = 0
+
+        # Se agrega "conductores_notificados" a la respuesta para que el frontend
+        # pueda avisarle al pasajero si, con los filtros de comodidades que eligió,
+        # no había ningún conductor conectado en este momento (HU38).
+        respuesta = {c.name: getattr(new_request, c.name) for c in new_request.__table__.columns}
+        respuesta["conductores_notificados"] = conductores_notificados
+        return respuesta
 
     except Exception as e:
         db.rollback()
@@ -137,18 +181,107 @@ def _distancia_km(lat1, lon1, lat2, lon2):
     return R * 2 * atan2(sqrt(a), sqrt(1 - a))
 
 
+# HU09 — Radios de expansión automática para la notificación inicial (se prueba
+# 5km, si no hay nadie 10km, luego 20, 40 y por último 80km) y radio fijo de
+# visibilidad guardado en cada solicitud para que el radar (GET /pending) no
+# dependa de la ubicación de los conductores en el instante de publicar el viaje.
+RADIOS_NOTIFICACION_KM = [5, 10, 20, 40, 80]
+RADIO_VISIBILIDAD_KM = 60
+
+
+# HU38 — Filtro FLEXIBLE de comodidades (no excluyente): en vez de decir
+# "cumple / no cumple" a secas, dice CUÁNTAS de las comodidades pedidas
+# cumple este conductor y cuáles le faltan, para que el pasajero decida con
+# esa información (nunca se oculta un conductor solo por no tener el 100%).
+_ETIQUETAS_COMODIDAD = {
+    "tiene_ac": "Aire acondicionado",
+    "tiene_wifi": "WiFi",
+    "tiene_bano": "Baño",
+    "tiene_musica": "Música",
+    "tiene_maletero_amplio": "Maletero amplio",
+    "tiene_sillas_bebe": "Sillas para bebé",
+    "acepta_mascotas": "Acepta mascotas",
+}
+
+
+def _match_comodidades(db, conductor, service_request) -> dict:
+    filtros = [
+        (service_request.requiere_ac, "tiene_ac"),
+        (service_request.requiere_wifi, "tiene_wifi"),
+        (service_request.requiere_bano, "tiene_bano"),
+        (service_request.requiere_musica, "tiene_musica"),
+        (service_request.requiere_maletero_amplio, "tiene_maletero_amplio"),
+        (service_request.requiere_sillas_bebe, "tiene_sillas_bebe"),
+        (service_request.requiere_acepta_mascotas, "acepta_mascotas"),
+    ]
+    exigidos = [campo for exigido, campo in filtros if exigido]
+    if not exigidos:
+        return {"exigidas": 0, "cumplidas": 0, "cumple_todas": True, "faltantes": []}
+
+    vehiculo = db.query(models.Vehicle).filter(models.Vehicle.owner_id == conductor.user_id).first()
+
+    cumplidas = 0
+    faltantes = []
+    for campo in exigidos:
+        tiene = bool(getattr(vehiculo, campo)) if vehiculo else False
+        if tiene:
+            cumplidas += 1
+        else:
+            faltantes.append(_ETIQUETAS_COMODIDAD[campo])
+
+    return {
+        "exigidas": len(exigidos),
+        "cumplidas": cumplidas,
+        "cumple_todas": cumplidas == len(exigidos),
+        "faltantes": faltantes,
+    }
+
+
+# Convierte un ServiceRequest (ORM) en el dict base que espera
+# schemas.ServiceRequestRead — se usa en /pending porque ahí se le agregan
+# campos calculados (comodidades_*) que no son columnas de la tabla.
+def _serializar_service_request(sr) -> dict:
+    return {
+        "request_id": sr.request_id,
+        "passenger_id": sr.passenger_id,
+        "origin": sr.origin,
+        "destination": sr.destination,
+        "departure_time": sr.departure_time,
+        "return_time": sr.return_time,
+        "trip_type": sr.trip_type,
+        "adults_count": sr.adults_count,
+        "children_count": sr.children_count,
+        "has_pets": sr.has_pets,
+        "status": sr.status,
+        "created_at": sr.created_at,
+        "origin_lat": float(sr.origin_lat) if sr.origin_lat is not None else None,
+        "origin_lng": float(sr.origin_lng) if sr.origin_lng is not None else None,
+        "requiere_ac": sr.requiere_ac,
+        "requiere_wifi": sr.requiere_wifi,
+        "requiere_bano": sr.requiere_bano,
+        "requiere_musica": sr.requiere_musica,
+        "requiere_maletero_amplio": sr.requiere_maletero_amplio,
+        "requiere_sillas_bebe": sr.requiere_sillas_bebe,
+        "requiere_acepta_mascotas": sr.requiere_acepta_mascotas,
+    }
+
+
 @router.get("/pending", response_model=list[schemas.ServiceRequestRead])
 def get_pending_requests(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user)
 ):
     """
-    Retorna la lista de viajes con estado 'PENDING' ordenados por fecha de creación.
+    Retorna la lista de viajes con estado 'PENDING'.
     - Conductores: si NO están disponibles (is_online = false), no ven ninguna
       solicitud — el radar queda vacío hasta que se conecten. Si están
-      disponibles, ven las solicitudes pendientes cuyo punto/radio de búsqueda
-      (elegido por el PASAJERO al publicar, HU09) alcanza su ubicación actual.
-    - Pasajeros: Ven SOLO sus propias solicitudes pendientes (sin filtro geográfico).
+      disponibles, ven TODAS las solicitudes pendientes dentro del radio de
+      visibilidad automático (HU09), ordenadas por cercanía (las más cercanas
+      primero) — el filtro de comodidades (HU38) ya NO oculta solicitudes; cada
+      una trae "comodidades_cumplidas"/"comodidades_faltantes" para que el
+      conductor sepa si su vehículo calza antes de ofertar.
+    - Pasajeros: Ven SOLO sus propias solicitudes pendientes, ordenadas por
+      fecha de creación (sin filtro geográfico).
     """
     try:
         # Conductor desconectado → radar vacío, ni siquiera consultamos la BD
@@ -162,19 +295,35 @@ def get_pending_requests(
         if current_user.role != "DRIVER": 
             query = query.filter(models.ServiceRequest.passenger_id == current_user.user_id)
             
-        # Ordenamos por los más recientes y ejecutamos
         pending_requests = query.order_by(models.ServiceRequest.created_at.desc()).all()
 
-        # Filtro geográfico (HU09) — el radio lo definió el PASAJERO al publicar el viaje.
-        # El conductor ya está disponible (is_online = true) en este punto.
-        if current_user.role == "DRIVER" and current_user.current_lat is not None and current_user.current_lng is not None:
-            pending_requests = [
-                sr for sr in pending_requests
-                if sr.search_lat is None or sr.search_lng is None or not sr.search_radius_km
-                or _distancia_km(current_user.current_lat, current_user.current_lng, sr.search_lat, sr.search_lng) <= float(sr.search_radius_km)
-            ]
-            
-        return pending_requests
+        if current_user.role == "DRIVER":
+            # HU09 — radio de visibilidad automático + orden por cercanía. El
+            # conductor ya está disponible (is_online = true) en este punto.
+            if current_user.current_lat is not None and current_user.current_lng is not None:
+                con_distancia = []
+                for sr in pending_requests:
+                    if sr.search_lat is None or sr.search_lng is None or not sr.search_radius_km:
+                        con_distancia.append((0, sr))
+                        continue
+                    distancia = _distancia_km(current_user.current_lat, current_user.current_lng, sr.search_lat, sr.search_lng)
+                    if distancia <= float(sr.search_radius_km):
+                        con_distancia.append((distancia, sr))
+                con_distancia.sort(key=lambda par: par[0])
+                pending_requests = [sr for _, sr in con_distancia]
+
+            # HU38 — filtro flexible: se anota, no se oculta.
+            resultado = []
+            for sr in pending_requests:
+                match = _match_comodidades(db, current_user, sr)
+                item = _serializar_service_request(sr)
+                item["comodidades_exigidas"] = match["exigidas"]
+                item["comodidades_cumplidas"] = match["cumplidas"]
+                item["comodidades_faltantes"] = match["faltantes"]
+                resultado.append(item)
+            return resultado
+
+        return [_serializar_service_request(sr) for sr in pending_requests]
 
     except Exception as e:
         raise HTTPException(
@@ -621,6 +770,10 @@ def get_offers_for_request(
         recomendado = False
         if vehiculo:
             capacidad = vehiculo.capacidad_real or vehiculo.capacity
+            # HU38 — filtro flexible: se muestra la oferta igual aunque no cumpla
+            # el 100% de las comodidades pedidas; el pasajero ve cuántas cumple y
+            # cuáles le faltan, y decide él mismo con esa información.
+            match = _match_comodidades(db, conductor, service_request) if conductor else {"exigidas": 0, "cumplidas": 0, "cumple_todas": True, "faltantes": []}
             comodidades = {
                 "categoria": _categoria_vehiculo(capacidad),
                 "capacidad": capacidad,
@@ -633,12 +786,19 @@ def get_offers_for_request(
                 "acepta_mascotas": vehiculo.acepta_mascotas,
                 "cargo_mascota": float(vehiculo.cargo_mascota) if vehiculo.cargo_mascota is not None else None,
                 "acepta_menores_2_anos": vehiculo.acepta_menores_2_anos,
+                "comodidades_exigidas": match["exigidas"],
+                "comodidades_cumplidas": match["cumplidas"],
+                "comodidades_faltantes": match["faltantes"],
             }
-            # Recomendado: capacidad suficiente para el grupo, sin sobredimensionar
-            # de forma exagerada (no le recomendamos un bus grande a 2 personas).
+            # Recomendado: capacidad suficiente para el grupo (sin sobredimensionar
+            # de forma exagerada) Y que cumpla todas las comodidades que el
+            # pasajero exigió. Si le falta alguna, la oferta se sigue mostrando
+            # igual — solo no se destaca como "recomendada".
             if pasajeros_totales > 0 and capacidad >= pasajeros_totales:
                 recomendado = capacidad <= max(pasajeros_totales * 3, pasajeros_totales + 3)
             if service_request.has_pets and not vehiculo.acepta_mascotas:
+                recomendado = False
+            if match["exigidas"] > 0 and not match["cumple_todas"]:
                 recomendado = False
 
         resultado.append({
@@ -957,6 +1117,66 @@ def resolve_counter_offer(
 # El conductor ve sus negociaciones activas (SCRUM-83)
 
 
+# HU09 — PATCH /api/service-requests/{request_id}/cancel
+# El pasajero cancela la búsqueda mientras el viaje sigue PENDING (todavía no
+# aceptó ninguna oferta). Una vez el viaje pasa a ASSIGNED ya no se puede
+# cancelar desde aquí — a esa altura hay un conductor comprometido y eso
+# necesitaría su propio flujo (no forma parte de este cambio).
+@router.patch("/{request_id}/cancel")
+def cancel_service_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    viaje = db.query(models.ServiceRequest).filter(
+        models.ServiceRequest.request_id == request_id
+    ).first()
+
+    if not viaje:
+        raise HTTPException(status_code=404, detail="Viaje no encontrado.")
+
+    if viaje.passenger_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para cancelar este viaje.")
+
+    if viaje.status != 'PENDING':
+        raise HTTPException(
+            status_code=400,
+            detail=f"Solo puedes cancelar la búsqueda mientras el viaje está pendiente. Estado actual: {viaje.status}"
+        )
+
+    viaje.status = 'CANCELLED'
+
+    # Cualquier oferta que ya hubieran enviado conductores para este viaje
+    # queda sin efecto — se avisa a cada conductor para que no siga esperando
+    # respuesta de una solicitud que ya no existe.
+    ofertas_activas = db.query(models.DriverOffer).filter(
+        models.DriverOffer.request_id == request_id,
+        models.DriverOffer.status.in_(['DRIVER_OFFERED', 'PASSENGER_COUNTER_OFFERED'])
+    ).all()
+    for oferta in ofertas_activas:
+        oferta.status = 'REJECTED'
+
+    db.commit()
+
+    for oferta in ofertas_activas:
+        crear_notificacion(
+            db,
+            user_id=oferta.driver_id,
+            title="Viaje cancelado por el pasajero",
+            message=f"El pasajero canceló la solicitud de {viaje.origin} → {viaje.destination}.",
+            tipo="TRIP_REJECTED",
+            offer_id=oferta.offer_id
+        )
+
+    registrar_log(db, action="CANCEL_TRIP", user_id=current_user.user_id,
+        entity="ServiceRequest", entity_id=viaje.request_id,
+        detail=f"Pasajero #{current_user.user_id} canceló la búsqueda del viaje #{request_id}")
+
+    return {
+        "message": "Búsqueda cancelada.",
+        "request_id": viaje.request_id,
+        "status": "CANCELLED"
+    }
 
 
 @router.patch("/{request_id}/start")

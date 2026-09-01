@@ -152,12 +152,22 @@ class ServiceRequest(Base):
     suggested_price_max = Column(Numeric(10, 2))
     price_explanation   = Column(Text)
     intermediate_stops  = Column(JSONB)
-    # HU09 — Punto y radio de búsqueda de conductores (definido por el pasajero;
-    # por defecto es el origen del viaje, pero puede moverse, ej. buscar conductores
-    # cerca de la cabecera municipal en vez de una finca alejada)
+    # HU09 — Punto y radio de búsqueda de conductores. Ya NO lo elige el pasajero:
+    # se calculan automáticamente al crear el viaje (search_lat/lng = origen del
+    # viaje; search_radius_km = radio amplio fijo usado para que cualquier
+    # conductor que se conecte más tarde siga viendo la solicitud en su radar).
     search_lat           = Column(Numeric(10, 8))
     search_lng           = Column(Numeric(11, 8))
     search_radius_km     = Column(Numeric(5, 2), default=15)
+    # HU38 — Comodidades del vehículo que el pasajero exige (filtro de búsqueda).
+    # Si todas quedan en False, no se filtra por comodidades.
+    requiere_ac              = Column(Boolean, default=False)
+    requiere_wifi            = Column(Boolean, default=False)
+    requiere_bano            = Column(Boolean, default=False)
+    requiere_musica          = Column(Boolean, default=False)
+    requiere_maletero_amplio = Column(Boolean, default=False)
+    requiere_sillas_bebe     = Column(Boolean, default=False)
+    requiere_acepta_mascotas = Column(Boolean, default=False)
     created_at          = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 

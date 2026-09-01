@@ -226,12 +226,18 @@ const PanelConductor = ({ onVerRuta }) => {
     return () => clearInterval(intervalo);
   }, [disponible, token]);
 
-  const cargarSolicitudes = async () => {
-    setCargando(true);
-    setError(null);
+  // `silencioso` distingue una carga que el conductor está esperando ver (primera
+  // carga, conectarse, tocar "Actualizar") de un refresco automático de fondo:
+  // en el segundo caso NO tocamos `cargando` (que es lo que hacía desaparecer
+  // toda la lista y mostrar los esqueletos cada vez) — la lista se queda en
+  // pantalla y `solicitudes` simplemente se actualiza con lo nuevo, así que un
+  // viaje nuevo aparece agregado sin que el radar entero parpadee.
+  const cargarSolicitudes = async (silencioso = false) => {
+    if (!silencioso) setCargando(true);
+    if (!silencioso) setError(null);
     try {
-      // HU09 — el radio de búsqueda lo define el PASAJERO al publicar el viaje;
-      // el backend filtra comparándolo contra current_lat/current_lng del conductor.
+      // HU09 — el radio de búsqueda ahora es automático (origen del viaje +
+      // expansión), el backend ya lo resuelve y ordena por cercanía.
       const res = await fetch(`${API_BASE_URL}/api/service-requests/pending`, {
         headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
       });
@@ -239,9 +245,9 @@ const PanelConductor = ({ onVerRuta }) => {
       const data = await res.json();
       setSolicitudes(data);
     } catch {
-      setError('No se pudieron cargar las solicitudes.');
+      if (!silencioso) setError('No se pudieron cargar las solicitudes.');
     } finally {
-      setCargando(false);
+      if (!silencioso) setCargando(false);
     }
   };
 
@@ -250,15 +256,19 @@ const PanelConductor = ({ onVerRuta }) => {
   // ANTES de que esa desconexión se aplicara — el radar mostraba TODAS las
   // solicitudes un instante (porque el backend aún creía que seguías online de
   // una sesión anterior) y luego, al llegar la desconexión, se vaciaban de
-  // golpe. Por eso se espera a `sincronizado`.
-  useEffect(() => { if (token && sincronizado) cargarSolicitudes(); }, [token, sincronizado, disponible, ubicacionActual]);
+  // golpe. Por eso se espera a `sincronizado`. Ya NO depende de `ubicacionActual`
+  // (eso quedó a cargo del intervalo silencioso de abajo) — antes, cada
+  // actualización de posición (cada 20s) también disparaba una carga "visible"
+  // que hacía parpadear la lista.
+  useEffect(() => { if (token && sincronizado) cargarSolicitudes(); }, [token, sincronizado, disponible]);
 
-  // El radar solo se refrescaba cada 20s (junto con el reporte de ubicación) o
-  // al tocar "Actualizar" a mano — una solicitud nueva podía tardar en aparecer.
-  // Mientras estás conectado, refresca el radar cada 3s por su cuenta.
+  // Mientras estás conectado, el radar se refresca solo cada 15s (antes eran
+  // 3s: eso disparaba muchísimas peticiones seguidas). Es un refresco
+  // silencioso: no muestra esqueletos ni oculta la lista, solo agrega/actualiza
+  // lo que cambió.
   useEffect(() => {
     if (!disponible || !token) return;
-    const intervalo = setInterval(cargarSolicitudes, 3000);
+    const intervalo = setInterval(() => cargarSolicitudes(true), 15000);
     return () => clearInterval(intervalo);
   }, [disponible, token]);
 
@@ -840,6 +850,16 @@ const PanelConductor = ({ onVerRuta }) => {
                       <span>🗓️ {formatearFecha(sol.departure_time)}</span>
                       <span>👥 {(sol.adults_count || 1) + (sol.children_count || 0)} pasajero(s){sol.has_pets ? ' 🐾' : ''}</span>
                     </div>
+                    {/* HU38 — filtro flexible de comodidades: el viaje se ve igual aunque tu
+                        vehículo no cumpla todo, pero te avisamos qué te falta para que decidas
+                        si te conviene ofertar de todas formas. */}
+                    {sol.comodidades_exigidas > 0 && (
+                      <div style={{ marginTop: '6px', fontSize: '11px', fontWeight: '600', color: sol.comodidades_faltantes?.length ? '#92400e' : BRAND_GREEN }}>
+                        {sol.comodidades_faltantes?.length
+                          ? `⚠️ El pasajero pidió comodidades que te faltan: ${sol.comodidades_faltantes.join(', ')}`
+                          : `✓ Cumples las ${sol.comodidades_exigidas} comodidad(es) que pidió el pasajero`}
+                      </div>
+                    )}
                     {estaSeleccionada && (
                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                         style={{ marginTop: '8px', fontSize: '11px', color: BRAND_GREEN, fontWeight: '600' }}>
@@ -1127,6 +1147,20 @@ const PanelConductor = ({ onVerRuta }) => {
                     placeholder={`Registrada: ${formVehiculo.capacity}`}
                     style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px' }} />
                 </div>
+
+                {/* HU38 — los pasajeros ahora pueden filtrar por comodidades al publicar un
+                    viaje: si el conductor no marca ninguna, simplemente no le llegarán esas
+                    solicitudes filtradas, aunque su vehículo sí las tenga. */}
+                {!formVehiculo.tiene_ac && !formVehiculo.tiene_wifi && !formVehiculo.tiene_bano &&
+                  !formVehiculo.tiene_musica && !formVehiculo.tiene_maletero_amplio && !formVehiculo.tiene_sillas_bebe && (
+                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '10px 12px', marginBottom: '12px' }}>
+                    <p style={{ margin: 0, fontSize: '11.5px', color: '#92400e' }}>
+                      Aún no has marcado ninguna comodidad. Los pasajeros ahora pueden filtrar su búsqueda por
+                      comodidades — si tu vehículo tiene aire acondicionado, WiFi u otras, márcalas para no perderte
+                      esos viajes.
+                    </p>
+                  </div>
+                )}
 
                 <p style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '8px' }}>Comodidades</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
