@@ -13,7 +13,7 @@ const IconMascota = (p) => <Icono {...p}><ellipse cx="8" cy="9" rx="1.8" ry="2.4
 const IconGrafico = (p) => <Icono {...p}><path d="M4 20V4M4 20h16" /><path d="M8 16.5v-4M12.5 16.5V8M17 16.5v-6.5" /></Icono>;
 const IconMapa    = (p) => <Icono {...p}><path d="M9 4.5 3.5 6.8v12.7L9 17.2l6 2.3 5.5-2.3V4.5L15 6.8Z" /><path d="M9 4.5v12.7M15 6.8v12.7" /></Icono>;
 import { motion, AnimatePresence } from 'framer-motion';
-import { GoogleMap, MarkerF, CircleF, OverlayViewF, useJsApiLoader } from '@react-google-maps/api';
+import { GoogleMap, MarkerF, useJsApiLoader } from '@react-google-maps/api';
 import { AuthContext } from './AuthContext';
 import { ToastContainer, useToast } from './Toast';
 import { SkeletonTarjetaViaje } from './Skeleton';
@@ -29,12 +29,6 @@ const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 const mapContainerStyle = { width: '100%', height: '100%' };
 const centroDefaultAntioquia = { lat: 6.2442, lng: -75.5812 }; // Medellín
 
-// HU06/HU38 — color de las zonas de demanda según cuántas solicitudes hay
-const colorPorDemanda = (count) => {
-  if (count >= 6) return '#dc5f3c';
-  if (count >= 3) return '#f59e0b';
-  return '#86efac';
-};
 
 const PanelConductor = ({ onVerRuta }) => {
   const { token, usuario } = useContext(AuthContext);
@@ -46,44 +40,7 @@ const PanelConductor = ({ onVerRuta }) => {
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
-  // HU06 — Zonas de demanda (visibles conectado o no) y solicitudes puntuales
-  // con coordenadas (solo se pintan en el mapa cuando el conductor está conectado)
-  const [zonasDemanda, setZonasDemanda] = useState([]);
-  const [mostrarAvisoZonas, setMostrarAvisoZonas] = useState(true);
-
-  const cargarZonasDemanda = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/service-requests/demand-zones`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
-      });
-      if (res.ok) setZonasDemanda(await res.json());
-    } catch {}
-  };
-
-  const [pestanaActiva, setPestanaActiva] = useState('radar');
-  const [tema, alternarTema] = useTema();
-  const [solicitudes, setSolicitudes] = useState([]);
-  const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState(null);
-  const [solicitudModal, setSolicitudModal] = useState(null);
-  const [precio, setPrecio] = useState('');
-  const [enviandoOferta, setEnviandoOferta] = useState(false);
-  const [alertaExito, setAlertaExito] = useState(false);
-  const [errorPrecio, setErrorPrecio] = useState('');
-  const [viajesActivos, setViajesActivos] = useState([]);
-  const [tarjetaRutaId, setTarjetaRutaId] = useState(null);
-  const [notificaciones, setNotificaciones] = useState([]);
-  const [mostrarNotifPanel, setMostrarNotifPanel] = useState(false);
-  // HU20 — el conductor accede a "Mis Docs" (subir RUNT) desde el drawer de perfil,
-  // que antes solo se abría desde el Dashboard del pasajero.
-  const [mostrarPerfil, setMostrarPerfil] = useState(false);
-
-  // Filtros del radar
-  const [filtros, setFiltros] = useState({ tipo: 'todos', pasajeros: 'todos', mascotas: false });
-  const [mostrarFiltros, setMostrarFiltros] = useState(false);
-
   // HU09 — Disponibilidad y rango geográfico del conductor
-  const [disponible, setDisponible] = useState(false);
   const [ubicacionActual, setUbicacionActual] = useState(null); // { lat, lng }
   // Referencia al mapa: hace falta para centrarlo sin pelear con la prop `center`,
   // que si se fuerza en cada render impide que el conductor lo mueva a mano.
@@ -200,53 +157,30 @@ const PanelConductor = ({ onVerRuta }) => {
     return null;
   };
 
-  // Si una sesión anterior quedó "en línea" en el backend (por ejemplo se cerró
-  // la pestaña sin desconectarse), el panel arranca mostrando "Desconectado" en
-  // pantalla pero el backend seguía creyendo que el conductor estaba online.
-  // Forzamos que el backend quede desconectado apenas se abre el panel — y
-  // guardamos esa petición en un ref para poder ESPERARLA antes de conectar: si
-  // el conductor toca "Conectarme" muy rápido después de cargar la pantalla, sin
-  // esto la petición de "desconectar" (lenta) podía llegar al backend DESPUÉS
-  // de la de "conectar" (por orden de red) y dejar is_online en false otra vez,
-  // aunque la pantalla ya dijera "conectado" — el radar se quedaba vacío.
-  const syncInicialRef = useRef(null);
+  // La ubicación se reporta desde que se abre el panel: no hay estado de
+  // "conectarse". Los viajes son premeditados, así que al conductor le sirve
+  // que lo tengan en cuenta siempre, tenga o no la app abierta.
   const [sincronizado, setSincronizado] = useState(false);
-  useEffect(() => {
-    if (!token) return;
-    syncInicialRef.current = actualizarUbicacionBackend({ is_online: false }).finally(() => setSincronizado(true));
-  }, [token]);
 
-  // HU09 — Activar/desactivar disponibilidad. Al activar, pide geolocalización
-  // y empieza a reportarla periódicamente mientras el conductor esté disponible.
-  const toggleDisponibilidad = () => {
-    if (disponible) {
-      setDisponible(false);
-      actualizarUbicacionBackend({ is_online: false });
-      return;
-    }
-    if (!navigator.geolocation) {
-      toast('Tu navegador no soporta geolocalización.', 'error');
-      return;
-    }
+  const reportarUbicacion = useCallback(() => {
+    if (!navigator.geolocation) { setSincronizado(true); return; }
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords;
         setUbicacionActual({ lat: latitude, lng: longitude });
-        setDisponible(true);
-        // Espera a que la sincronización inicial (desconectar) termine antes de
-        // mandar "conectar", así nunca llegan al backend en el orden equivocado.
-        if (syncInicialRef.current) await syncInicialRef.current;
-        await actualizarUbicacionBackend({ current_lat: latitude, current_lng: longitude, is_online: true });
-        cargarSolicitudes();
+        await actualizarUbicacionBackend({ current_lat: latitude, current_lng: longitude });
+        setSincronizado(true);
       },
-      () => toast('No se pudo obtener tu ubicación. Actívala e intenta de nuevo.', 'error'),
+      () => setSincronizado(true),   // sin permiso: el radar igual muestra los viajes
       { enableHighAccuracy: true }
     );
-  };
+  }, [token]);
 
-  // Mientras esté disponible, reporta su posición cada 20s (mantiene el radar actualizado)
+  useEffect(() => { if (token) reportarUbicacion(); }, [token, reportarUbicacion]);
+
+  // Reporta la posición cada 20 s para mantener el orden por cercanía al día
   useEffect(() => {
-    if (!disponible || !navigator.geolocation) return;
+    if (!navigator.geolocation) return;
     const intervalo = setInterval(() => {
       navigator.geolocation.getCurrentPosition((pos) => {
         const { latitude, longitude } = pos.coords;
@@ -255,7 +189,7 @@ const PanelConductor = ({ onVerRuta }) => {
       });
     }, 20000);
     return () => clearInterval(intervalo);
-  }, [disponible, token]);
+  }, [token]);
 
   // `silencioso` distingue una carga que el conductor está esperando ver (primera
   // carga, conectarse, tocar "Actualizar") de un refresco automático de fondo:
@@ -291,17 +225,16 @@ const PanelConductor = ({ onVerRuta }) => {
   // (eso quedó a cargo del intervalo silencioso de abajo) — antes, cada
   // actualización de posición (cada 20s) también disparaba una carga "visible"
   // que hacía parpadear la lista.
-  useEffect(() => { if (token && sincronizado) cargarSolicitudes(); }, [token, sincronizado, disponible]);
+  useEffect(() => { if (token && sincronizado) cargarSolicitudes(); }, [token, sincronizado]);
 
-  // Mientras estás conectado, el radar se refresca solo cada 15s (antes eran
-  // 3s: eso disparaba muchísimas peticiones seguidas). Es un refresco
-  // silencioso: no muestra esqueletos ni oculta la lista, solo agrega/actualiza
-  // lo que cambió.
+  // El radar se refresca solo cada 15s (antes eran 3s: disparaba muchísimas
+  // peticiones seguidas). Es un refresco silencioso: no muestra esqueletos ni
+  // oculta la lista, solo agrega o actualiza lo que cambió.
   useEffect(() => {
-    if (!disponible || !token) return;
+    if (!token) return;
     const intervalo = setInterval(() => cargarSolicitudes(true), 15000);
     return () => clearInterval(intervalo);
-  }, [disponible, token]);
+  }, [token]);
 
   // SCRUM-83: Cargar negociaciones activas cuando se cambia a esa pestaña
   const cargarOcupantes = async (requestId) => {
@@ -334,6 +267,37 @@ const PanelConductor = ({ onVerRuta }) => {
     if (token && pestanaActiva === 'activos') cargarViajesActivos();
   }, [token, pestanaActiva]);
 
+  // Historial de viajes del conductor
+  const [historial, setHistorial] = useState([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [errorHistorial, setErrorHistorial] = useState(null);
+
+  const cargarHistorial = async () => {
+    setCargandoHistorial(true);
+    setErrorHistorial(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/driver/history`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (!res.ok) {
+        let detalle = '';
+        try { detalle = (await res.json())?.detail || ''; } catch { /* sin cuerpo */ }
+        throw new Error(detalle || `El servidor respondió ${res.status}.`);
+      }
+      setHistorial(await res.json());
+    } catch (e) {
+      setErrorHistorial(e instanceof TypeError
+        ? 'No pudimos conectarnos al servidor.'
+        : e.message || 'No pudimos cargar tu historial.');
+    } finally {
+      setCargandoHistorial(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token && pestanaActiva === 'historial') cargarHistorial();
+  }, [token, pestanaActiva]);
+
   // HU35 — Panel de ganancias del conductor (SCRUM-204)
   const [ganancias, setGanancias] = useState(null);
   const [cargandoGanancias, setCargandoGanancias] = useState(false);
@@ -346,10 +310,23 @@ const PanelConductor = ({ onVerRuta }) => {
       const res = await fetch(`${API_BASE_URL}/drivers/earnings`, {
         headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // Antes esto era `throw new Error()` con un catch vacío: el error real
+        // se perdía y la pantalla solo decía "intenta de nuevo", sin forma de
+        // saber si era permiso, sesión vencida o el backend caído.
+        let detalle = '';
+        try { detalle = (await res.json())?.detail || ''; } catch { /* respuesta sin cuerpo */ }
+        if (res.status === 401) throw new Error('Tu sesión expiró. Volvé a entrar.');
+        if (res.status === 403) throw new Error(detalle || 'Esta sección es solo para conductores.');
+        throw new Error(detalle || `El servidor respondió ${res.status}.`);
+      }
       setGanancias(await res.json());
-    } catch {
-      setErrorGanancias('No pudimos cargar tus ganancias. Intenta de nuevo.');
+    } catch (e) {
+      const sinRed = e instanceof TypeError;   // fetch falla así cuando no hay conexión
+      setErrorGanancias(sinRed
+        ? 'No pudimos conectarnos al servidor. Revisá tu conexión e intentá de nuevo.'
+        : e.message || 'No pudimos cargar tus ganancias.');
+      console.error('[ganancias]', e);
     } finally {
       setCargandoGanancias(false);
     }
@@ -632,7 +609,7 @@ const PanelConductor = ({ onVerRuta }) => {
       }
     `}</style>
     <div className="pc-raiz" style={{ display: 'flex', gap: '14px', height: '100%', fontFamily: T.ui }}>
-    <aside className="pc-lateral" style={{ width: '420px', flexShrink: 0, background: 'var(--t-monte)', borderRadius: '16px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <aside className="pc-lateral" style={{ width: '480px', flexShrink: 0, background: 'var(--t-monte)', borderRadius: '16px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
 
       {/* CABECERA OSCURA — marca, saludo y el control de conexión, que es
           lo único que el conductor toca antes de empezar a trabajar. */}
@@ -651,7 +628,7 @@ const PanelConductor = ({ onVerRuta }) => {
               style={{ position: 'relative', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: `1px solid ${T.monteLinea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <IconCampana size={15} color="rgba(234,242,236,.8)" />
               {notificaciones.filter(n => !n.is_read).length > 0 && (
-                <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: T.alerta, color: '#fff', borderRadius: '50%', minWidth: '16px', height: '16px', fontSize: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${T.monte}`, padding: '0 3px' }}>
+                <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: T.alerta, color: '#fff', borderRadius: '50%', minWidth: '16px', height: '16px', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${T.monte}`, padding: '0 3px' }}>
                   {notificaciones.filter(n => !n.is_read).length}
                 </span>
               )}
@@ -659,50 +636,34 @@ const PanelConductor = ({ onVerRuta }) => {
           </div>
         </div>
 
-        {/* Saludo: el nombre es lo que se lee, el resto es contexto */}
-        <div style={{ marginBottom: '13px' }}>
-          <p style={{ margin: 0, fontFamily: T.display, fontWeight: 800, fontSize: '19px', letterSpacing: '-.01em', color: '#fff' }}>
+        {/* Saludo y estado. Ya no hay que "conectarse": el conductor siempre
+            recibe solicitudes, así que lo que se informa es si tenemos su
+            ubicación, que es lo único que cambia el orden por cercanía. */}
+        <div>
+          <p style={{ margin: 0, fontFamily: T.display, fontWeight: 800, fontSize: '21px', letterSpacing: '-.01em', color: '#fff' }}>
             Hola, {usuario?.full_name?.split(' ')[0] || 'Conductor'}
           </p>
-          <p style={{ margin: '2px 0 0', fontFamily: T.dato, fontSize: '10.5px', letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(234,242,236,.42)' }}>
-            {disponible ? 'En línea' : 'Desconectado'}
+          <p style={{ margin: '4px 0 0', fontSize: '13.5px', color: 'rgba(234,242,236,.5)', lineHeight: 1.5 }}>
+            {ubicacionActual
+              ? <>Recibís solicitudes de tu zona{viajesActivos.length > 0 && <> · {viajesActivos.length} viaje{viajesActivos.length > 1 ? 's' : ''} en curso</>}</>
+              : 'Activá la ubicación para ver primero los viajes más cercanos'}
           </p>
+          {!ubicacionActual && (
+            <button onClick={reportarUbicacion} className="t-foco"
+              style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '7px', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.monteLinea}`, color: '#EAF2EC', borderRadius: T.rControl, padding: '9px 14px', cursor: 'pointer', fontSize: '13.5px', fontWeight: 600, fontFamily: T.ui }}>
+              <IconPin size={14} />Usar mi ubicación
+            </button>
+          )}
         </div>
-
-        {/* CONTROL PRINCIPAL — conectarse, no "pedir viajes". El estado se lee
-            en el color y en el punto, no solo en el texto. */}
-        <button onClick={toggleDisponibilidad} className="t-foco"
-          style={{
-            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-            padding: '14px', borderRadius: T.rTarjeta, cursor: 'pointer',
-            fontFamily: T.display, fontSize: '14.5px', fontWeight: 700,
-            border: disponible ? 'none' : `1px solid ${T.monteLinea}`,
-            background: disponible ? BRAND_GREEN : 'rgba(255,255,255,0.05)',
-            color: disponible ? '#08210F' : '#EAF2EC',
-            transition: 'background .2s, color .2s',
-          }}>
-          <span className={disponible ? 't-anim' : undefined} style={{
-            width: '9px', height: '9px', borderRadius: '50%',
-            background: disponible ? '#08210F' : 'rgba(234,242,236,.45)',
-            animation: disponible ? 't-latido 1.8s infinite' : 'none',
-          }} />
-          {disponible ? 'Estás conectado' : 'Conectarme'}
-        </button>
-
-        <p style={{ margin: '10px 0 0', color: 'rgba(234,242,236,.42)', fontSize: '11.5px', textAlign: 'center', lineHeight: 1.5 }}>
-          {disponible
-            ? <>Viendo solicitudes cerca tuyo{viajesActivos.length > 0 && <> · {viajesActivos.length} viaje{viajesActivos.length > 1 ? 's' : ''} activo{viajesActivos.length > 1 ? 's' : ''}</>}<br /><span style={{ opacity: .75 }}>Tocá de nuevo para desconectarte</span></>
-            : 'Conectate para empezar a recibir solicitudes de tu zona'}
-        </p>
       </div>
 
       {/* PESTAÑAS */}
-      <div style={{ display: 'flex', gap: '5px', padding: '0 20px 16px' }}>
-        {[{ id: 'radar', Ico: IconRadar, label: 'Radar', count: solicitudes.length }, { id: 'activos', Ico: IconClipboard, label: 'Ofertas', count: viajesActivos.length }, { id: 'ganancias', Ico: IconGrafico, label: 'Ganancias', count: 0 }, { id: 'vehiculo', Ico: IconAuto, label: 'Vehículo', count: 0 }].map(tab => (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '0 20px 16px' }}>
+        {[{ id: 'radar', Ico: IconRadar, label: 'Radar', count: solicitudes.length }, { id: 'activos', Ico: IconClipboard, label: 'Ofertas', count: viajesActivos.length }, { id: 'historial', Ico: IconCalendario, label: 'Historial', count: 0 }, { id: 'ganancias', Ico: IconGrafico, label: 'Ganancias', count: 0 }, { id: 'vehiculo', Ico: IconAuto, label: 'Vehículo', count: 0 }].map(tab => (
           <button key={tab.id} onClick={() => setPestanaActiva(tab.id)}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 6px', borderRadius: '9px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '11px', fontFamily: T.ui, whiteSpace: 'nowrap', minWidth: 0, transition: 'background-color .18s, color .18s', backgroundColor: pestanaActiva === tab.id ? '#fff' : 'rgba(255,255,255,0.08)', color: pestanaActiva === tab.id ? T.monte : 'rgba(255,255,255,0.7)' }}>
+            style={{ flex: '1 1 28%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px 6px', borderRadius: '9px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '12px', fontFamily: T.ui, whiteSpace: 'nowrap', minWidth: 0, transition: 'background-color .18s, color .18s', backgroundColor: pestanaActiva === tab.id ? '#fff' : 'rgba(255,255,255,0.08)', color: pestanaActiva === tab.id ? T.monte : 'rgba(255,255,255,0.7)' }}>
             <tab.Ico size={13} />{tab.label}
-            {tab.count > 0 && <span style={{ background: pestanaActiva === tab.id ? BRAND_GREEN : 'rgba(255,255,255,0.25)', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', marginLeft: '4px' }}>{tab.count}</span>}
+            {tab.count > 0 && <span style={{ background: pestanaActiva === tab.id ? BRAND_GREEN : 'rgba(255,255,255,0.25)', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '11px', marginLeft: '4px' }}>{tab.count}</span>}
           </button>
         ))}
       </div>
@@ -714,7 +675,7 @@ const PanelConductor = ({ onVerRuta }) => {
       <AnimatePresence>
         {alertaExito && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            style={{ margin: '12px 16px 0', backgroundColor: 'var(--t-musgo)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '8px', padding: '10px 14px', color: BRAND_GREEN, fontSize: '13px', fontWeight: '600', textAlign: 'center' }}>
+            style={{ margin: '12px 16px 0', backgroundColor: 'var(--t-musgo)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '8px', padding: '10px 14px', color: BRAND_GREEN, fontSize: '14px', fontWeight: '600', textAlign: 'center' }}>
             <IconVisto size={14} style={{ verticalAlign: '-2px', marginRight: '7px' }} />Oferta enviada. Esperando la respuesta del pasajero.
           </motion.div>
         )}
@@ -727,26 +688,26 @@ const PanelConductor = ({ onVerRuta }) => {
             style={{ margin: '12px 16px 0', backgroundColor: 'var(--t-niebla)', border: '1px solid var(--t-linea)', borderRadius: '12px', padding: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
               <div>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: T.tinta, display: 'flex', alignItems: 'flex-start', gap: '7px' }}><IconPin size={14} style={{ flexShrink: 0, marginTop: '2px' }} />{solicitudModal.origin}</p>
-                <p style={{ margin: '2px 0', fontWeight: '700', fontSize: '13px', color: BRAND_GREEN }}>→ {solicitudModal.destination}</p>
-                <p style={{ margin: '4px 0 0', fontSize: '11px', color: T.piedra, display: 'flex', alignItems: 'center', gap: '6px' }}><IconPersonas size={13} />{(solicitudModal.adults_count || 1) + (solicitudModal.children_count || 0)} pasajero(s){solicitudModal.has_pets && <> · <IconMascota size={12} /></>}</p>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: '14px', color: T.tinta, display: 'flex', alignItems: 'flex-start', gap: '7px' }}><IconPin size={14} style={{ flexShrink: 0, marginTop: '2px' }} />{solicitudModal.origin}</p>
+                <p style={{ margin: '2px 0', fontWeight: '700', fontSize: '14px', color: BRAND_GREEN }}>→ {solicitudModal.destination}</p>
+                <p style={{ margin: '4px 0 0', fontSize: '12px', color: T.piedra, display: 'flex', alignItems: 'center', gap: '6px' }}><IconPersonas size={13} />{(solicitudModal.adults_count || 1) + (solicitudModal.children_count || 0)} pasajero(s){solicitudModal.has_pets && <> · <IconMascota size={12} /></>}</p>
               </div>
               <button onClick={() => { setSolicitudModal(null); setPrecio(''); setErrorPrecio(''); }}
                 style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--t-piedra-clara)' }}>×</button>
             </div>
-            <p style={{ margin: '0 0 8px', fontSize: '12px', color: 'var(--t-piedra)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '7px' }}><IconPrecio size={14} />¿Cuánto cobrarías por este viaje?</p>
+            <p style={{ margin: '0 0 8px', fontSize: '13px', color: 'var(--t-piedra)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '7px' }}><IconPrecio size={14} />¿Cuánto cobrarías por este viaje?</p>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--t-piedra)', fontSize: '14px', fontWeight: '700' }}>$</span>
+                  <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--t-piedra)', fontSize: '15px', fontWeight: '700' }}>$</span>
                   <input type="number" placeholder="Ej: 45000" value={precio}
                     onChange={(e) => { setPrecio(e.target.value); if (errorPrecio) validarPrecio(e.target.value); }}
-                    min="1" style={{ width: '100%', padding: '10px 12px 10px 26px', border: `1px solid ${errorPrecio ? '#C2410C' : 'var(--t-linea)'}`, borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', outline: 'none' }} />
+                    min="1" style={{ width: '100%', padding: '10px 12px 10px 26px', border: `1px solid ${errorPrecio ? '#C2410C' : 'var(--t-linea)'}`, borderRadius: '8px', fontSize: '15px', boxSizing: 'border-box', outline: 'none' }} />
                 </div>
-                {errorPrecio && <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#C2410C' }}>{errorPrecio}</p>}
+                {errorPrecio && <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#C2410C' }}>{errorPrecio}</p>}
               </div>
               <motion.button whileTap={{ scale: 0.95 }} onClick={enviarOferta} disabled={enviandoOferta}
-                style={{ background: enviandoOferta ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 16px', fontWeight: '700', fontSize: '13px', cursor: enviandoOferta ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
+                style={{ background: enviandoOferta ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 16px', fontWeight: '700', fontSize: '14px', cursor: enviandoOferta ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
                 {enviandoOferta ? '...' : 'Enviar'}
               </motion.button>
             </div>
@@ -764,13 +725,13 @@ const PanelConductor = ({ onVerRuta }) => {
             <div style={{ marginBottom: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: mostrarFiltros ? '10px' : '0' }}>
                 <button onClick={() => setMostrarFiltros(f => !f)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: filtrosActivos ? 'var(--t-musgo)' : 'var(--t-niebla)', border: `1px solid ${filtrosActivos ? BRAND_GREEN : 'var(--t-linea)'}`, borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', color: filtrosActivos ? BRAND_GREEN : 'var(--t-piedra)', cursor: 'pointer' }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: filtrosActivos ? 'var(--t-musgo)' : 'var(--t-niebla)', border: `1px solid ${filtrosActivos ? BRAND_GREEN : 'var(--t-linea)'}`, borderRadius: '8px', padding: '6px 12px', fontSize: '13px', fontWeight: '600', color: filtrosActivos ? BRAND_GREEN : 'var(--t-piedra)', cursor: 'pointer' }}>
                   <IconFiltros size={14} /> Filtros
-                  {filtrosActivos && <span style={{ background: BRAND_GREEN, color: '#fff', borderRadius: '50%', width: '16px', height: '16px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconVisto size={10} color="#fff" grosor={2.6} /></span>}
+                  {filtrosActivos && <span style={{ background: BRAND_GREEN, color: '#fff', borderRadius: '50%', width: '16px', height: '16px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconVisto size={10} color="#fff" grosor={2.6} /></span>}
                 </button>
                 {filtrosActivos && (
                   <button onClick={() => setFiltros({ tipo: 'todos', pasajeros: 'todos', mascotas: false })}
-                    style={{ background: 'none', border: 'none', fontSize: '11px', color: '#C2410C', fontWeight: '600', cursor: 'pointer' }}>
+                    style={{ background: 'none', border: 'none', fontSize: '12px', color: '#C2410C', fontWeight: '600', cursor: 'pointer' }}>
                     Limpiar filtros
                   </button>
                 )}
@@ -782,22 +743,22 @@ const PanelConductor = ({ onVerRuta }) => {
                     style={{ overflow: 'hidden', backgroundColor: 'var(--t-niebla)', border: '1px solid var(--t-linea)', borderRadius: '10px', padding: '12px' }}>
 
                     {/* Tipo de viaje */}
-                    <p style={{ margin: '0 0 6px', fontSize: '11px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tipo de viaje</p>
+                    <p style={{ margin: '0 0 6px', fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tipo de viaje</p>
                     <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
                       {[{ val: 'todos', label: 'Todos' }, { val: 'ONE_WAY', label: '→ Solo ida' }, { val: 'ROUND_TRIP', label: '↩ Ida y vuelta' }].map(op => (
                         <button key={op.val} onClick={() => setFiltros(f => ({ ...f, tipo: op.val }))}
-                          style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: '600', transition: 'all 0.15s', backgroundColor: filtros.tipo === op.val ? BRAND_GREEN : 'var(--t-linea)', color: filtros.tipo === op.val ? '#fff' : 'var(--t-piedra)' }}>
+                          style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '600', transition: 'all 0.15s', backgroundColor: filtros.tipo === op.val ? BRAND_GREEN : 'var(--t-linea)', color: filtros.tipo === op.val ? '#fff' : 'var(--t-piedra)' }}>
                           {op.label}
                         </button>
                       ))}
                     </div>
 
                     {/* Pasajeros */}
-                    <p style={{ margin: '0 0 6px', fontSize: '11px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pasajeros</p>
+                    <p style={{ margin: '0 0 6px', fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pasajeros</p>
                     <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
                       {[{ val: 'todos', label: 'Todos' }, { val: '1', label: '1 pasajero' }, { val: '2-4', label: '2–4' }, { val: '5+', label: '5 o más' }].map(op => (
                         <button key={op.val} onClick={() => setFiltros(f => ({ ...f, pasajeros: op.val }))}
-                          style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: '600', transition: 'all 0.15s', backgroundColor: filtros.pasajeros === op.val ? BRAND_GREEN : 'var(--t-linea)', color: filtros.pasajeros === op.val ? '#fff' : 'var(--t-piedra)' }}>
+                          style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '600', transition: 'all 0.15s', backgroundColor: filtros.pasajeros === op.val ? BRAND_GREEN : 'var(--t-linea)', color: filtros.pasajeros === op.val ? '#fff' : 'var(--t-piedra)' }}>
                           {op.label}
                         </button>
                       ))}
@@ -805,7 +766,7 @@ const PanelConductor = ({ onVerRuta }) => {
 
                     {/* Mascotas */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>Solo con mascotas <IconMascota size={13} /></p>
+                      <p style={{ margin: 0, fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>Solo con mascotas <IconMascota size={13} /></p>
                       <div onClick={() => setFiltros(f => ({ ...f, mascotas: !f.mascotas }))}
                         style={{ width: '36px', height: '20px', borderRadius: '10px', backgroundColor: filtros.mascotas ? BRAND_GREEN : 'var(--t-linea)', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
                         <div style={{ position: 'absolute', top: '2px', left: filtros.mascotas ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: 'var(--t-papel)', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
@@ -817,7 +778,7 @@ const PanelConductor = ({ onVerRuta }) => {
 
               {/* Contador de resultados filtrados */}
               {filtrosActivos && !cargando && (
-                <p style={{ margin: '8px 0 0', fontSize: '11px', color: 'var(--t-piedra)' }}>
+                <p style={{ margin: '8px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>
                   {solicitudesFiltradas.length} de {solicitudes.length} viaje(s) coinciden con tus filtros
                 </p>
               )}
@@ -831,9 +792,9 @@ const PanelConductor = ({ onVerRuta }) => {
               </>
             )}
             {!cargando && error && (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#C2410C', fontSize: '13px' }}>
+              <div style={{ textAlign: 'center', padding: '20px', color: '#C2410C', fontSize: '14px' }}>
                 <IconAlerta size={14} style={{ verticalAlign: '-2px', marginRight: '7px' }} />{error}<br />
-                <button onClick={cargarSolicitudes} style={{ marginTop: '8px', background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>Reintentar</button>
+                <button onClick={cargarSolicitudes} style={{ marginTop: '8px', background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>Reintentar</button>
               </div>
             )}
             {/* ESTADO VACÍO */}
@@ -849,35 +810,26 @@ const PanelConductor = ({ onVerRuta }) => {
                   <line x1="23" y1="45" x2="17" y2="45" stroke="var(--t-ruta)" strokeWidth="2" strokeLinecap="round"/>
                   <line x1="87" y1="45" x2="93" y2="45" stroke="var(--t-ruta)" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
-                <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '14px' }}>
-                  {disponible ? 'Radar sin señal' : 'Estás desconectado'}
+                <p style={{ margin: '0 0 6px', fontWeight: 700, color: 'var(--t-tinta)', fontSize: '15px' }}>
+                  No hay viajes en tu zona
                 </p>
-                <p style={{ margin: '0 0 16px', color: 'var(--t-piedra)', fontSize: '13px', lineHeight: '1.5' }}>
-                  {disponible
-                    ? <>No hay viajes en tu zona por ahora.<br/>Vuelve a verificar en un momento.</>
-                    : <>Actívate como "Disponible" (arriba) para<br/>empezar a ver viajes cerca de ti.</>}
+                <p style={{ margin: '0 0 16px', color: 'var(--t-piedra)', fontSize: '14px', lineHeight: 1.5 }}>
+                  Apenas alguien publique un viaje cerca, aparece acá.<br />Te llega también una notificación.
                 </p>
-                {disponible ? (
-                  <motion.button whileTap={{ scale: 0.97 }} onClick={cargarSolicitudes}
-                    style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
-                    <IconGirar size={14} />Verificar de nuevo
-                  </motion.button>
-                ) : (
-                  <motion.button whileTap={{ scale: 0.97 }} onClick={toggleDisponibilidad}
-                    style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
-                    <IconRadar size={14} />Conectarme
-                  </motion.button>
-                )}
+                <motion.button whileTap={{ scale: 0.97 }} onClick={cargarSolicitudes}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '9px', padding: '10px 18px', fontWeight: 600, fontSize: '14px', cursor: 'pointer', fontFamily: T.ui }}>
+                  <IconGirar size={14} />Verificar de nuevo
+                </motion.button>
               </motion.div>
             )}
             {/* ESTADO VACÍO CUANDO HAY VIAJES PERO NINGUNO PASA FILTROS */}
             {!cargando && !error && solicitudes.length > 0 && solicitudesFiltradas.length === 0 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ textAlign: 'center', padding: '30px 20px' }}>
                 <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: T.musgo, border: `1px solid ${T.musgoLinea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: T.musgoTexto }}><IconRadar size={22} /></div>
-                <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '14px' }}>Sin resultados con estos filtros</p>
-                <p style={{ margin: '0 0 12px', color: 'var(--t-piedra)', fontSize: '13px' }}>Hay {solicitudes.length} viaje(s) disponibles, pero ninguno coincide.</p>
+                <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '15px' }}>Sin resultados con estos filtros</p>
+                <p style={{ margin: '0 0 12px', color: 'var(--t-piedra)', fontSize: '14px' }}>Hay {solicitudes.length} viaje(s) disponibles, pero ninguno coincide.</p>
                 <button onClick={() => setFiltros({ tipo: 'todos', pasajeros: 'todos', mascotas: false })}
-                  style={{ background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, borderRadius: '8px', padding: '7px 14px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
+                  style={{ background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, borderRadius: '8px', padding: '7px 14px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
                   Limpiar filtros
                 </button>
               </motion.div>
@@ -894,11 +846,11 @@ const PanelConductor = ({ onVerRuta }) => {
                       <div style={{ flex: 1 }}>
                         <TableroRuta origen={sol.origin} destino={sol.destination} size={11} />
                       </div>
-                      <span style={{ fontSize: '10px', background: 'var(--t-chiva-suave)', color: 'var(--t-chiva-texto)', padding: '3px 8px', borderRadius: '20px', fontWeight: '700', marginLeft: '8px', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: '11px', background: 'var(--t-chiva-suave)', color: 'var(--t-chiva-texto)', padding: '3px 8px', borderRadius: '20px', fontWeight: '700', marginLeft: '8px', whiteSpace: 'nowrap' }}>
                         {sol.trip_type === 'ROUND_TRIP' ? '↩ Ida y vuelta' : '→ Solo ida'}
                       </span>
                     </div>
-                    <div style={{ fontSize: '12px', color: 'var(--t-piedra)', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    <div style={{ fontSize: '13px', color: 'var(--t-piedra)', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconCalendario size={12} />{formatearFecha(sol.departure_time)}</span>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconPersonas size={12} />{(sol.adults_count || 1) + (sol.children_count || 0)} pasajero(s){sol.has_pets && <IconMascota size={12} />}</span>
                     </div>
@@ -906,7 +858,7 @@ const PanelConductor = ({ onVerRuta }) => {
                         vehículo no cumpla todo, pero te avisamos qué te falta para que decidas
                         si te conviene ofertar de todas formas. */}
                     {sol.comodidades_exigidas > 0 && (
-                      <div style={{ marginTop: '6px', fontSize: '11px', fontWeight: '600', color: sol.comodidades_faltantes?.length ? 'var(--t-chiva-texto)' : BRAND_GREEN }}>
+                      <div style={{ marginTop: '6px', fontSize: '12px', fontWeight: '600', color: sol.comodidades_faltantes?.length ? 'var(--t-chiva-texto)' : BRAND_GREEN }}>
                         {sol.comodidades_faltantes?.length
                           ? `El pasajero pidió comodidades que te faltan: ${sol.comodidades_faltantes.join(', ')}`
                           : `Cumplís las ${sol.comodidades_exigidas} comodidad(es) que pidió el pasajero`}
@@ -914,7 +866,7 @@ const PanelConductor = ({ onVerRuta }) => {
                     )}
                     {estaSeleccionada && (
                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                        style={{ marginTop: '8px', fontSize: '11px', color: BRAND_GREEN, fontWeight: '600' }}>
+                        style={{ marginTop: '8px', fontSize: '12px', color: BRAND_GREEN, fontWeight: '600' }}>
                         <IconMapa size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Ruta trazada en el mapa — hacé clic para ocultarla
                       </motion.div>
                     )}
@@ -923,7 +875,7 @@ const PanelConductor = ({ onVerRuta }) => {
                   <div style={{ padding: '0 14px 14px' }}>
                     <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                       onClick={(e) => { e.stopPropagation(); setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); }}
-                      style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                      style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
                       <IconPrecio size={15} />Hacer oferta
                     </motion.button>
                   </div>
@@ -939,7 +891,7 @@ const PanelConductor = ({ onVerRuta }) => {
           <>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
               <button onClick={cargarViajesActivos}
-                style={{ background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, padding: '5px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                style={{ background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, padding: '5px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
                 <IconGirar size={14} />Actualizar
               </button>
             </div>
@@ -947,8 +899,8 @@ const PanelConductor = ({ onVerRuta }) => {
             {viajesActivos.length === 0 && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', padding: '40px 20px' }}>
                 <div style={{ width: '54px', height: '54px', borderRadius: '50%', background: T.niebla2, border: `1px solid ${T.linea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: T.piedraClara }}><IconClipboard size={23} /></div>
-                <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '15px' }}>Aún no has enviado ofertas</p>
-                <p style={{ margin: 0, color: 'var(--t-piedra)', fontSize: '13px' }}>Cuando hagas una oferta aparecerá aquí con su estado.</p>
+                <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '16px' }}>Aún no has enviado ofertas</p>
+                <p style={{ margin: 0, color: 'var(--t-piedra)', fontSize: '14px' }}>Cuando hagas una oferta aparecerá aquí con su estado.</p>
               </motion.div>
             )}
 
@@ -980,17 +932,17 @@ const PanelConductor = ({ onVerRuta }) => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                     <div>
                       <TableroRuta origen={viaje.origin} destino={viaje.destination} size={11} />
-                      <p style={{ margin: '6px 0 0', fontSize: '11px', color: 'var(--t-piedra)' }}>{formatearFecha(viaje.departure_time)}</p>
+                      <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>{formatearFecha(viaje.departure_time)}</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <p style={{ margin: 0, fontWeight: '700', fontSize: '15px', color: BRAND_GREEN }}>${Number(viaje.offered_price).toLocaleString()}</p>
-                      <p style={{ margin: '2px 0 0', fontSize: '10px', color: 'var(--t-piedra-clara)' }}>
+                      <p style={{ margin: 0, fontWeight: '700', fontSize: '16px', color: BRAND_GREEN }}>${Number(viaje.offered_price).toLocaleString()}</p>
+                      <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--t-piedra-clara)' }}>
                         {esContraoferta ? 'Precio del pasajero' : 'Tu oferta'}
                       </p>
                     </div>
                   </div>
 
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: est.bg, color: est.color, borderRadius: '20px', padding: '4px 11px', fontSize: '11px', fontWeight: 700, marginBottom: esContraoferta ? '10px' : '0' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: est.bg, color: est.color, borderRadius: '20px', padding: '4px 11px', fontSize: '12px', fontWeight: 700, marginBottom: esContraoferta ? '10px' : '0' }}>
                     {est.Ico && <est.Ico size={12} />}{est.label}
                   </span>
 
@@ -1000,13 +952,13 @@ const PanelConductor = ({ onVerRuta }) => {
                       <motion.button whileTap={{ scale: 0.96 }}
                         onClick={() => resolverContraoferta(viaje.offer_id, 'ACCEPT')}
                         disabled={resolviendoOferta === viaje.offer_id + 'ACCEPT'}
-                        style={{ flex: 1, background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                        style={{ flex: 1, background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
                         {resolviendoOferta === viaje.offer_id + 'ACCEPT' ? '...' : <><IconVisto size={14} />Aceptar precio</>}
                       </motion.button>
                       <motion.button whileTap={{ scale: 0.96 }}
                         onClick={() => resolverContraoferta(viaje.offer_id, 'REJECT')}
                         disabled={resolviendoOferta === viaje.offer_id + 'REJECT'}
-                        style={{ flex: 1, background: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                        style={{ flex: 1, background: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
                         {resolviendoOferta === viaje.offer_id + 'REJECT' ? '...' : <><IconEquis size={14} />Rechazar</>}
                       </motion.button>
                     </div>
@@ -1020,20 +972,20 @@ const PanelConductor = ({ onVerRuta }) => {
                         await cargarOcupantes(viaje.request_id);
                         setModalOcupantesId(viaje.request_id);
                       }}
-                      style={{ marginTop: '10px', width: '100%', padding: '9px', background: 'var(--t-musgo)', border: '1px solid var(--t-ruta)', borderRadius: '8px', color: 'var(--t-musgo-texto)', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>
+                      style={{ marginTop: '10px', width: '100%', padding: '9px', background: 'var(--t-musgo)', border: '1px solid var(--t-ruta)', borderRadius: '8px', color: 'var(--t-musgo-texto)', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
                       <IconPersonas size={15} />Ver ocupantes del viaje
                     </button>
                   )}
 
                   {esAceptado && estadoViaje === 'ASSIGNED' && (
                     <div style={{ marginTop: '10px' }}>
-                      <div style={{ backgroundColor: 'var(--t-musgo)', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '12px', color: 'var(--t-musgo-texto)', fontWeight: '600' }}>
+                      <div style={{ backgroundColor: 'var(--t-musgo)', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '13px', color: 'var(--t-musgo-texto)', fontWeight: '600' }}>
                         <IconVisto size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Viaje confirmado. Cuando recojas al pasajero, iniciá el viaje.
                       </div>
                       <motion.button whileTap={{ scale: 0.96 }}
                         onClick={() => gestionarViaje(viaje.request_id, 'start')}
                         disabled={gestionandoViaje === viaje.request_id + 'start'}
-                        style={{ width: '100%', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                        style={{ width: '100%', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
                         {gestionandoViaje === viaje.request_id + 'start' ? '...' : <><IconAuto size={15} />Iniciar viaje</>}
                       </motion.button>
                     </div>
@@ -1041,20 +993,20 @@ const PanelConductor = ({ onVerRuta }) => {
 
                   {esAceptado && estadoViaje === 'IN_PROGRESS' && (
                     <div style={{ marginTop: '10px' }}>
-                      <div style={{ backgroundColor: 'var(--t-cielo-suave)', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '12px', color: 'var(--t-cielo-texto)', fontWeight: '600' }}>
+                      <div style={{ backgroundColor: 'var(--t-cielo-suave)', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '13px', color: 'var(--t-cielo-texto)', fontWeight: '600' }}>
                         <IconAuto size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Viaje en curso. Finalizá cuando llegues al destino.
                       </div>
                       <motion.button whileTap={{ scale: 0.96 }}
                         onClick={() => gestionarViaje(viaje.request_id, 'complete')}
                         disabled={gestionandoViaje === viaje.request_id + 'complete'}
-                        style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                        style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
                         {gestionandoViaje === viaje.request_id + 'complete' ? '...' : <><IconBandera size={15} />Finalizar viaje</>}
                       </motion.button>
                     </div>
                   )}
 
                   {esAceptado && estadoViaje === 'COMPLETED' && (
-                    <div style={{ marginTop: '10px', backgroundColor: 'var(--t-cielo-suave)', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: 'var(--t-cielo-texto)', fontWeight: '600', textAlign: 'center' }}>
+                    <div style={{ marginTop: '10px', backgroundColor: 'var(--t-cielo-suave)', borderRadius: '8px', padding: '10px 12px', fontSize: '13px', color: 'var(--t-cielo-texto)', fontWeight: '600', textAlign: 'center' }}>
                       <IconBandera size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Viaje completado.
                     </div>
                   )}
@@ -1070,7 +1022,7 @@ const PanelConductor = ({ onVerRuta }) => {
                         border: `1px solid ${viaje.ya_califico ? 'var(--t-linea)' : 'var(--t-chiva)'}`,
                         borderRadius: '8px',
                         color: viaje.ya_califico ? 'var(--t-piedra-clara)' : 'var(--t-chiva-texto)',
-                        fontSize: '12px', fontWeight: '700', cursor: viaje.ya_califico ? 'default' : 'pointer'
+                        fontSize: '13px', fontWeight: '700', cursor: viaje.ya_califico ? 'default' : 'pointer'
                       }}>
                       {viaje.ya_califico ? <><IconVisto size={14} />Ya calificaste a este pasajero</> : <><IconEstrella size={14} />Calificar pasajero</>}
                     </button>
@@ -1085,13 +1037,13 @@ const PanelConductor = ({ onVerRuta }) => {
         {pestanaActiva === 'ganancias' && (
           <>
             {cargandoGanancias && (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--t-piedra-clara)', fontSize: '13px' }}>Cargando...</div>
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--t-piedra-clara)', fontSize: '14px' }}>Cargando...</div>
             )}
 
             {errorGanancias && !cargandoGanancias && (
               <div style={{ textAlign: 'center', padding: '30px 20px' }}>
-                <p style={{ color: '#C2410C', fontSize: '13px', marginBottom: '10px' }}>{errorGanancias}</p>
-                <button onClick={cargarGanancias} style={{ background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                <p style={{ color: '#C2410C', fontSize: '14px', marginBottom: '10px' }}>{errorGanancias}</p>
+                <button onClick={cargarGanancias} style={{ background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
                   <IconGirar size={14} />Reintentar
                 </button>
               </div>
@@ -1101,11 +1053,11 @@ const PanelConductor = ({ onVerRuta }) => {
               <>
                 <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
                   <div style={{ flex: 1, background: 'var(--t-musgo)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '12px', padding: '14px' }}>
-                    <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: '700', color: 'var(--t-musgo-texto)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Esta semana</p>
+                    <p style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: '700', color: 'var(--t-musgo-texto)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Esta semana</p>
                     <p style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: BRAND_GREEN }}>${ganancias.ganancias_semana.toLocaleString('es-CO')}</p>
                   </div>
                   <div style={{ flex: 1, background: 'var(--t-niebla)', border: '1px solid var(--t-linea)', borderRadius: '12px', padding: '14px' }}>
-                    <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Este mes</p>
+                    <p style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Este mes</p>
                     <p style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: 'var(--t-tinta)' }}>${ganancias.ganancias_mes.toLocaleString('es-CO')}</p>
                   </div>
                 </div>
@@ -1113,7 +1065,7 @@ const PanelConductor = ({ onVerRuta }) => {
                 <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
                   <div style={{ flex: 1, background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
                     <p style={{ margin: '0 0 2px', fontSize: '18px', fontWeight: '800', color: 'var(--t-tinta)' }}>{ganancias.viajes_completados}</p>
-                    <p style={{ margin: 0, fontSize: '11px', color: 'var(--t-piedra)' }}>Viajes completados</p>
+                    <p style={{ margin: 0, fontSize: '12px', color: 'var(--t-piedra)' }}>Viajes completados</p>
                   </div>
                   <div style={{ flex: 1, background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
                     <p style={{ margin: '0 0 2px', fontSize: '18px', fontWeight: '800', color: 'var(--t-tinta)' }}>
@@ -1121,7 +1073,7 @@ const PanelConductor = ({ onVerRuta }) => {
                         ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><IconEstrella size={16} style={{ fill: 'currentColor' }} />{ganancias.calificacion_promedio}</span>
                         : '—'}
                     </p>
-                    <p style={{ margin: 0, fontSize: '11px', color: 'var(--t-piedra)' }}>
+                    <p style={{ margin: 0, fontSize: '12px', color: 'var(--t-piedra)' }}>
                       {ganancias.calificacion_promedio != null ? 'Calificación' : 'Calificación (próximamente)'}
                     </p>
                   </div>
@@ -1130,12 +1082,12 @@ const PanelConductor = ({ onVerRuta }) => {
                 {ganancias.viajes_completados === 0 ? (
                   <div style={{ textAlign: 'center', padding: '30px 20px' }}>
                     <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: T.niebla2, border: `1px solid ${T.linea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: T.piedraClara }}><IconGrafico size={22} /></div>
-                    <p style={{ margin: 0, color: 'var(--t-piedra)', fontSize: '13px' }}>Aún no tienes viajes completados. Cuando finalices tu primer viaje, aquí verás tus ganancias y estadísticas.</p>
+                    <p style={{ margin: 0, color: 'var(--t-piedra)', fontSize: '14px' }}>Aún no tienes viajes completados. Cuando finalices tu primer viaje, aquí verás tus ganancias y estadísticas.</p>
                   </div>
                 ) : (
                   <>
                     <div style={{ background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '12px', padding: '14px', marginBottom: '14px' }}>
-                      <p style={{ margin: '0 0 10px', fontSize: '12px', fontWeight: '700', color: 'var(--t-tinta)' }}>Horarios más activos</p>
+                      <p style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: '700', color: 'var(--t-tinta)' }}>Horarios más activos</p>
                       <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '60px' }}>
                         {ganancias.horarios_activos.map((cant, hora) => {
                           const max = Math.max(...ganancias.horarios_activos, 1);
@@ -1151,11 +1103,11 @@ const PanelConductor = ({ onVerRuta }) => {
                     </div>
 
                     <div style={{ background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '12px', padding: '14px' }}>
-                      <p style={{ margin: '0 0 10px', fontSize: '12px', fontWeight: '700', color: 'var(--t-tinta)' }}>Rutas más frecuentes</p>
+                      <p style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: '700', color: 'var(--t-tinta)' }}>Rutas más frecuentes</p>
                       {ganancias.top_rutas.map((r, i) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: i < ganancias.top_rutas.length - 1 ? '1px solid var(--t-niebla-2)' : 'none' }}>
-                          <span style={{ fontSize: '12px', color: 'var(--t-tinta)' }}>{r.ruta}</span>
-                          <span style={{ fontSize: '12px', fontWeight: '700', color: BRAND_GREEN }}>{r.viajes} viaje{r.viajes !== 1 ? 's' : ''}</span>
+                          <span style={{ fontSize: '13px', color: 'var(--t-tinta)' }}>{r.ruta}</span>
+                          <span style={{ fontSize: '13px', fontWeight: '700', color: BRAND_GREEN }}>{r.viajes} viaje{r.viajes !== 1 ? 's' : ''}</span>
                         </div>
                       ))}
                     </div>
@@ -1167,16 +1119,78 @@ const PanelConductor = ({ onVerRuta }) => {
         )}
 
         {/* PESTAÑA MI VEHÍCULO — HU38 (SCRUM-207) */}
+        {pestanaActiva === 'historial' && (
+          <div style={{ padding: '18px' }}>
+            {cargandoHistorial && (
+              <p style={{ textAlign: 'center', color: T.piedra, fontSize: '14.5px', padding: '30px 0' }}>Cargando tu historial…</p>
+            )}
+
+            {errorHistorial && !cargandoHistorial && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '9px', background: T.alertaSuave, border: `1px solid ${T.alertaLinea}`, borderRadius: T.rTarjeta, padding: '13px 15px', color: T.alertaTexto, fontSize: '14px' }}>
+                <IconAlerta size={15} style={{ flexShrink: 0, marginTop: '1px' }} />
+                <span>{errorHistorial}</span>
+              </div>
+            )}
+
+            {!cargandoHistorial && !errorHistorial && historial.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '46px 20px' }}>
+                <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: T.niebla2, border: `1px solid ${T.linea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: T.piedraClara }}>
+                  <IconCalendario size={22} />
+                </div>
+                <p style={{ margin: '0 0 5px', fontWeight: 700, color: T.tinta, fontSize: '15.5px' }}>Todavía no manejaste ningún viaje</p>
+                <p style={{ margin: 0, color: T.piedra, fontSize: '14.5px', lineHeight: 1.5 }}>Cuando un pasajero acepte tu oferta,<br />el viaje queda registrado acá.</p>
+              </div>
+            )}
+
+            {!cargandoHistorial && historial.map((v) => {
+              const cfg = {
+                ASSIGNED:    { Ico: IconVisto,   color: T.musgoTexto,  bg: T.musgo,       label: 'Confirmado' },
+                IN_PROGRESS: { Ico: IconAuto,    color: T.cieloTexto,  bg: T.cieloSuave,  label: 'En curso' },
+                COMPLETED:   { Ico: IconBandera, color: T.cieloTexto,  bg: T.cieloSuave,  label: 'Completado' },
+                CANCELLED:   { Ico: IconEquis,   color: T.alertaTexto, bg: T.alertaSuave, label: 'Cancelado' },
+              }[v.trip_status] || { Ico: IconReloj, color: T.piedra, bg: T.niebla2, label: v.trip_status };
+
+              return (
+                <div key={v.request_id} style={{ background: T.papel, border: `1px solid ${T.linea}`, borderRadius: T.rTarjeta, padding: '15px 16px', marginBottom: '11px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: cfg.bg, color: cfg.color, borderRadius: T.rChip, padding: '3px 10px', fontSize: '12px', fontWeight: 700 }}>
+                      <cfg.Ico size={12} />{cfg.label}
+                    </span>
+                    <span style={{ fontFamily: T.dato, fontSize: '15px', fontWeight: 600, color: T.tinta }}>
+                      ${Number(v.precio).toLocaleString()}
+                    </span>
+                  </div>
+
+                  <TableroRuta origen={v.origin} destino={v.destination} size={11} />
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', marginTop: '11px', fontSize: '13.5px', color: T.piedra }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <IconCalendario size={13} />
+                      {new Date(v.departure_time).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <IconPersona size={13} />{v.pasajero_nombre}
+                    </span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <IconPersonas size={13} />{v.asientos}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {pestanaActiva === 'vehiculo' && (
           <>
             {cargandoVehiculo && (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--t-piedra-clara)', fontSize: '13px' }}>Cargando...</div>
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--t-piedra-clara)', fontSize: '14px' }}>Cargando...</div>
             )}
 
             {errorVehiculo && !cargandoVehiculo && (
               <div style={{ textAlign: 'center', padding: '30px 20px' }}>
-                <p style={{ color: '#C2410C', fontSize: '13px', marginBottom: '10px' }}>{errorVehiculo}</p>
-                <button onClick={cargarVehiculo} style={{ background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                <p style={{ color: '#C2410C', fontSize: '14px', marginBottom: '10px' }}>{errorVehiculo}</p>
+                <button onClick={cargarVehiculo} style={{ background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
                   Reintentar
                 </button>
               </div>
@@ -1185,20 +1199,20 @@ const PanelConductor = ({ onVerRuta }) => {
             {formVehiculo && !cargandoVehiculo && !errorVehiculo && (
               <>
                 <div style={{ background: 'var(--t-musgo)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '12px', padding: '14px', marginBottom: '14px' }}>
-                  <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: '700', color: 'var(--t-musgo-texto)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  <p style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: '700', color: 'var(--t-musgo-texto)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                     Placa {formVehiculo.plate} · Categoría {formVehiculo.categoria}
                   </p>
-                  <p style={{ margin: 0, fontSize: '12px', color: 'var(--t-musgo-texto)' }}>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--t-musgo-texto)' }}>
                     La categoría se calcula automáticamente según la capacidad real de tu vehículo y se usa para sugerirte a los pasajeros que buscan tu tipo de vehículo.
                   </p>
                 </div>
 
                 <div style={{ marginBottom: '14px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--t-tinta)', marginBottom: '5px' }}>Capacidad real (pasajeros)</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--t-tinta)', marginBottom: '5px' }}>Capacidad real (pasajeros)</label>
                   <input type="number" min="1" max="60" value={formVehiculo.capacidad_real ?? ''}
                     onChange={e => setFormVehiculo({ ...formVehiculo, capacidad_real: e.target.value })}
                     placeholder={`Registrada: ${formVehiculo.capacity}`}
-                    style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '13px' }} />
+                    style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '14px' }} />
                 </div>
 
                 {/* HU38 — los pasajeros ahora pueden filtrar por comodidades al publicar un
@@ -1207,7 +1221,7 @@ const PanelConductor = ({ onVerRuta }) => {
                 {!formVehiculo.tiene_ac && !formVehiculo.tiene_wifi && !formVehiculo.tiene_bano &&
                   !formVehiculo.tiene_musica && !formVehiculo.tiene_maletero_amplio && !formVehiculo.tiene_sillas_bebe && (
                   <div style={{ background: 'var(--t-chiva-suave)', border: '1px solid var(--t-chiva-linea)', borderRadius: '10px', padding: '10px 12px', marginBottom: '12px' }}>
-                    <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--t-chiva-texto)' }}>
+                    <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--t-chiva-texto)' }}>
                       Aún no has marcado ninguna comodidad. Los pasajeros ahora pueden filtrar su búsqueda por
                       comodidades — si tu vehículo tiene aire acondicionado, WiFi u otras, márcalas para no perderte
                       esos viajes.
@@ -1215,7 +1229,7 @@ const PanelConductor = ({ onVerRuta }) => {
                   </div>
                 )}
 
-                <p style={{ fontSize: '12px', fontWeight: '700', color: 'var(--t-tinta)', marginBottom: '8px' }}>Comodidades</p>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: 'var(--t-tinta)', marginBottom: '8px' }}>Comodidades</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
                   {[
                     ['tiene_ac', 'Aire acondicionado'],
@@ -1225,7 +1239,7 @@ const PanelConductor = ({ onVerRuta }) => {
                     ['tiene_maletero_amplio', 'Maletero amplio'],
                     ['tiene_sillas_bebe', 'Sillas para bebé'],
                   ].map(([campo, etiqueta]) => (
-                    <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', color: 'var(--t-tinta)', border: '1px solid var(--t-linea)', borderRadius: '8px', padding: '8px 10px', cursor: 'pointer' }}>
+                    <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px', color: 'var(--t-tinta)', border: '1px solid var(--t-linea)', borderRadius: '8px', padding: '8px 10px', cursor: 'pointer' }}>
                       <input type="checkbox" checked={!!formVehiculo[campo]}
                         onChange={e => setFormVehiculo({ ...formVehiculo, [campo]: e.target.checked })} />
                       {etiqueta}
@@ -1234,29 +1248,29 @@ const PanelConductor = ({ onVerRuta }) => {
                 </div>
 
                 <div style={{ border: '1px solid var(--t-linea)', borderRadius: '12px', padding: '14px', marginBottom: '14px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', fontWeight: '700', color: 'var(--t-tinta)', marginBottom: formVehiculo.acepta_mascotas ? '10px' : 0 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px', fontWeight: '700', color: 'var(--t-tinta)', marginBottom: formVehiculo.acepta_mascotas ? '10px' : 0 }}>
                     <input type="checkbox" checked={!!formVehiculo.acepta_mascotas}
                       onChange={e => setFormVehiculo({ ...formVehiculo, acepta_mascotas: e.target.checked, cargo_mascota: e.target.checked ? formVehiculo.cargo_mascota : 0 })} />
                     Acepto mascotas
                   </label>
                   {formVehiculo.acepta_mascotas && (
                     <div>
-                      <label style={{ display: 'block', fontSize: '11px', color: 'var(--t-piedra)', marginBottom: '4px' }}>Cargo adicional por mascota (COP)</label>
+                      <label style={{ display: 'block', fontSize: '12px', color: 'var(--t-piedra)', marginBottom: '4px' }}>Cargo adicional por mascota (COP)</label>
                       <input type="number" min="0" value={formVehiculo.cargo_mascota ?? ''}
                         onChange={e => setFormVehiculo({ ...formVehiculo, cargo_mascota: e.target.value })}
-                        style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '13px' }} />
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '14px' }} />
                     </div>
                   )}
                 </div>
 
-                <label style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', color: 'var(--t-tinta)', marginBottom: '14px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px', color: 'var(--t-tinta)', marginBottom: '14px' }}>
                   <input type="checkbox" checked={!!formVehiculo.acepta_menores_2_anos}
                     onChange={e => setFormVehiculo({ ...formVehiculo, acepta_menores_2_anos: e.target.checked })} />
                   Acepto menores de 2 años
                 </label>
 
                 <button onClick={guardarVehiculo} disabled={guardandoVehiculo}
-                  style={{ width: '100%', padding: '11px', borderRadius: '10px', border: 'none', background: BRAND_GREEN, color: '#fff', fontSize: '13px', fontWeight: '700', cursor: guardandoVehiculo ? 'default' : 'pointer', opacity: guardandoVehiculo ? 0.6 : 1 }}>
+                  style={{ width: '100%', padding: '11px', borderRadius: '10px', border: 'none', background: BRAND_GREEN, color: '#fff', fontSize: '14px', fontWeight: '700', cursor: guardandoVehiculo ? 'default' : 'pointer', opacity: guardandoVehiculo ? 0.6 : 1 }}>
                   {guardandoVehiculo ? 'Guardando...' : 'Guardar cambios'}
                 </button>
               </>
@@ -1281,33 +1295,12 @@ const PanelConductor = ({ onVerRuta }) => {
             onLoad={(mapa) => { mapaRef.current = mapa; }}
             options={{ disableDefaultUI: true, zoomControl: true, styles: tema === 'oscuro' ? MAPA_OSCURO : undefined }}
           >
-            {zonasDemanda.map((zona, i) => (
-              <CircleF key={i}
-                center={{ lat: zona.lat, lng: zona.lng }}
-                radius={Math.min(1200 + zona.count * 350, 4500)}
-                options={{
-                  fillColor: colorPorDemanda(zona.count),
-                  fillOpacity: 0.28,
-                  strokeColor: colorPorDemanda(zona.count),
-                  strokeOpacity: 0.55,
-                  strokeWeight: 1.5,
-                  clickable: false,
-                }} />
-            ))}
-            {zonasDemanda.map((zona, i) => (
-              <OverlayViewF key={`label-${i}`} position={{ lat: zona.lat, lng: zona.lng }} mapPaneName="floatPane">
-                <div style={{ transform: 'translate(-50%, -50%)', background: 'rgba(5,14,5,0.85)', color: '#fff', borderRadius: '20px', padding: '3px 10px', fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap', fontFamily: "'Syne', sans-serif", pointerEvents: 'none' }}>
-                  {zona.label} · {zona.count}
-                </div>
-              </OverlayViewF>
-            ))}
-
             {ubicacionActual && (
               <MarkerF position={ubicacionActual} title="Tu posición"
                 icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: FIJO.ruta, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 }} />
             )}
 
-            {disponible && solicitudesConUbicacion.map(sol => (
+            {solicitudesConUbicacion.map(sol => (
               <MarkerF key={sol.request_id} position={{ lat: sol.origin_lat, lng: sol.origin_lng }}
                 title={`${sol.origin} → ${sol.destination}`}
                 onClick={() => { setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); }}
@@ -1318,22 +1311,11 @@ const PanelConductor = ({ onVerRuta }) => {
             titulo={ubicacionActual ? 'Centrar en mi ubicación' : 'Buscar mi ubicación'} />
           </>
         ) : (
-          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--t-niebla-2)', color: 'var(--t-piedra-clara)', fontSize: '14px' }}>
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--t-niebla-2)', color: 'var(--t-piedra-clara)', fontSize: '15px' }}>
             Cargando mapa...
           </div>
         )}
 
-        {!disponible && mostrarAvisoZonas && (
-          <div style={{ position: 'absolute', top: '16px', left: '16px', right: '16px', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(5,14,5,0.85)', color: '#fff', borderRadius: '12px', padding: '10px 14px', fontSize: '12px' }}>
-            <span style={{ flex: 1, textAlign: 'center' }}>
-              Estas son las zonas con más solicitudes ahora mismo. Conéctate para ver los viajes puntuales cerca de ti.
-            </span>
-            <button onClick={() => setMostrarAvisoZonas(false)}
-              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: '16px', lineHeight: 1, cursor: 'pointer', padding: 0, flexShrink: 0 }}>
-              ×
-            </button>
-          </div>
-        )}
       </div>
     </main>
     </div>
@@ -1346,20 +1328,20 @@ const PanelConductor = ({ onVerRuta }) => {
               onClick={() => setMostrarNotifPanel(false)}
               style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 3000 }} />
             <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }}
-              style={{ position: 'fixed', top: 0, right: 0, width: '360px', maxWidth: '100vw', height: '100vh', backgroundColor: 'var(--t-papel)', zIndex: 3001, boxShadow: '-5px 0 25px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+              style={{ position: 'fixed', top: 0, right: 0, width: '420px', maxWidth: '100vw', height: '100vh', backgroundColor: 'var(--t-papel)', zIndex: 3001, boxShadow: '-5px 0 25px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
 
               {/* Header notif */}
               <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--t-linea)', backgroundColor: 'var(--t-niebla)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: T.tinta, fontFamily: T.display, letterSpacing: '-.01em' }}>Notificaciones</h3>
-                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: T.tinta, fontFamily: T.display, letterSpacing: '-.01em' }}>Notificaciones</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '13px', color: 'var(--t-piedra)' }}>
                     {notificaciones.filter(n => !n.is_read).length} sin leer
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {notificaciones.filter(n => !n.is_read).length > 0 && (
                     <button onClick={marcarTodasLeidas}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: T.papel, border: `1px solid ${T.linea}`, borderRadius: '8px', padding: '6px 10px', fontSize: '11px', fontWeight: '600', color: 'var(--t-piedra)', cursor: 'pointer' }}>
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: T.papel, border: `1px solid ${T.linea}`, borderRadius: '8px', padding: '6px 10px', fontSize: '12px', fontWeight: '600', color: 'var(--t-piedra)', cursor: 'pointer' }}>
                       <IconVisto size={12} />Leer todas
                     </button>
                   )}
@@ -1375,7 +1357,7 @@ const PanelConductor = ({ onVerRuta }) => {
                   <div style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--t-piedra-clara)' }}>
                     <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: T.niebla2, border: `1px solid ${T.linea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: T.piedraClara }}><IconCampana size={20} /></div>
                     <p style={{ margin: 0, fontWeight: '600', color: 'var(--t-piedra)' }}>Sin notificaciones</p>
-                    <p style={{ margin: '4px 0 0', fontSize: '13px' }}>Aquí verás cuando el pasajero responda.</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '14px' }}>Aquí verás cuando el pasajero responda.</p>
                   </div>
                 )}
                 {notificaciones.map((notif) => {
@@ -1399,13 +1381,13 @@ const PanelConductor = ({ onVerRuta }) => {
                         </span>
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <p style={{ margin: 0, fontWeight: notif.is_read ? '600' : '700', fontSize: '13px', color: notif.is_read ? 'var(--t-piedra)' : 'var(--t-tinta)' }}>
+                            <p style={{ margin: 0, fontWeight: notif.is_read ? '600' : '700', fontSize: '14px', color: notif.is_read ? 'var(--t-piedra)' : 'var(--t-tinta)' }}>
                               {notif.title}
                             </p>
                             {!notif.is_read && <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: cfg.color, flexShrink: 0, marginTop: '3px' }} />}
                           </div>
-                          <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--t-piedra)', lineHeight: '1.4' }}>{notif.message}</p>
-                          <p style={{ margin: '5px 0 0', fontSize: '11px', color: 'var(--t-piedra-clara)' }}>
+                          <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--t-piedra)', lineHeight: '1.4' }}>{notif.message}</p>
+                          <p style={{ margin: '5px 0 0', fontSize: '12px', color: 'var(--t-piedra-clara)' }}>
                             {new Date(notif.created_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
@@ -1431,26 +1413,26 @@ const PanelConductor = ({ onVerRuta }) => {
               style={{ pointerEvents: 'all', width: '440px', maxWidth: '95vw', maxHeight: '80vh', backgroundColor: T.monteAlto, border: '1px solid rgba(34,197,94,0.2)', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', sans-serif" }}>
               <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <p style={{ margin: '0 0 2px', fontSize: '11px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: BRAND_GREEN }}>Documento de viaje</p>
+                  <p style={{ margin: '0 0 2px', fontSize: '12px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: BRAND_GREEN }}>Documento de viaje</p>
                   <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: 'var(--t-musgo)', fontFamily: "'Syne', sans-serif" }}>Ocupantes registrados</h3>
                 </div>
                 <button onClick={() => setModalOcupantesId(null)}
-                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '30px', height: '30px', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '30px', height: '30px', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '17px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
                 {!ocupantesPorViaje[modalOcupantesId] || ocupantesPorViaje[modalOcupantesId].length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '30px 0' }}>
                     <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: T.niebla2, border: `1px solid ${T.linea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: T.piedraClara }}><IconPersonas size={20} /></div>
-                    <p style={{ margin: 0, color: 'rgba(255,255,255,0.45)', fontSize: '13px' }}>El pasajero aún no ha registrado los ocupantes.</p>
+                    <p style={{ margin: 0, color: 'rgba(255,255,255,0.45)', fontSize: '14px' }}>El pasajero aún no ha registrado los ocupantes.</p>
                   </div>
                 ) : (
                   ocupantesPorViaje[modalOcupantesId].map((oc, i) => (
                     <div key={i} style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
-                        <p style={{ margin: 0, fontWeight: '700', fontSize: '14px', color: 'var(--t-musgo)' }}>{oc.full_name}</p>
-                        <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Ocupante {i + 1}</p>
+                        <p style={{ margin: 0, fontWeight: '700', fontSize: '15px', color: 'var(--t-musgo)' }}>{oc.full_name}</p>
+                        <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>Ocupante {i + 1}</p>
                       </div>
-                      <span style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '20px', padding: '4px 10px', fontSize: '12px', fontWeight: '700', color: BRAND_GREEN }}>
+                      <span style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '20px', padding: '4px 10px', fontSize: '13px', fontWeight: '700', color: BRAND_GREEN }}>
                         {oc.document_type} {oc.document_number}
                       </span>
                     </div>
@@ -1459,7 +1441,7 @@ const PanelConductor = ({ onVerRuta }) => {
               </div>
               <div style={{ padding: '14px 24px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
                 <button onClick={() => setModalOcupantesId(null)}
-                  style={{ width: '100%', padding: '11px', background: `linear-gradient(135deg, ${BRAND_GREEN}, var(--t-ruta))`, border: 'none', borderRadius: '9px', color: '#08210F', fontWeight: '700', fontSize: '14px', cursor: 'pointer', fontFamily: "'Syne', sans-serif" }}>
+                  style={{ width: '100%', padding: '11px', background: `linear-gradient(135deg, ${BRAND_GREEN}, var(--t-ruta))`, border: 'none', borderRadius: '9px', color: '#08210F', fontWeight: '700', fontSize: '15px', cursor: 'pointer', fontFamily: "'Syne', sans-serif" }}>
                   Cerrar
                 </button>
               </div>
@@ -1479,7 +1461,7 @@ const PanelConductor = ({ onVerRuta }) => {
             <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
               style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '360px', maxWidth: '90vw', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
               <h3 style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px', fontFamily: T.display, fontWeight: 800, letterSpacing: '-.01em', display: 'flex', alignItems: 'center', gap: '8px' }}><IconEstrella size={17} color={T.chiva} />¿Cómo estuvo tu pasajero?</h3>
-              <p style={{ margin: '0 0 18px', color: 'var(--t-piedra)', fontSize: '13px' }}>Tu calificación queda registrada en su perfil.</p>
+              <p style={{ margin: '0 0 18px', color: 'var(--t-piedra)', fontSize: '14px' }}>Tu calificación queda registrada en su perfil.</p>
 
               <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '16px' }}>
                 {[1, 2, 3, 4, 5].map(n => (
@@ -1495,15 +1477,15 @@ const PanelConductor = ({ onVerRuta }) => {
 
               <textarea value={comentarioCalificar} onChange={e => setComentarioCalificar(e.target.value)}
                 placeholder="Cuéntanos más (opcional)" rows={3}
-                style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '13px', boxSizing: 'border-box', outline: 'none', resize: 'none', fontFamily: 'inherit', marginBottom: '16px' }} />
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', outline: 'none', resize: 'none', fontFamily: 'inherit', marginBottom: '16px' }} />
 
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button onClick={() => setModalCalificar(null)}
-                  style={{ flex: 1, background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
+                  style={{ flex: 1, background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>
                   Cancelar
                 </button>
                 <button onClick={enviarCalificacion} disabled={enviandoCalificacion || estrellasCalificar < 1}
-                  style={{ flex: 1, background: (enviandoCalificacion || estrellasCalificar < 1) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: (enviandoCalificacion || estrellasCalificar < 1) ? 'not-allowed' : 'pointer' }}>
+                  style={{ flex: 1, background: (enviandoCalificacion || estrellasCalificar < 1) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: (enviandoCalificacion || estrellasCalificar < 1) ? 'not-allowed' : 'pointer' }}>
                   {enviandoCalificacion ? 'Enviando...' : 'Enviar calificación'}
                 </button>
               </div>

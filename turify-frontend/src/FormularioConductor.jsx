@@ -69,8 +69,8 @@ const DropZone = ({ label, name, onChange, file, Ico = IconSubir }) => {
       </span>
 
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: '13px', fontWeight: 700, color: cargado ? T.musgoTexto : T.tinta }}>{label}</div>
-        <div style={{ fontSize: '11.5px', color: cargado ? T.musgoTexto : T.piedraClara, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: '14px', fontWeight: 700, color: cargado ? T.musgoTexto : T.tinta }}>{label}</div>
+        <div style={{ fontSize: '12.5px', color: cargado ? T.musgoTexto : T.piedraClara, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {cargado
             ? <>{file.name} · <span style={{ fontFamily: T.dato }}>{pesoLegible(file.size)}</span></>
             : 'Arrastrá el archivo o hacé clic'}
@@ -97,12 +97,12 @@ const Seccion = ({ n, titulo, descripcion, Ico, completa, children }) => (
         {completa ? <IconVisto size={16} /> : <Ico size={16} />}
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: T.tinta, fontFamily: T.display, letterSpacing: '-.01em' }}>
+        <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: T.tinta, fontFamily: T.display, letterSpacing: '-.01em' }}>
           {titulo}
         </h3>
-        {descripcion && <p style={{ margin: '2px 0 0', fontSize: '12.5px', color: T.piedra }}>{descripcion}</p>}
+        {descripcion && <p style={{ margin: '2px 0 0', fontSize: '13.5px', color: T.piedra }}>{descripcion}</p>}
       </div>
-      <span style={{ fontFamily: T.dato, fontSize: '11px', letterSpacing: '.14em', color: T.piedraClara, flexShrink: 0 }}>
+      <span style={{ fontFamily: T.dato, fontSize: '12px', letterSpacing: '.14em', color: T.piedraClara, flexShrink: 0 }}>
         {String(n).padStart(2, '0')}
       </span>
     </div>
@@ -116,7 +116,7 @@ const Seccion = ({ n, titulo, descripcion, Ico, completa, children }) => (
 // ─────────────────────────────────────────────────────────────────────────────
 const Campo = ({ etiqueta, hijo, ancho }) => (
   <div style={{ gridColumn: ancho ? 'span 2' : undefined }}>
-    <label style={{ display: 'block', fontFamily: T.dato, fontSize: '10px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: T.piedraClara, marginBottom: '6px' }}>
+    <label style={{ display: 'block', fontFamily: T.dato, fontSize: '11px', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: T.piedraClara, marginBottom: '6px' }}>
       {etiqueta}
     </label>
     {hijo}
@@ -126,7 +126,7 @@ const Campo = ({ etiqueta, hijo, ancho }) => (
 const estiloEntrada = {
   padding: '12px 14px', border: `1px solid ${T.linea}`, borderRadius: T.rControl,
   width: '100%', boxSizing: 'border-box', background: T.papel, color: T.tinta,
-  fontSize: '14px', fontFamily: T.ui, outline: 'none',
+  fontSize: '15px', fontFamily: T.ui, outline: 'none',
 };
 const estiloBloqueado = { ...estiloEntrada, background: T.niebla2, color: T.piedra, cursor: 'not-allowed' };
 
@@ -159,7 +159,7 @@ const VistaEstadoDocumentos = ({ estadoData, onVolver }) => {
             <c.Ico size={24} />
           </div>
           <h3 style={{ margin: '0 0 7px', color: c.color, fontSize: '18px', fontFamily: T.display, fontWeight: 800, letterSpacing: '-.01em' }}>{c.titulo}</h3>
-          <p style={{ margin: '0 auto', color: T.piedra, fontSize: '13.5px', lineHeight: 1.6, maxWidth: '42ch' }}>{c.descripcion}</p>
+          <p style={{ margin: '0 auto', color: T.piedra, fontSize: '14.5px', lineHeight: 1.6, maxWidth: '42ch' }}>{c.descripcion}</p>
         </div>
 
         {estadoData.documentos && (
@@ -169,8 +169,8 @@ const VistaEstadoDocumentos = ({ estadoData, onVolver }) => {
               const e = estadoDoc(doc.estado);
               return (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', padding: '12px 14px', borderRadius: T.rControl, border: `1px solid ${T.linea}`, marginBottom: '8px', background: T.niebla }}>
-                  <span style={{ fontSize: '13px', color: T.tinta, fontWeight: 600 }}>{ETIQUETA_DOCUMENTO[doc.tipo] || doc.tipo}</span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 9px', borderRadius: T.rChip, fontSize: '10.5px', fontWeight: 700, background: e.bg, color: e.color, whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: '14px', color: T.tinta, fontWeight: 600 }}>{ETIQUETA_DOCUMENTO[doc.tipo] || doc.tipo}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 9px', borderRadius: T.rChip, fontSize: '11.5px', fontWeight: 700, background: e.bg, color: e.color, whiteSpace: 'nowrap' }}>
                     <e.Ico size={12} />{e.label}
                   </span>
                 </div>
@@ -181,11 +181,11 @@ const VistaEstadoDocumentos = ({ estadoData, onVolver }) => {
 
         {estadoData.documentos_rechazados?.length > 0 && (
           <div style={{ background: T.alertaSuave, border: `1px solid ${T.alertaLinea}`, borderRadius: T.rTarjeta, padding: '15px 17px', marginTop: '16px' }}>
-            <p style={{ margin: '0 0 8px', fontWeight: 700, color: T.alertaTexto, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <p style={{ margin: '0 0 8px', fontWeight: 700, color: T.alertaTexto, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '7px' }}>
               <IconAlerta size={14} />Tenés que volver a enviar:
             </p>
             {estadoData.documentos_rechazados.map((tipo, i) => (
-              <p key={i} style={{ margin: '4px 0', fontSize: '12.5px', color: T.alertaTexto }}>· {ETIQUETA_DOCUMENTO[tipo] || tipo}</p>
+              <p key={i} style={{ margin: '4px 0', fontSize: '13.5px', color: T.alertaTexto }}>· {ETIQUETA_DOCUMENTO[tipo] || tipo}</p>
             ))}
           </div>
         )}
@@ -211,7 +211,7 @@ const Cabecera = ({ titulo, onVolver }) => (
         <h2 style={{ margin: '12px 0 0', fontSize: '21px', fontWeight: 800, color: '#fff', fontFamily: T.display, letterSpacing: '-.02em' }}>{titulo}</h2>
       </div>
       <button type="button" onClick={onVolver} className="t-foco"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: 'rgba(255,255,255,0.08)', border: `1px solid ${T.monteLinea}`, color: 'rgba(234,242,236,.9)', padding: '8px 14px', borderRadius: T.rControl, cursor: 'pointer', fontWeight: 600, fontSize: '12.5px', fontFamily: T.ui }}>
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: 'rgba(255,255,255,0.08)', border: `1px solid ${T.monteLinea}`, color: 'rgba(234,242,236,.9)', padding: '8px 14px', borderRadius: T.rControl, cursor: 'pointer', fontWeight: 600, fontSize: '13.5px', fontFamily: T.ui }}>
         <IconFlechaIz size={14} />Volver al mapa
       </button>
     </div>
@@ -354,7 +354,7 @@ const FormularioConductor = () => {
             <div style={{ display: 'inline-flex', color: T.piedraClara, animation: 't-girar .9s linear infinite', marginBottom: '14px' }}>
               <Icono size={26}><path d="M4 4v5h5" /><path d="M5.5 15A7.5 7.5 0 0 0 19 9.5" /><path d="M18.5 9A7.5 7.5 0 0 0 5 14.5" /></Icono>
             </div>
-            <p style={{ margin: 0, fontSize: '13.5px' }}>Verificando tu estado de registro…</p>
+            <p style={{ margin: 0, fontSize: '14.5px' }}>Verificando tu estado de registro…</p>
           </div>
         </div>
       </>
@@ -392,7 +392,7 @@ const FormularioConductor = () => {
             <div style={{ flex: 1, height: '4px', borderRadius: '99px', background: T.linea, overflow: 'hidden' }}>
               <div style={{ width: `${(listas / 3) * 100}%`, height: '100%', background: BRAND_GREEN, transition: 'width .3s ease' }} />
             </div>
-            <span style={{ fontFamily: T.dato, fontSize: '11px', letterSpacing: '.1em', color: T.piedra, whiteSpace: 'nowrap' }}>
+            <span style={{ fontFamily: T.dato, fontSize: '12px', letterSpacing: '.1em', color: T.piedra, whiteSpace: 'nowrap' }}>
               {listas} de 3 secciones
             </span>
           </div>
@@ -400,11 +400,11 @@ const FormularioConductor = () => {
           {/* Banner si tiene docs rechazados */}
           {estadoData?.estado === 'RECHAZADO' && (
             <div style={{ background: T.alertaSuave, border: `1px solid ${T.alertaLinea}`, margin: '20px 30px 0', borderRadius: T.rTarjeta, padding: '14px 17px' }}>
-              <p style={{ margin: 0, fontWeight: 700, color: T.alertaTexto, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px' }}>
+              <p style={{ margin: 0, fontWeight: 700, color: T.alertaTexto, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '7px' }}>
                 <IconAlerta size={14} />Algunos documentos fueron rechazados. Podés volver a enviarlos acá abajo.
               </p>
               {estadoData.documentos_rechazados?.map((tipo, i) => (
-                <p key={i} style={{ margin: '4px 0 0', fontSize: '12.5px', color: T.alertaTexto }}>· {ETIQUETA_DOCUMENTO[tipo] || tipo}</p>
+                <p key={i} style={{ margin: '4px 0 0', fontSize: '13.5px', color: T.alertaTexto }}>· {ETIQUETA_DOCUMENTO[tipo] || tipo}</p>
               ))}
             </div>
           )}
@@ -457,10 +457,10 @@ const FormularioConductor = () => {
                   configurado desde el primer día; el que prefiera puede dejarlas
                   todas sin marcar y configurarlas después en su panel. */}
               <div style={{ background: T.niebla, border: `1px solid ${T.linea}`, borderRadius: T.rTarjeta, padding: '16px' }}>
-                <p style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px', fontWeight: 700, color: T.tinta, margin: '0 0 3px' }}>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '14px', fontWeight: 700, color: T.tinta, margin: '0 0 3px' }}>
                   <IconIdea size={14} color={T.chivaTexto} />Comodidades (opcional)
                 </p>
-                <p style={{ fontSize: '12.5px', color: T.piedra, margin: '0 0 13px' }}>
+                <p style={{ fontSize: '13.5px', color: T.piedra, margin: '0 0 13px' }}>
                   Algunos pasajeros filtran su búsqueda por esto. Podés dejarlas sin marcar y configurarlas después desde tu panel.
                 </p>
                 <div className="fc-rejilla" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
@@ -476,7 +476,7 @@ const FormularioConductor = () => {
                     const marcada = formConductor[campo];
                     return (
                       <label key={campo} className="fc-comodidad" style={{
-                        display: 'flex', alignItems: 'center', gap: '9px', fontSize: '13px',
+                        display: 'flex', alignItems: 'center', gap: '9px', fontSize: '14px',
                         color: marcada ? T.musgoTexto : T.tinta, fontWeight: marcada ? 600 : 400,
                         background: marcada ? T.musgo : T.papel,
                         border: `1px solid ${marcada ? T.musgoLinea : T.linea}`,
@@ -508,18 +508,18 @@ const FormularioConductor = () => {
             </Seccion>
 
             {errorEnvio && (
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', background: T.alertaSuave, border: `1px solid ${T.alertaLinea}`, borderRadius: T.rControl, padding: '11px 13px', marginBottom: '14px', color: T.alertaTexto, fontSize: '13px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', background: T.alertaSuave, border: `1px solid ${T.alertaLinea}`, borderRadius: T.rControl, padding: '11px 13px', marginBottom: '14px', color: T.alertaTexto, fontSize: '14px' }}>
                 <IconAlerta size={15} style={{ flexShrink: 0, marginTop: '1px' }} />
                 <span>{errorEnvio}</span>
               </div>
             )}
 
             <Boton type="submit" ancho disabled={enviando}
-              variante={enviando ? 'inactivo' : 'primario'} style={{ padding: '15px', fontSize: '14.5px' }}>
+              variante={enviando ? 'inactivo' : 'primario'} style={{ padding: '15px', fontSize: '15.5px' }}>
               {enviando ? 'Enviando documentos…' : 'Enviar solicitud'}
             </Boton>
 
-            <p style={{ margin: '12px 0 0', textAlign: 'center', fontSize: '12px', color: T.piedraClara }}>
+            <p style={{ margin: '12px 0 0', textAlign: 'center', fontSize: '13px', color: T.piedraClara }}>
               Un administrador revisa tus documentos antes de habilitarte. Te avisamos cuando haya respuesta.
             </p>
           </form>

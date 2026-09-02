@@ -165,7 +165,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
     catch { return f; }
   };
 
-  const inputStyle = { width: '100%', padding: '10px 12px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '13px', boxSizing: 'border-box', outline: 'none' };
+  const inputStyle = { width: '100%', padding: '10px 12px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', outline: 'none' };
 
   return (
     <AnimatePresence>
@@ -176,7 +176,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
             style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 2000 }} />
 
           <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.3 }}
-            style={{ position: 'fixed', top: 0, right: 0, width: '400px', maxWidth: '100%', height: '100vh', backgroundColor: 'var(--t-papel)', zIndex: 2001, boxShadow: '-5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+            style={{ position: 'fixed', top: 0, right: 0, width: '460px', maxWidth: '100%', height: '100vh', backgroundColor: 'var(--t-papel)', zIndex: 2001, boxShadow: '-5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
 
             {/* CABECERA — monte, igual que la entrada y el panel del conductor */}
             <div style={{ background: T.monte, padding: '24px 20px 0', flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
@@ -197,19 +197,19 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                       : <IconPersona size={24} />}
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <p style={{ margin: 0, fontWeight: 800, fontSize: '16px', color: '#fff', fontFamily: T.display, letterSpacing: '-.01em' }}>
+                    <p style={{ margin: 0, fontWeight: 800, fontSize: '17px', color: '#fff', fontFamily: T.display, letterSpacing: '-.01em' }}>
                       {perfil?.full_name || usuario?.full_name}
                     </p>
-                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'rgba(234,242,236,.6)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <p style={{ margin: '2px 0 0', fontSize: '13px', color: 'rgba(234,242,236,.6)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {perfil?.email || usuario?.email}
                     </p>
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '7px' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(255,255,255,0.08)', border: `1px solid ${T.monteLinea}`, color: 'rgba(234,242,236,.85)', borderRadius: '20px', padding: '2px 9px', fontSize: '10.5px', fontWeight: 700 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(255,255,255,0.08)', border: `1px solid ${T.monteLinea}`, color: 'rgba(234,242,236,.85)', borderRadius: '20px', padding: '2px 9px', fontSize: '11.5px', fontWeight: 700 }}>
                         {perfil?.role === 'DRIVER' ? <IconAuto size={12} /> : perfil?.role === 'ADMIN' ? <IconEscudo size={12} /> : <IconPersona size={12} />}
                         {perfil?.role === 'DRIVER' ? 'Conductor' : perfil?.role === 'ADMIN' ? 'Admin' : 'Pasajero'}
                       </span>
                       {perfil?.role === 'DRIVER' && perfil?.conductor_verificado && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(233,161,59,.14)', border: '1px solid rgba(233,161,59,.32)', color: T.chiva, borderRadius: '20px', padding: '2px 9px', fontSize: '10.5px', fontWeight: 700 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(233,161,59,.14)', border: '1px solid rgba(233,161,59,.32)', color: T.chiva, borderRadius: '20px', padding: '2px 9px', fontSize: '11.5px', fontWeight: 700 }}>
                           <IconGorro size={12} />Verificado
                         </span>
                       )}
@@ -236,7 +236,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                         display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none',
                         borderBottom: `2px solid ${activa ? T.chiva : 'transparent'}`,
                         padding: '8px 0 10px', cursor: 'pointer',
-                        fontFamily: T.dato, fontSize: '10.5px', fontWeight: 500,
+                        fontFamily: T.dato, fontSize: '11.5px', fontWeight: 500,
                         letterSpacing: '.12em', textTransform: 'uppercase',
                         color: activa ? '#fff' : 'rgba(234,242,236,.42)', transition: 'color .18s',
                       }}>
@@ -255,21 +255,21 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
               {!cargando && seccion === 'perfil' && perfil && (
                 <div>
                   <div style={{ marginBottom: '16px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Teléfono</label>
+                    <label style={{ fontSize: '13px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Teléfono</label>
                     {editandoTelefono ? (
                       <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
                         <input value={nuevoTelefono} onChange={e => setNuevoTelefono(e.target.value)} style={inputStyle} placeholder="Número de teléfono" />
                         <button onClick={guardarTelefono} disabled={guardandoTelefono}
-                          style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '0 14px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                          style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '0 14px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
                           {guardandoTelefono ? '...' : 'Guardar'}
                         </button>
                         <button onClick={() => setEditandoTelefono(false)}
-                          style={{ background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', borderRadius: '8px', padding: '0 12px', fontWeight: '600', fontSize: '12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}><IconEquis size={13} /></button>
+                          style={{ background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', borderRadius: '8px', padding: '0 12px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}><IconEquis size={13} /></button>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px', padding: '10px 12px', backgroundColor: 'var(--t-niebla)', borderRadius: '8px', border: '1px solid var(--t-linea)' }}>
-                        <span style={{ fontSize: '14px', color: 'var(--t-tinta)' }}>{perfil.phone_number}</span>
-                        <button onClick={() => setEditandoTelefono(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: T.ruta, cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: T.ui }}><IconLapiz size={12} />Editar</button>
+                        <span style={{ fontSize: '15px', color: 'var(--t-tinta)' }}>{perfil.phone_number}</span>
+                        <button onClick={() => setEditandoTelefono(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: T.ruta, cursor: 'pointer', fontSize: '13px', fontWeight: 700, fontFamily: T.ui }}><IconLapiz size={12} />Editar</button>
                       </div>
                     )}
                   </div>
@@ -280,8 +280,8 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                     perfil.age ? { label: 'Edad', value: `${perfil.age} años` } : null,
                   ].filter(Boolean).map((campo, i) => (
                     <div key={i} style={{ marginBottom: '12px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{campo.label}</label>
-                      <div style={{ marginTop: '6px', padding: '10px 12px', backgroundColor: 'var(--t-niebla)', borderRadius: '8px', border: '1px solid var(--t-linea)', fontSize: '14px', color: 'var(--t-piedra)' }}>{campo.value}</div>
+                      <label style={{ fontSize: '13px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{campo.label}</label>
+                      <div style={{ marginTop: '6px', padding: '10px 12px', backgroundColor: 'var(--t-niebla)', borderRadius: '8px', border: '1px solid var(--t-linea)', fontSize: '15px', color: 'var(--t-piedra)' }}>{campo.value}</div>
                     </div>
                   ))}
 
@@ -289,24 +289,24 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                     <>
                       {perfil.rating_avg !== undefined && (
                         <div style={{ marginBottom: '12px' }}>
-                          <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Calificación promedio</label>
-                          <div style={{ marginTop: '6px', padding: '10px 12px', backgroundColor: 'var(--t-chiva-suave)', borderRadius: '8px', border: `1px solid ${T.chivaLinea}`, fontSize: '14px', color: T.chivaTexto, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px' }}><IconEstrella size={15} />{Number(perfil.rating_avg).toFixed(1)} / 5.0</div>
+                          <label style={{ fontSize: '13px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Calificación promedio</label>
+                          <div style={{ marginTop: '6px', padding: '10px 12px', backgroundColor: 'var(--t-chiva-suave)', borderRadius: '8px', border: `1px solid ${T.chivaLinea}`, fontSize: '15px', color: T.chivaTexto, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px' }}><IconEstrella size={15} />{Number(perfil.rating_avg).toFixed(1)} / 5.0</div>
                         </div>
                       )}
                       {perfil.empresa_afiliada && (
                         <div style={{ marginBottom: '12px' }}>
-                          <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Empresa afiliada</label>
-                          <div style={{ marginTop: '6px', padding: '10px 12px', backgroundColor: 'var(--t-niebla)', borderRadius: '8px', border: '1px solid var(--t-linea)', fontSize: '14px', color: T.tinta, display: 'flex', alignItems: 'center', gap: '8px' }}><IconEmpresa size={15} color={T.piedra} />{perfil.empresa_afiliada.name}</div>
+                          <label style={{ fontSize: '13px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Empresa afiliada</label>
+                          <div style={{ marginTop: '6px', padding: '10px 12px', backgroundColor: 'var(--t-niebla)', borderRadius: '8px', border: '1px solid var(--t-linea)', fontSize: '15px', color: T.tinta, display: 'flex', alignItems: 'center', gap: '8px' }}><IconEmpresa size={15} color={T.piedra} />{perfil.empresa_afiliada.name}</div>
                         </div>
                       )}
                       {perfil.vehiculo && (
                         <div style={{ marginBottom: '12px' }}>
-                          <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Vehículo</label>
+                          <label style={{ fontSize: '13px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Vehículo</label>
                           <div style={{ marginTop: '6px', backgroundColor: 'var(--t-niebla)', borderRadius: '8px', border: '1px solid var(--t-linea)', overflow: 'hidden' }}>
                             {perfil.vehiculo.photo_url && <img src={perfil.vehiculo.photo_url} alt="vehículo" style={{ width: '100%', height: '120px', objectFit: 'cover' }} />}
                             <div style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between' }}>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', fontSize: '14px', fontWeight: 700, color: T.tinta }}><IconAuto size={15} /><span style={{ fontFamily: T.dato, letterSpacing: '.08em' }}>{perfil.vehiculo.plate}</span></span>
-                              <span style={{ fontSize: '13px', color: 'var(--t-piedra)' }}>{perfil.vehiculo.capacity} asientos</span>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', fontSize: '15px', fontWeight: 700, color: T.tinta }}><IconAuto size={15} /><span style={{ fontFamily: T.dato, letterSpacing: '.08em' }}>{perfil.vehiculo.plate}</span></span>
+                              <span style={{ fontSize: '14px', color: 'var(--t-piedra)' }}>{perfil.vehiculo.capacity} asientos</span>
                             </div>
                           </div>
                         </div>
@@ -316,7 +316,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
 
                   {perfil.role === 'PASSENGER' && perfil.ofertas_activas !== undefined && (
                     <div style={{ marginBottom: '12px', padding: '12px', backgroundColor: 'var(--t-musgo)', borderRadius: '8px', border: `1px solid ${BRAND_GREEN}` }}>
-                      <p style={{ margin: 0, fontSize: '13px', color: BRAND_GREEN, fontWeight: '700' }}>
+                      <p style={{ margin: 0, fontSize: '14px', color: BRAND_GREEN, fontWeight: '700' }}>
                         <IconVisto size={13} style={{ verticalAlign: '-2px', marginRight: '5px' }} />
                         Tenés <strong>{perfil.ofertas_activas}</strong> oferta{perfil.ofertas_activas !== 1 ? 's' : ''} activa{perfil.ofertas_activas !== 1 ? 's' : ''}
                       </p>
@@ -330,13 +330,13 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                 <div>
                   {perfil.role === 'PASSENGER' && (
                     <>
-                      <h3 style={{ margin: '0 0 14px', fontSize: '15px', fontWeight: '700', color: 'var(--t-tinta)' }}>Historial de viajes</h3>
+                      <h3 style={{ margin: '0 0 14px', fontSize: '16px', fontWeight: '700', color: 'var(--t-tinta)' }}>Historial de viajes</h3>
                       {(!perfil.historial_viajes || perfil.historial_viajes.length === 0) && (
                         <div style={{ textAlign: 'center', padding: '30px', color: 'var(--t-piedra)' }}>
                           <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: T.musgo, border: `1px solid ${T.musgoLinea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: T.musgoTexto }}>
                             <IconCalendario size={20} />
                           </div>
-                          <p style={{ margin: 0, fontSize: '13px' }}>Aún no has solicitado viajes.</p>
+                          <p style={{ margin: 0, fontSize: '14px' }}>Aún no has solicitado viajes.</p>
                         </div>
                       )}
                       {perfil.historial_viajes?.map((v) => {
@@ -344,13 +344,13 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                         return (
                           <div key={v.request_id} style={{ border: `1px solid ${T.linea}`, borderRadius: T.rTarjeta, padding: '13px 14px', marginBottom: '10px', background: T.papel }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '9px' }}>
-                              <span style={{ fontFamily: T.dato, fontSize: '10.5px', color: T.piedraClara }}>{formatearFecha(v.created_at)}</span>
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10.5px', fontWeight: 700, color: est.color, whiteSpace: 'nowrap' }}>
+                              <span style={{ fontFamily: T.dato, fontSize: '11.5px', color: T.piedraClara }}>{formatearFecha(v.created_at)}</span>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', fontWeight: 700, color: est.color, whiteSpace: 'nowrap' }}>
                                 {est.Ico && <est.Ico size={12} />}{est.label}
                               </span>
                             </div>
                             <TableroRuta origen={v.origin} destino={v.destination} size={10.5} />
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', color: T.piedra, marginTop: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12.5px', color: T.piedra, marginTop: '8px' }}>
                               <IconCalendario size={12} />
                               {new Date(v.departure_time).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
                             </div>
@@ -362,9 +362,9 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
 
                   {perfil.role === 'DRIVER' && (
                     <>
-                      <h3 style={{ margin: '0 0 14px', fontSize: '15px', fontWeight: '700', color: 'var(--t-tinta)' }}>Estado de documentos</h3>
+                      <h3 style={{ margin: '0 0 14px', fontSize: '16px', fontWeight: '700', color: 'var(--t-tinta)' }}>Estado de documentos</h3>
                       {(!perfil.documentos || perfil.documentos.length === 0) && (
-                        <div style={{ textAlign: 'center', padding: '30px', color: 'var(--t-piedra)' }}><p style={{ margin: 0, fontSize: '13px' }}>No tienes documentos registrados.</p></div>
+                        <div style={{ textAlign: 'center', padding: '30px', color: 'var(--t-piedra)' }}><p style={{ margin: 0, fontSize: '14px' }}>No tienes documentos registrados.</p></div>
                       )}
                       {perfil.documentos?.map((doc) => {
                         const est = ESTADO_DOC[doc.verification_status] || ESTADO_DOC.PENDING;
@@ -374,12 +374,12 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                               {(() => { const I = ICONO_DOC[doc.document_type] || IconClipboard; return <I size={20} />; })()}
                             </span>
                             <div style={{ flex: 1 }}>
-                              <p style={{ margin: 0, fontWeight: '600', fontSize: '13px', color: 'var(--t-tinta)' }}>{LABEL_DOC[doc.document_type] || doc.document_type}</p>
+                              <p style={{ margin: 0, fontWeight: '600', fontSize: '14px', color: 'var(--t-tinta)' }}>{LABEL_DOC[doc.document_type] || doc.document_type}</p>
                               {doc.document_type === 'RUNT' && doc.years_experience != null && (
-                                <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--t-piedra)' }}>{doc.years_experience} años de experiencia declarados</p>
+                                <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>{doc.years_experience} años de experiencia declarados</p>
                               )}
                             </div>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', backgroundColor: est.bg, color: est.color, padding: '3px 9px', borderRadius: '20px', fontSize: '10.5px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', backgroundColor: est.bg, color: est.color, padding: '3px 9px', borderRadius: '20px', fontSize: '11.5px', fontWeight: 700, whiteSpace: 'nowrap' }}>
                               <est.Ico size={12} />{est.label}
                             </span>
                           </div>
@@ -396,51 +396,51 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                           <div style={{ marginTop: '16px', border: '1px dashed var(--t-linea)', borderRadius: '10px', padding: '14px' }}>
                             {!mostrarFormRunt ? (
                               <div style={{ textAlign: 'center' }}>
-                                <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: '700', color: T.tinta, display: 'flex', alignItems: 'center', gap: '6px' }}><IconGorro size={14} />¿Querés verificar tu experiencia?</p>
-                                <p style={{ margin: '0 0 10px', fontSize: '12px', color: 'var(--t-piedra)' }}>Sube tu RUNT para obtener el badge de conductor verificado.</p>
+                                <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: '700', color: T.tinta, display: 'flex', alignItems: 'center', gap: '6px' }}><IconGorro size={14} />¿Querés verificar tu experiencia?</p>
+                                <p style={{ margin: '0 0 10px', fontSize: '13px', color: 'var(--t-piedra)' }}>Sube tu RUNT para obtener el badge de conductor verificado.</p>
                                 <button onClick={() => setMostrarFormRunt(true)}
-                                  style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 16px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                                  style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 16px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
                                   {runt ? 'Volver a enviar RUNT' : 'Subir RUNT'}
                                 </button>
                               </div>
                             ) : (
                               <div>
                                 <div style={{ backgroundColor: 'var(--t-niebla)', borderRadius: '8px', padding: '10px 12px', border: '1px solid var(--t-linea)', marginBottom: '12px' }}>
-                                  <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: '700', color: T.piedra, display: 'flex', alignItems: 'center', gap: '6px' }}><IconIdea size={12} />¿Cómo obtengo mi RUNT?</p>
-                                  <p style={{ margin: 0, fontSize: '11px', color: 'var(--t-piedra)', lineHeight: '1.6' }}>
+                                  <p style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: '700', color: T.piedra, display: 'flex', alignItems: 'center', gap: '6px' }}><IconIdea size={12} />¿Cómo obtengo mi RUNT?</p>
+                                  <p style={{ margin: 0, fontSize: '12px', color: 'var(--t-piedra)', lineHeight: '1.6' }}>
                                     Descarga el "Extracto de conductor" en la página del RUNT (runt.gov.co), con tu número de cédula. Ahí aparece tu historial e infracciones como conductor.
                                   </p>
                                 </div>
 
-                                {errorRunt && <div style={{ backgroundColor: 'var(--t-alerta-suave)', border: '1px solid var(--t-alerta-linea)', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px', color: 'var(--t-alerta-texto)', fontWeight: '600', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '7px' }}><IconAlerta size={13} />{errorRunt}</div>}
+                                {errorRunt && <div style={{ backgroundColor: 'var(--t-alerta-suave)', border: '1px solid var(--t-alerta-linea)', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px', color: 'var(--t-alerta-texto)', fontWeight: '600', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px' }}><IconAlerta size={13} />{errorRunt}</div>}
 
                                 <div style={{ marginBottom: '10px' }}>
-                                  <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', display: 'block', marginBottom: '5px' }}>Años de experiencia</label>
+                                  <label style={{ fontSize: '13px', fontWeight: '700', color: 'var(--t-piedra)', display: 'block', marginBottom: '5px' }}>Años de experiencia</label>
                                   <input type="number" min="0" max="80" value={aniosExperiencia}
                                     onChange={e => setAniosExperiencia(e.target.value)}
                                     style={inputStyle} placeholder="Ej: 5" />
                                 </div>
 
                                 <div style={{ marginBottom: '10px' }}>
-                                  <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', display: 'block', marginBottom: '5px' }}>Categorías de licencia (opcional)</label>
+                                  <label style={{ fontSize: '13px', fontWeight: '700', color: 'var(--t-piedra)', display: 'block', marginBottom: '5px' }}>Categorías de licencia (opcional)</label>
                                   <input value={categoriasLicencia} onChange={e => setCategoriasLicencia(e.target.value)}
                                     style={inputStyle} placeholder="Ej: C2, C3" />
                                 </div>
 
                                 <div style={{ marginBottom: '12px' }}>
-                                  <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', display: 'block', marginBottom: '5px' }}>Archivo del RUNT (PDF, JPG o PNG)</label>
+                                  <label style={{ fontSize: '13px', fontWeight: '700', color: 'var(--t-piedra)', display: 'block', marginBottom: '5px' }}>Archivo del RUNT (PDF, JPG o PNG)</label>
                                   <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp"
                                     onChange={e => setArchivoRunt(e.target.files?.[0] || null)}
-                                    style={{ fontSize: '12px' }} />
+                                    style={{ fontSize: '13px' }} />
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '8px' }}>
                                   <button onClick={subirRunt} disabled={subiendoRunt}
-                                    style={{ flex: 1, background: subiendoRunt ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '13px', cursor: subiendoRunt ? 'not-allowed' : 'pointer' }}>
+                                    style={{ flex: 1, background: subiendoRunt ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '14px', cursor: subiendoRunt ? 'not-allowed' : 'pointer' }}>
                                     {subiendoRunt ? 'Enviando...' : 'Enviar RUNT'}
                                   </button>
                                   <button onClick={() => { setMostrarFormRunt(false); setErrorRunt(''); }}
-                                    style={{ background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', borderRadius: '8px', padding: '10px 14px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
+                                    style={{ background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', borderRadius: '8px', padding: '10px 14px', fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>
                                     Cancelar
                                   </button>
                                 </div>
@@ -457,23 +457,23 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
               {/* SEGURIDAD */}
               {!cargando && seccion === 'seguridad' && (
                 <div>
-                  <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: '700', color: 'var(--t-tinta)' }}>Cambiar contraseña</h3>
-                  {exitoPassword && <div style={{ backgroundColor: 'var(--t-musgo)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', color: BRAND_GREEN, fontWeight: 600, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px' }}><IconVisto size={14} />Contraseña actualizada.</div>}
-                  {errorPassword && <div style={{ backgroundColor: 'var(--t-alerta-suave)', border: '1px solid var(--t-alerta-linea)', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', color: 'var(--t-alerta-texto)', fontWeight: '600', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px' }}><IconAlerta size={14} />{errorPassword}</div>}
+                  <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '700', color: 'var(--t-tinta)' }}>Cambiar contraseña</h3>
+                  {exitoPassword && <div style={{ backgroundColor: 'var(--t-musgo)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', color: BRAND_GREEN, fontWeight: 600, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '7px' }}><IconVisto size={14} />Contraseña actualizada.</div>}
+                  {errorPassword && <div style={{ backgroundColor: 'var(--t-alerta-suave)', border: '1px solid var(--t-alerta-linea)', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', color: 'var(--t-alerta-texto)', fontWeight: '600', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '7px' }}><IconAlerta size={14} />{errorPassword}</div>}
                   {[
                     { label: 'Contraseña actual', key: 'current' },
                     { label: 'Nueva contraseña', key: 'new' },
                     { label: 'Confirmar nueva contraseña', key: 'confirm' },
                   ].map(campo => (
                     <div key={campo.key} style={{ marginBottom: '12px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', display: 'block', marginBottom: '5px' }}>{campo.label}</label>
+                      <label style={{ fontSize: '13px', fontWeight: '700', color: 'var(--t-piedra)', display: 'block', marginBottom: '5px' }}>{campo.label}</label>
                       <input type="password" value={passwordForm[campo.key]}
                         onChange={e => { setErrorPassword(''); setPasswordForm(prev => ({ ...prev, [campo.key]: e.target.value })); }}
                         style={inputStyle} placeholder="••••••••" />
                     </div>
                   ))}
                   <button onClick={cambiarPassword} disabled={guardandoPassword}
-                    style={{ width: '100%', background: guardandoPassword ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: guardandoPassword ? 'not-allowed' : 'pointer', marginTop: '4px' }}>
+                    style={{ width: '100%', background: guardandoPassword ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: '700', fontSize: '15px', cursor: guardandoPassword ? 'not-allowed' : 'pointer', marginTop: '4px' }}>
                     {guardandoPassword ? 'Actualizando...' : 'Actualizar contraseña'}
                   </button>
                 </div>
@@ -483,7 +483,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
             {/* CERRAR SESIÓN */}
             <div style={{ padding: '16px 20px', borderTop: '1px solid var(--t-linea)', flexShrink: 0 }}>
               <button onClick={handleCerrarSesion}
-                style={{ width: '100%', background: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
+                style={{ width: '100%', background: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: '700', fontSize: '15px', cursor: 'pointer' }}>
                 <IconSalir size={15} />Cerrar sesión
               </button>
             </div>

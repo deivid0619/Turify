@@ -46,21 +46,21 @@ const ModalErrorDireccion = ({ textoDireccion, onCerrar, onContinuar }) => (
       <div style={{ textAlign: 'center', marginBottom: '16px' }}>
         <span style={{ display: 'inline-flex', color: 'var(--t-chiva-texto)' }}><IconPin size={34} /></span>
         <h3 style={{ margin: '10px 0 4px', color: 'var(--t-tinta)', fontSize: '17px' }}>No encontramos "{textoDireccion}"</h3>
-        <p style={{ margin: 0, color: 'var(--t-piedra)', fontSize: '13px' }}>
+        <p style={{ margin: 0, color: 'var(--t-piedra)', fontSize: '14px' }}>
           Esta dirección no está en el mapa, pero puedes usarla igual — el conductor verá exactamente lo que escribiste.
         </p>
       </div>
       <button onClick={onContinuar}
-        style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', padding: '13px', borderRadius: '10px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+        style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', padding: '13px', borderRadius: '10px', fontWeight: '700', fontSize: '15px', cursor: 'pointer', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
         <IconVisto size={15} />Continuar con esta dirección
       </button>
       <button onClick={onCerrar}
-        style={{ width: '100%', background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', padding: '11px', borderRadius: '10px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', marginBottom: '16px' }}>
+        style={{ width: '100%', background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', padding: '11px', borderRadius: '10px', fontWeight: '600', fontSize: '14px', cursor: 'pointer', marginBottom: '16px' }}>
         Quiero corregir la dirección
       </button>
       <div style={{ backgroundColor: 'var(--t-niebla)', borderRadius: '10px', padding: '12px 14px', border: '1px solid var(--t-linea)' }}>
-        <p style={{ margin: '0 0 6px', fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', display: 'flex', alignItems: 'center', gap: '6px' }}><IconIdea size={13} />Para mejor precisión en el mapa, probá con:</p>
-        <ul style={{ margin: 0, padding: '0 0 0 16px', fontSize: '12px', color: 'var(--t-piedra)', lineHeight: '2' }}>
+        <p style={{ margin: '0 0 6px', fontSize: '13px', fontWeight: '700', color: 'var(--t-piedra)', display: 'flex', alignItems: 'center', gap: '6px' }}><IconIdea size={13} />Para mejor precisión en el mapa, probá con:</p>
+        <ul style={{ margin: 0, padding: '0 0 0 16px', fontSize: '13px', color: 'var(--t-piedra)', lineHeight: '2' }}>
           <li>Nombre del <strong>barrio</strong> — ej: <em>"Laureles, Medellín"</em></li>
           <li>Nombre de la <strong>comuna</strong> — ej: <em>"El Poblado"</em></li>
           <li>Un <strong>lugar cercano</strong> — ej: <em>"Parque Lleras"</em></li>
@@ -892,25 +892,25 @@ const Dashboard = () => {
   // ── Estilos del sidebar (rediseño HU05 — inspirado en el layout de Uber, pero
   // sin adoptar su paleta: el mapa deja de ser el fondo de toda la pantalla y pasa
   // a ser un panel contenido junto a un panel fijo con el formulario de búsqueda) ──
-  const sidebarStyle = { width: '400px', minWidth: '400px', height: '100vh', backgroundColor: 'var(--t-niebla)', borderRight: '1px solid var(--t-linea)', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', position: 'relative', zIndex: 500, overflowY: 'auto' };
+  const sidebarStyle = { width: '470px', minWidth: '470px', height: '100vh', backgroundColor: 'var(--t-niebla)', borderRight: '1px solid var(--t-linea)', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', position: 'relative', zIndex: 500, overflowY: 'auto' };
   const sidebarTopStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 28px 8px' };
   const fieldBoxStyle = { display: 'flex', alignItems: 'center', border: '1px solid var(--t-linea)', borderRadius: '12px', padding: '11px 14px', backgroundColor: 'var(--t-papel)' };
-  const fieldLabelStyle = { fontSize: '10px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '5px' };
+  const fieldLabelStyle = { fontSize: '11px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '5px' };
   const dividerStyle = { height: '1px', width: '100%', background: 'var(--t-linea)', margin: '2px 0', flexShrink: 0 };
-  const inputStyle = { border: 'none', outline: 'none', fontSize: '13px', backgroundColor: 'transparent', color: 'var(--t-tinta)', fontFamily: T.ui };
-  const navBtnStyle = { display: 'flex', alignItems: 'center', gap: '10px', width: '100%', textAlign: 'left', background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '12px', padding: '11px 14px', fontWeight: '600', cursor: 'pointer', color: 'var(--t-tinta)', fontSize: '13px' };
+  const inputStyle = { border: 'none', outline: 'none', fontSize: '14px', backgroundColor: 'transparent', color: 'var(--t-tinta)', fontFamily: T.ui };
+  const navBtnStyle = { display: 'flex', alignItems: 'center', gap: '10px', width: '100%', textAlign: 'left', background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '12px', padding: '11px 14px', fontWeight: '600', cursor: 'pointer', color: 'var(--t-tinta)', fontSize: '14px' };
 
   const SelectorPasajero = ({ titulo, subtitulo, tipo }) => {
     const deshabilitado = totalAsientos >= 44;
     return (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid var(--t-linea)' }}>
         <div>
-          <div style={{ fontWeight: 'bold', fontSize: '15px', color: 'var(--t-tinta)' }}>{titulo}</div>
-          <div style={{ fontSize: '13px', color: 'var(--t-piedra)', marginTop: '2px' }}>{subtitulo}</div>
+          <div style={{ fontWeight: 'bold', fontSize: '16px', color: 'var(--t-tinta)' }}>{titulo}</div>
+          <div style={{ fontSize: '14px', color: 'var(--t-piedra)', marginTop: '2px' }}>{subtitulo}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => actualizarPasajeros(tipo, 'restar')} style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>-</motion.button>
-          <span style={{ width: '20px', textAlign: 'center', fontSize: '15px' }}>{pasajeros[tipo]}</span>
+          <span style={{ width: '20px', textAlign: 'center', fontSize: '16px' }}>{pasajeros[tipo]}</span>
           <motion.button whileTap={!deshabilitado ? { scale: 0.9 } : {}} type="button" onClick={() => actualizarPasajeros(tipo, 'sumar')} disabled={deshabilitado} style={{ width: '30px', height: '30px', borderRadius: '50%', border: deshabilitado ? '1px solid #eee' : '1px solid #777', background: 'var(--t-papel)', cursor: deshabilitado ? 'not-allowed' : 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: deshabilitado ? 'var(--t-piedra-clara)' : 'var(--t-tinta)' }}>+</motion.button>
         </div>
       </div>
@@ -1104,7 +1104,7 @@ const Dashboard = () => {
               <AnimatePresence>
                 {notificaciones.filter(n => !n.is_read).length > 0 && (
                   <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
-                    style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#C2410C', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '2px solid #fff' }}>
+                    style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#C2410C', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '12px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '2px solid #fff' }}>
                     {notificaciones.filter(n => !n.is_read).length}
                   </motion.span>
                 )}
@@ -1124,12 +1124,12 @@ const Dashboard = () => {
 
         <div style={{ padding: '10px 28px 24px' }}>
           <h2 style={{ margin: '4px 0 2px', fontSize: '20px', color: 'var(--t-tinta)', fontWeight: '700', fontFamily: T.display, letterSpacing: '-.01em' }}>¿A dónde viajas hoy?</h2>
-          <p style={{ margin: '0 0 16px', fontSize: '12px', color: 'var(--t-piedra)' }}>Publica tu viaje y te contactamos con conductores cerca.</p>
+          <p style={{ margin: '0 0 16px', fontSize: '13px', color: 'var(--t-piedra)' }}>Publica tu viaje y te contactamos con conductores cerca.</p>
 
           <form onSubmit={buscarRuta} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ display: 'flex', gap: '4px' }}>
-              <button type="button" onClick={() => setTipoViaje('ida')} style={{ flex: 1, padding: '8px 12px', borderRadius: '20px', backgroundColor: tipoViaje === 'ida' ? BRAND_GREEN : 'var(--t-papel)', color: tipoViaje === 'ida' ? '#fff' : 'var(--t-piedra)', border: tipoViaje === 'ida' ? 'none' : '1px solid var(--t-linea)', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Solo ida</button>
-              <button type="button" onClick={() => setTipoViaje('redondo')} style={{ flex: 1, padding: '8px 12px', borderRadius: '20px', backgroundColor: tipoViaje === 'redondo' ? BRAND_GREEN : 'var(--t-papel)', color: tipoViaje === 'redondo' ? '#fff' : 'var(--t-piedra)', border: tipoViaje === 'redondo' ? 'none' : '1px solid var(--t-linea)', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Ida y vuelta</button>
+              <button type="button" onClick={() => setTipoViaje('ida')} style={{ flex: 1, padding: '8px 12px', borderRadius: '20px', backgroundColor: tipoViaje === 'ida' ? BRAND_GREEN : 'var(--t-papel)', color: tipoViaje === 'ida' ? '#fff' : 'var(--t-piedra)', border: tipoViaje === 'ida' ? 'none' : '1px solid var(--t-linea)', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>Solo ida</button>
+              <button type="button" onClick={() => setTipoViaje('redondo')} style={{ flex: 1, padding: '8px 12px', borderRadius: '20px', backgroundColor: tipoViaje === 'redondo' ? BRAND_GREEN : 'var(--t-papel)', color: tipoViaje === 'redondo' ? '#fff' : 'var(--t-piedra)', border: tipoViaje === 'redondo' ? 'none' : '1px solid var(--t-linea)', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>Ida y vuelta</button>
             </div>
             <div style={dividerStyle} />
             <div style={fieldBoxStyle}>
@@ -1171,7 +1171,7 @@ const Dashboard = () => {
               <div onClick={() => setMostrarPasajeros(!mostrarPasajeros)} style={{ ...fieldBoxStyle, cursor: 'pointer', userSelect: 'none', justifyContent: 'space-between' }}>
                 <div>
                   <div style={fieldLabelStyle}>Quién</div>
-                  <span style={{ fontSize: '13px', color: 'var(--t-tinta)' }}>{textoViajeros}</span>
+                  <span style={{ fontSize: '14px', color: 'var(--t-tinta)' }}>{textoViajeros}</span>
                 </div>
                 <span style={{ display: 'flex', color: 'var(--t-piedra-clara)' }}>
                   <IconTrazo size={14}><path d="M6 9.5l6 5.5 6-5.5" /></IconTrazo>
@@ -1185,12 +1185,12 @@ const Dashboard = () => {
                     <SelectorPasajero titulo="Niños" subtitulo="Edades 0 – 14" tipo="ninos" />
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid var(--t-linea)' }}>
                       <div>
-                        <div style={{ fontWeight: 'bold', fontSize: '15px', color: 'var(--t-tinta)' }}>Mascotas</div>
-                        <div style={{ fontSize: '13px', color: 'var(--t-piedra)', marginTop: '2px' }}>¿Traes mascota?</div>
+                        <div style={{ fontWeight: 'bold', fontSize: '16px', color: 'var(--t-tinta)' }}>Mascotas</div>
+                        <div style={{ fontSize: '14px', color: 'var(--t-piedra)', marginTop: '2px' }}>¿Traes mascota?</div>
                       </div>
                       <input type="checkbox" checked={pasajeros.mascotas} onChange={(e) => setPasajeros(prev => ({ ...prev, mascotas: e.target.checked }))} style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: BRAND_GREEN }} />
                     </div>
-                    {totalAsientos >= 44 && <p style={{ color: '#d97706', fontSize: '12px', marginTop: '10px', textAlign: 'center' }}>Límite máximo alcanzado.</p>}
+                    {totalAsientos >= 44 && <p style={{ color: '#d97706', fontSize: '13px', marginTop: '10px', textAlign: 'center' }}>Límite máximo alcanzado.</p>}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '15px' }}>
                       <motion.button whileTap={{ scale: 0.95 }} onClick={() => setMostrarPasajeros(false)} type="button" style={{ background: BRAND_GREEN, color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Cerrar</motion.button>
                     </div>
@@ -1198,7 +1198,7 @@ const Dashboard = () => {
                 )}
               </AnimatePresence>
             </div>
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" style={{ background: BRAND_GREEN, border: 'none', borderRadius: '12px', padding: '13px', color: '#fff', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '700', marginTop: '4px' }}>
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" style={{ background: BRAND_GREEN, border: 'none', borderRadius: '12px', padding: '13px', color: '#fff', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: '700', marginTop: '4px' }}>
               {cargandoMapa ? 'Buscando ruta…' : <><IconRadar size={15} />Buscar ruta</>}
             </motion.button>
           </form>
@@ -1210,7 +1210,7 @@ const Dashboard = () => {
               <IconClipboard size={15} />
               <span style={{ flex: 1 }}>Mis viajes</span>
               {listaSolicitudes.length > 0 && (
-                <span style={{ background: BRAND_GREEN, color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '11px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <span style={{ background: BRAND_GREEN, color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                   {listaSolicitudes.reduce((acc, v) => acc + (v.ofertas?.length || 0), 0)}
                 </span>
               )}
@@ -1228,7 +1228,7 @@ const Dashboard = () => {
               de crear un viaje, para que no compita con la acción principal. */}
           <div style={{ marginTop: '24px', paddingTop: '18px', borderTop: '1px solid var(--t-linea)',
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-            <span style={{ fontFamily: T.dato, fontSize: '10px', letterSpacing: '.16em',
+            <span style={{ fontFamily: T.dato, fontSize: '11px', letterSpacing: '.16em',
                            textTransform: 'uppercase', color: 'var(--t-piedra-clara)' }}>
               Apariencia
             </span>
@@ -1261,7 +1261,7 @@ const Dashboard = () => {
               titulo={datosMapa.origen && datosMapa.destino ? 'Ver la ruta completa' : 'Centrar en mi ubicación'} />
             </>
           ) : (
-            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--t-niebla-2)', color: 'var(--t-piedra-clara)', fontSize: '14px' }}>
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--t-niebla-2)', color: 'var(--t-piedra-clara)', fontSize: '15px' }}>
               Cargando mapa...
             </div>
           )}
@@ -1271,10 +1271,10 @@ const Dashboard = () => {
             {infoRuta && (
               <motion.div initial={{ opacity: 0, y: 50, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: 50, x: '-50%' }}
                 style={{ position: 'absolute', bottom: '24px', left: '50%', backgroundColor: 'var(--t-papel)', padding: '20px 25px', borderRadius: '15px', zIndex: 1000, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', textAlign: 'center', width: '380px', maxWidth: 'calc(100% - 32px)' }}>
-                <p style={{ margin: 0, color: 'var(--t-piedra)', fontSize: '13px' }}>Resumen del viaje</p>
+                <p style={{ margin: 0, color: 'var(--t-piedra)', fontSize: '14px' }}>Resumen del viaje</p>
                 <h3 style={{ margin: '8px 0 4px', color: 'var(--t-tinta)' }}>{infoRuta.tiempo} · {infoRuta.distancia}</h3>
                 {infoRuta.distancia === 'No disponible' && (
-                  <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#f59e0b' }}>
+                  <p style={{ margin: '0 0 12px', fontSize: '13px', color: '#f59e0b' }}>
                     <IconAlerta size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />
                     No se pudo trazar la ruta exacta, pero el viaje se publicará con las direcciones que escribiste.
                   </p>
@@ -1282,13 +1282,13 @@ const Dashboard = () => {
 
                 {/* HU09 — la búsqueda de conductores es automática desde el origen del
                     viaje: empieza cerca y se amplía sola si no hay nadie disponible. */}
-                <p style={{ margin: '0 0 12px', fontSize: '11px', color: 'var(--t-piedra)', textAlign: 'left' }}>
+                <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--t-piedra)', textAlign: 'left' }}>
                   Buscamos automáticamente a los conductores disponibles más cercanos a tu origen.
                 </p>
 
                 {/* HU38 — Filtro de comodidades del vehículo */}
                 <div style={{ textAlign: 'left', margin: '0 0 14px', padding: '10px 12px', background: 'var(--t-niebla)', border: '1px solid var(--t-linea)', borderRadius: '10px' }}>
-                  <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <p style={{ margin: '0 0 8px', fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     ¿Necesitas alguna comodidad? (opcional)
                   </p>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
@@ -1301,14 +1301,14 @@ const Dashboard = () => {
                       ['tiene_sillas_bebe', 'Sillas para bebé'],
                       ['acepta_mascotas', 'Acepta mascotas'],
                     ].map(([campo, etiqueta]) => (
-                      <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--t-tinta)', cursor: 'pointer' }}>
+                      <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--t-tinta)', cursor: 'pointer' }}>
                         <input type="checkbox" checked={!!comodidadesFiltro[campo]}
                           onChange={e => setComodidadesFiltro({ ...comodidadesFiltro, [campo]: e.target.checked })} />
                         {etiqueta}
                       </label>
                     ))}
                   </div>
-                  <p style={{ margin: '8px 0 0', fontSize: '10.5px', color: 'var(--t-piedra-clara)' }}>
+                  <p style={{ margin: '8px 0 0', fontSize: '11.5px', color: 'var(--t-piedra-clara)' }}>
                     Solo se te notificarán ofertas de conductores cuyo vehículo cumpla lo que marques aquí.
                   </p>
                 </div>
@@ -1344,11 +1344,11 @@ const Dashboard = () => {
             <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
               style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '360px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: T.ui }}>
               <h3 style={{ margin: '0 0 8px', color: 'var(--t-tinta)', fontSize: '17px', fontFamily: T.display, fontWeight: 800, letterSpacing: '-.01em' }}>Enviar contraoferta</h3>
-              <p style={{ margin: '0 0 20px', color: 'var(--t-piedra)', fontSize: '13px' }}>
+              <p style={{ margin: '0 0 20px', color: 'var(--t-piedra)', fontSize: '14px' }}>
                 Ingresa el precio que estás dispuesto a pagar por este viaje.
               </p>
               <div style={{ position: 'relative', marginBottom: '8px' }}>
-                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--t-piedra)', fontWeight: '700', fontSize: '15px' }}>$</span>
+                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--t-piedra)', fontWeight: '700', fontSize: '16px' }}>$</span>
                 <input
                   type="number"
                   placeholder="Ej: 45000"
@@ -1356,16 +1356,16 @@ const Dashboard = () => {
                   onChange={e => setPrecioContraoferta(e.target.value)}
                   min="1"
                   autoFocus
-                  style={{ width: '100%', padding: '12px 12px 12px 28px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '15px', boxSizing: 'border-box', outline: 'none' }}
+                  style={{ width: '100%', padding: '12px 12px 12px 28px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
               <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
                 <button onClick={() => setModalContraoferta(null)}
-                  style={{ flex: 1, background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
+                  style={{ flex: 1, background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>
                   Cancelar
                 </button>
                 <button onClick={enviarContraoferta} disabled={enviandoContraoferta}
-                  style={{ flex: 1, background: enviandoContraoferta ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: enviandoContraoferta ? 'not-allowed' : 'pointer' }}>
+                  style={{ flex: 1, background: enviandoContraoferta ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: enviandoContraoferta ? 'not-allowed' : 'pointer' }}>
                   {enviandoContraoferta ? 'Enviando...' : 'Enviar oferta'}
                 </button>
               </div>
@@ -1382,7 +1382,7 @@ const Dashboard = () => {
               onClick={() => { setMostrarMisSolicitudes(false); setViajeSeleccionado(null); }}
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(14,42,30,0.52)', zIndex: 2000 }} />
             <motion.div className="turify-panel-lateral" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.3 }}
-              style={{ position: 'absolute', top: 0, right: 0, width: '420px', maxWidth: '100%', height: '100vh', backgroundColor: 'var(--t-niebla)', zIndex: 2001, boxShadow: '-5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' }}>
+              style={{ position: 'absolute', top: 0, right: 0, width: '480px', maxWidth: '100%', height: '100vh', backgroundColor: 'var(--t-niebla)', zIndex: 2001, boxShadow: '-5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' }}>
               <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--t-linea)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--t-papel)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   {viajeSeleccionado && (
@@ -1396,7 +1396,7 @@ const Dashboard = () => {
                       {viajeSeleccionado ? 'Ofertas del viaje' : 'Mis viajes'}
                     </h2>
                     {viajeSeleccionado && (
-                      <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--t-piedra-clara)' }}>{viajeSeleccionado.origin} → {viajeSeleccionado.destination}</p>
+                      <p style={{ margin: '2px 0 0', fontSize: '13px', color: 'var(--t-piedra-clara)' }}>{viajeSeleccionado.origin} → {viajeSeleccionado.destination}</p>
                     )}
                   </div>
                 </div>
@@ -1419,7 +1419,7 @@ const Dashboard = () => {
                         color: pestanaViajes === tab.id ? '#fff' : 'var(--t-piedra)' }}>
                       <tab.icon size={13} />
                       {tab.label}
-                      {tab.count > 0 && <span style={{ background: pestanaViajes === tab.id ? 'rgba(255,255,255,0.28)' : 'var(--t-linea)', color: pestanaViajes === tab.id ? '#fff' : 'var(--t-piedra)', borderRadius: '10px', padding: '1px 6px', fontSize: '10px' }}>{tab.count}</span>}
+                      {tab.count > 0 && <span style={{ background: pestanaViajes === tab.id ? 'rgba(255,255,255,0.28)' : 'var(--t-linea)', color: pestanaViajes === tab.id ? '#fff' : 'var(--t-piedra)', borderRadius: '10px', padding: '1px 6px', fontSize: '11px' }}>{tab.count}</span>}
                     </button>
                   ))}
                   <button onClick={refrescarViajes} disabled={actualizandoViajes} title="Actualizar"
@@ -1438,8 +1438,8 @@ const Dashboard = () => {
                     <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--t-musgo)', border: '1px solid var(--t-musgo-linea)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: BRAND_GREEN }}>
                       <IconRadar size={24} />
                     </div>
-                    <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '15px' }}>Sin viajes activos</p>
-                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--t-piedra)', lineHeight: '1.5' }}>Busca una ruta en el mapa y<br/>publica tu primer viaje.</p>
+                    <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '16px' }}>Sin viajes activos</p>
+                    <p style={{ margin: 0, fontSize: '14px', color: 'var(--t-piedra)', lineHeight: '1.5' }}>Busca una ruta en el mapa y<br/>publica tu primer viaje.</p>
                   </div>
                 )}
                 {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.map((viaje) => {
@@ -1448,13 +1448,13 @@ const Dashboard = () => {
                   <div key={viaje.id} onClick={() => setViajeSeleccionado(viaje)} className="viaje-pasaje" style={{ cursor: 'pointer', padding: '13px 16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                       <TableroRuta origen={viaje.origin} destino={viaje.destination} size={11} style={{ flex: 1 }} />
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, marginLeft: '8px', color: viaje.ofertas.length > 0 ? BRAND_GREEN : 'var(--t-chiva-texto)', fontSize: '11px', fontWeight: '700' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, marginLeft: '8px', color: viaje.ofertas.length > 0 ? BRAND_GREEN : 'var(--t-chiva-texto)', fontSize: '12px', fontWeight: '700' }}>
                         {viaje.ofertas.length > 0
                           ? <><IconVisto size={12} />{viaje.ofertas.length}</>
                           : <IconReloj size={12} />}
                       </span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', color: 'var(--t-piedra-clara)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12.5px', color: 'var(--t-piedra-clara)' }}>
                       <IconCalendario size={11} />
                       <span>{new Date(viaje.departure_time).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                       <span style={{ margin: '0 1px' }}>·</span>
@@ -1463,7 +1463,7 @@ const Dashboard = () => {
                     </div>
 
                     {avisoSinOfertas && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '8px', fontSize: '11px', color: 'var(--t-chiva-texto)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '8px', fontSize: '12px', color: 'var(--t-chiva-texto)' }}>
                         <IconAlerta size={12} style={{ flexShrink: 0 }} />
                         <span>Seguimos buscando conductores en tu zona.</span>
                       </div>
@@ -1472,20 +1472,20 @@ const Dashboard = () => {
                     {/* Cancelar búsqueda — con confirmación inline, no window.confirm */}
                     {confirmandoCancelarId === viaje.id ? (
                       <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '9px' }}>
-                        <span style={{ fontSize: '11.5px', color: 'var(--t-alerta-texto)', flex: 1 }}>¿Cancelar?</span>
+                        <span style={{ fontSize: '12.5px', color: 'var(--t-alerta-texto)', flex: 1 }}>¿Cancelar?</span>
                         <button onClick={() => setConfirmandoCancelarId(null)} disabled={cancelandoId === viaje.id}
-                          style={{ background: 'var(--t-papel)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', borderRadius: '7px', padding: '4px 9px', fontSize: '10.5px', fontWeight: '600', cursor: 'pointer' }}>
+                          style={{ background: 'var(--t-papel)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', borderRadius: '7px', padding: '4px 9px', fontSize: '11.5px', fontWeight: '600', cursor: 'pointer' }}>
                           No
                         </button>
                         <button onClick={() => cancelarBusqueda(viaje.id)} disabled={cancelandoId === viaje.id}
-                          style={{ background: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', border: '1px solid var(--t-alerta-linea)', borderRadius: '7px', padding: '4px 9px', fontSize: '10.5px', fontWeight: '700', cursor: cancelandoId === viaje.id ? 'default' : 'pointer' }}>
+                          style={{ background: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', border: '1px solid var(--t-alerta-linea)', borderRadius: '7px', padding: '4px 9px', fontSize: '11.5px', fontWeight: '700', cursor: cancelandoId === viaje.id ? 'default' : 'pointer' }}>
                           {cancelandoId === viaje.id ? 'Cancelando…' : 'Sí, cancelar'}
                         </button>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
                         <button onClick={(e) => { e.stopPropagation(); setConfirmandoCancelarId(viaje.id); }}
-                          style={{ background: 'none', border: 'none', color: 'var(--t-piedra-clara)', fontSize: '11px', fontWeight: '600', cursor: 'pointer', padding: '2px 0' }}>
+                          style={{ background: 'none', border: 'none', color: 'var(--t-piedra-clara)', fontSize: '12px', fontWeight: '600', cursor: 'pointer', padding: '2px 0' }}>
                           Cancelar búsqueda
                         </button>
                       </div>
@@ -1500,8 +1500,8 @@ const Dashboard = () => {
                     <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--t-musgo)', border: '1px solid var(--t-musgo-linea)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: BRAND_GREEN }}>
                       <IconVisto size={24} />
                     </div>
-                    <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '15px' }}>Sin viajes confirmados</p>
-                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--t-piedra)', lineHeight: '1.5' }}>Cuando un conductor acepte<br/>tu oferta aparecerá aquí.</p>
+                    <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '16px' }}>Sin viajes confirmados</p>
+                    <p style={{ margin: 0, fontSize: '14px', color: 'var(--t-piedra)', lineHeight: '1.5' }}>Cuando un conductor acepte<br/>tu oferta aparecerá aquí.</p>
                   </div>
                 )}
 
@@ -1511,8 +1511,8 @@ const Dashboard = () => {
                     <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--t-cielo-suave)', border: '1px solid #ddd6fe', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: 'var(--t-cielo-texto)' }}>
                       <IconBandera size={24} />
                     </div>
-                    <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '15px' }}>Aún no tienes viajes completados</p>
-                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--t-piedra)', lineHeight: '1.5' }}>Cuando termines un viaje,<br/>quedará aquí en tu historial.</p>
+                    <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '16px' }}>Aún no tienes viajes completados</p>
+                    <p style={{ margin: 0, fontSize: '14px', color: 'var(--t-piedra)', lineHeight: '1.5' }}>Cuando termines un viaje,<br/>quedará aquí en tu historial.</p>
                   </div>
                 )}
 
@@ -1530,8 +1530,8 @@ const Dashboard = () => {
                     <div key={viaje.id} className="viaje-pasaje">
                       <div style={{ padding: '16px 18px 14px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                          <span style={{ fontSize: '11.5px', color: 'var(--t-piedra-clara)' }}>{viaje.fechaCreacion}</span>
-                          <span style={{ backgroundColor: cfg.badgeBg, color: cfg.badgeColor, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <span style={{ fontSize: '12.5px', color: 'var(--t-piedra-clara)' }}>{viaje.fechaCreacion}</span>
+                          <span style={{ backgroundColor: cfg.badgeBg, color: cfg.badgeColor, padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' }}>
                             <cfg.Icono size={12} />
                             {cfg.badgeLabel}
                             {esEnCurso && (
@@ -1540,7 +1540,7 @@ const Dashboard = () => {
                           </span>
                         </div>
                         <TableroRuta origen={viaje.origin} destino={viaje.destination} size={12} style={{ marginBottom: '10px' }} />
-                        <div style={{ display: 'flex', gap: '16px', fontSize: '12.5px', color: 'var(--t-piedra)' }}>
+                        <div style={{ display: 'flex', gap: '16px', fontSize: '13.5px', color: 'var(--t-piedra)' }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><IconCalendario size={13} />{new Date(viaje.departure_time).toLocaleString()}</span>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><IconPersonas size={13} />{viaje.seats_needed}</span>
                         </div>
@@ -1586,11 +1586,11 @@ const Dashboard = () => {
                                     }} />
                                     <div>
                                       <div style={{
-                                        fontSize: '12px', fontWeight: actual ? '700' : '500',
+                                        fontSize: '13px', fontWeight: actual ? '700' : '500',
                                         color: hecho || actual ? T.tinta : 'var(--t-piedra-clara)',
                                       }}>{paso.label}</div>
                                       {actual && (
-                                        <div style={{ fontSize: '11.5px', color: T.piedra, marginTop: '1px' }}>
+                                        <div style={{ fontSize: '12.5px', color: T.piedra, marginTop: '1px' }}>
                                           {paso.detalle}
                                         </div>
                                       )}
@@ -1611,11 +1611,11 @@ const Dashboard = () => {
                               : <IconAuto size={17} />}
                           </div>
                           <div>
-                            <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: 'var(--t-tinta)', textDecoration: viaje.driver_id ? 'underline' : 'none', textDecorationColor: 'var(--t-linea)', textUnderlineOffset: '3px' }}>
+                            <p style={{ margin: 0, fontWeight: '700', fontSize: '14px', color: 'var(--t-tinta)', textDecoration: viaje.driver_id ? 'underline' : 'none', textDecorationColor: 'var(--t-linea)', textUnderlineOffset: '3px' }}>
                               {viaje.conductor_nombre}
                             </p>
                             {viaje.precio_acordado > 0 && (
-                              <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>
+                              <p style={{ margin: '2px 0 0', fontSize: '13px', color: 'var(--t-piedra)' }}>
                                 Precio acordado: <strong style={{ color: BRAND_GREEN }}>${Number(viaje.precio_acordado).toLocaleString()}</strong>
                               </p>
                             )}
@@ -1640,7 +1640,7 @@ const Dashboard = () => {
                           </div>
                         )}
                         {esEnCurso && (!viaje.conductor_lat || !viaje.conductor_lng) && (
-                          <p style={{ margin: '10px 0 0', fontSize: '11px', color: 'var(--t-piedra-clara)', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                          <p style={{ margin: '10px 0 0', fontSize: '12px', color: 'var(--t-piedra-clara)', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
                             <IconRadar size={12} />Esperando la ubicación del conductor...
                           </p>
                         )}
@@ -1658,7 +1658,7 @@ const Dashboard = () => {
                             border: `1px solid ${fuecEnviado[viaje.id] ? BRAND_GREEN : 'rgba(34,197,94,0.35)'}`,
                             borderRadius: '8px',
                             color: fuecEnviado[viaje.id] ? BRAND_GREEN : 'var(--t-musgo-texto)',
-                            fontSize: '12px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s'
+                            fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s'
                           }}>
                           {fuecEnviado[viaje.id] ? <IconVisto size={13} /> : <IconClipboard size={13} />}
                           {fuecEnviado[viaje.id] ? 'Ocupantes registrados — Actualizar' : 'Registrar ocupantes del viaje'}
@@ -1676,7 +1676,7 @@ const Dashboard = () => {
                             border: `1px solid ${viaje.ya_califico ? 'var(--t-linea)' : 'var(--t-chiva)'}`,
                             borderRadius: '8px',
                             color: viaje.ya_califico ? 'var(--t-piedra-clara)' : 'var(--t-chiva-texto)',
-                            fontSize: '12px', fontWeight: '700', cursor: viaje.ya_califico ? 'default' : 'pointer', transition: 'all 0.2s'
+                            fontSize: '13px', fontWeight: '700', cursor: viaje.ya_califico ? 'default' : 'pointer', transition: 'all 0.2s'
                           }}>
                           {viaje.ya_califico ? <IconVisto size={13} /> : <IconEstrella size={13} />}
                           {viaje.ya_califico ? 'Ya calificaste este viaje' : 'Calificar viaje'}
@@ -1694,7 +1694,7 @@ const Dashboard = () => {
                             border: '1px solid rgba(37,99,235,0.3)',
                             borderRadius: '8px',
                             color: 'var(--t-cielo-texto)',
-                            fontSize: '12px', fontWeight: '700', cursor: descargandoRecibo === viaje.id ? 'default' : 'pointer', transition: 'all 0.2s'
+                            fontSize: '13px', fontWeight: '700', cursor: descargandoRecibo === viaje.id ? 'default' : 'pointer', transition: 'all 0.2s'
                           }}>
                           <IconRecibo size={13} />
                           {descargandoRecibo === viaje.id ? 'Generando recibo…' : 'Descargar recibo (PDF)'}
@@ -1715,7 +1715,7 @@ const Dashboard = () => {
                             <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--t-musgo)', border: '1px solid var(--t-musgo-linea)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: BRAND_GREEN }}>
                               <IconRadar size={20} />
                             </div>
-                            <div style={{ color: 'var(--t-piedra)', fontSize: '13.5px' }}>Esperando ofertas de conductores...</div>
+                            <div style={{ color: 'var(--t-piedra)', fontSize: '14.5px' }}>Esperando ofertas de conductores...</div>
                           </div>
                         );
                       }
@@ -1729,16 +1729,16 @@ const Dashboard = () => {
                                 {oferta.foto ? <img src={oferta.foto} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <IconPersonas size={18} />}
                               </div>
                               <div style={{ minWidth: 0 }}>
-                                <div style={{ fontWeight: '700', fontSize: '14.5px', textDecoration: 'underline', textDecorationColor: 'var(--t-linea)', textUnderlineOffset: '3px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <div style={{ fontWeight: '700', fontSize: '15.5px', textDecoration: 'underline', textDecorationColor: 'var(--t-linea)', textUnderlineOffset: '3px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                   <span>{oferta.conductor}</span>
                                   {oferta.verificado && (
                                     <span title="Experiencia verificada" style={{ color: 'var(--t-chiva-texto)', display: 'flex' }}><IconGorro size={13} /></span>
                                   )}
                                 </div>
                                 {oferta.calificacion != null
-                                  ? <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--t-chiva-texto)', fontSize: '12px' }}><IconEstrella size={11} />{oferta.calificacion} <span style={{ color: 'var(--t-piedra-clara)' }}>({oferta.calificacionCantidad})</span></span>
-                                  : <span style={{ color: 'var(--t-piedra-clara)', fontSize: '11.5px' }}>Sin calificaciones aún</span>}
-                                <div style={{ fontSize: '11.5px', color: 'var(--t-piedra)', marginTop: '1px' }}>{oferta.vehiculo}</div>
+                                  ? <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--t-chiva-texto)', fontSize: '13px' }}><IconEstrella size={11} />{oferta.calificacion} <span style={{ color: 'var(--t-piedra-clara)' }}>({oferta.calificacionCantidad})</span></span>
+                                  : <span style={{ color: 'var(--t-piedra-clara)', fontSize: '12.5px' }}>Sin calificaciones aún</span>}
+                                <div style={{ fontSize: '12.5px', color: 'var(--t-piedra)', marginTop: '1px' }}>{oferta.vehiculo}</div>
                               </div>
                             </div>
                             <div style={{ fontWeight: '800', fontSize: '17px', color: BRAND_GREEN, flexShrink: 0, fontFamily: T.display }}>${oferta.precio.toLocaleString()}</div>
@@ -1747,11 +1747,11 @@ const Dashboard = () => {
                           {oferta.comodidades && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
                               {oferta.recomendado && (
-                                <span style={{ background: 'var(--t-musgo)', color: BRAND_GREEN, border: `1px solid ${BRAND_GREEN}`, borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '700' }}>
+                                <span style={{ background: 'var(--t-musgo)', color: BRAND_GREEN, border: `1px solid ${BRAND_GREEN}`, borderRadius: '100px', padding: '3px 9px', fontSize: '12px', fontWeight: '700' }}>
                                   Buen ajuste para tu grupo
                                 </span>
                               )}
-                              <span style={{ background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '600' }}>
+                              <span style={{ background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', borderRadius: '100px', padding: '3px 9px', fontSize: '12px', fontWeight: '600' }}>
                                 {oferta.comodidades.categoria} · hasta {oferta.comodidades.capacidad} pasajeros
                               </span>
                               {[
@@ -1763,7 +1763,7 @@ const Dashboard = () => {
                                 [oferta.comodidades.tiene_sillas_bebe, 'Sillas para bebé'],
                                 [oferta.comodidades.acepta_mascotas, 'Acepta mascotas'],
                               ].filter(([activo]) => activo).map(([, etiqueta]) => (
-                                <span key={etiqueta} style={{ background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', borderRadius: '100px', padding: '3px 9px', fontSize: '11px', fontWeight: '600' }}>
+                                <span key={etiqueta} style={{ background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', borderRadius: '100px', padding: '3px 9px', fontSize: '12px', fontWeight: '600' }}>
                                   {etiqueta}
                                 </span>
                               ))}
@@ -1774,18 +1774,18 @@ const Dashboard = () => {
                               las tiene todas, se muestra igual (no se oculta), pero se avisa qué
                               le falta para que decidas tú si igual te sirve. */}
                           {oferta.comodidades && oferta.comodidades.comodidades_faltantes && oferta.comodidades.comodidades_faltantes.length > 0 && (
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', background: 'var(--t-chiva-suave)', border: '1px solid var(--t-chiva-linea)', borderRadius: '8px', padding: '7px 10px', marginBottom: '10px', fontSize: '11px', color: 'var(--t-chiva-texto)' }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', background: 'var(--t-chiva-suave)', border: '1px solid var(--t-chiva-linea)', borderRadius: '8px', padding: '7px 10px', marginBottom: '10px', fontSize: '12px', color: 'var(--t-chiva-texto)' }}>
                               <IconAlerta size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
                               <span>No tiene: {oferta.comodidades.comodidades_faltantes.join(', ')}</span>
                             </div>
                           )}
 
                           {oferta.created_at && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--t-piedra-clara)', marginBottom: '4px' }}><IconReloj size={11} />Oferta enviada {tiempoRelativo(oferta.created_at)}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--t-piedra-clara)', marginBottom: '4px' }}><IconReloj size={11} />Oferta enviada {tiempoRelativo(oferta.created_at)}</div>
                           )}
                           <div style={{ display: 'flex', gap: '8px', marginTop: '13px' }}>
-                            <button onClick={() => handleAceptarOferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: BRAND_GREEN, color: '#fff', border: 'none', padding: '10px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Aceptar</button>
-                            <button onClick={() => handleContraoferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: 'var(--t-cielo-suave)', color: 'var(--t-cielo-texto)', border: 'none', padding: '10px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Contra ofertar</button>
+                            <button onClick={() => handleAceptarOferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: BRAND_GREEN, color: '#fff', border: 'none', padding: '10px', borderRadius: '9px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Aceptar</button>
+                            <button onClick={() => handleContraoferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: 'var(--t-cielo-suave)', color: 'var(--t-cielo-texto)', border: 'none', padding: '10px', borderRadius: '9px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Contra ofertar</button>
                             <button onClick={() => handleRechazarOferta(viajeActualizado.id, oferta.id)} title="Rechazar oferta" style={{ background: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', border: 'none', padding: '10px 13px', borderRadius: '9px', display: 'flex', alignItems: 'center', cursor: 'pointer' }}><IconEquis size={14} /></button>
                           </div>
                         </div>
@@ -1807,20 +1807,20 @@ const Dashboard = () => {
               onClick={() => setMostrarNotificaciones(false)}
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(14,42,30,0.52)', zIndex: 2000 }} />
             <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'tween', duration: 0.3 }}
-              style={{ position: 'absolute', top: 0, left: 0, width: '380px', maxWidth: '100%', height: '100vh', backgroundColor: 'var(--t-papel)', zIndex: 2001, boxShadow: '5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', fontFamily: T.ui }}>
+              style={{ position: 'absolute', top: 0, left: 0, width: '430px', maxWidth: '100%', height: '100vh', backgroundColor: 'var(--t-papel)', zIndex: 2001, boxShadow: '5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', fontFamily: T.ui }}>
 
               {/* Header */}
               <div style={{ padding: '20px', borderBottom: '1px solid var(--t-linea)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--t-niebla)' }}>
                 <div>
                   <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: 'var(--t-tinta)', fontFamily: T.display, letterSpacing: '-.01em' }}>Notificaciones</h2>
-                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>
+                  <p style={{ margin: '2px 0 0', fontSize: '13px', color: 'var(--t-piedra)' }}>
                     {notificaciones.filter(n => !n.is_read).length} sin leer
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {notificaciones.filter(n => !n.is_read).length > 0 && (
                     <button onClick={marcarTodasLeidas}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '8px', padding: '6px 10px', fontSize: '11px', fontWeight: 600, color: 'var(--t-piedra)', cursor: 'pointer', fontFamily: T.ui }}>
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '8px', padding: '6px 10px', fontSize: '12px', fontWeight: 600, color: 'var(--t-piedra)', cursor: 'pointer', fontFamily: T.ui }}>
                       <IconVisto size={12} />Leer todas
                     </button>
                   )}
@@ -1838,7 +1838,7 @@ const Dashboard = () => {
                       <IconCampana size={22} />
                     </div>
                     <p style={{ margin: 0, fontWeight: '600', color: 'var(--t-piedra)' }}>Sin notificaciones</p>
-                    <p style={{ margin: '4px 0 0', fontSize: '13px' }}>Las notificaciones aparecerán aquí.</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '14px' }}>Las notificaciones aparecerán aquí.</p>
                   </div>
                 )}
                 {notificaciones.map((notif) => {
@@ -1863,15 +1863,15 @@ const Dashboard = () => {
                         </span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
-                            <p style={{ margin: 0, fontWeight: notif.is_read ? '600' : '700', fontSize: '13px', color: notif.is_read ? 'var(--t-piedra)' : 'var(--t-tinta)' }}>
+                            <p style={{ margin: 0, fontWeight: notif.is_read ? '600' : '700', fontSize: '14px', color: notif.is_read ? 'var(--t-piedra)' : 'var(--t-tinta)' }}>
                               {notif.title}
                             </p>
                             {!notif.is_read && (
                               <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: cfg.color, flexShrink: 0, marginTop: '3px' }} />
                             )}
                           </div>
-                          <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--t-piedra)', lineHeight: '1.4' }}>{notif.message}</p>
-                          <p style={{ margin: '5px 0 0', fontSize: '11px', color: 'var(--t-piedra-clara)' }}>
+                          <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--t-piedra)', lineHeight: '1.4' }}>{notif.message}</p>
+                          <p style={{ margin: '5px 0 0', fontSize: '12px', color: 'var(--t-piedra-clara)' }}>
                             {new Date(notif.created_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
@@ -1914,13 +1914,13 @@ const Dashboard = () => {
               <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid rgba(34,197,94,0.12)', flexShrink: 0, backgroundColor: '#0a1a0a' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: BRAND_GREEN }}>Documento de viaje</p>
+                    <p style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: BRAND_GREEN }}>Documento de viaje</p>
                     <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: 'var(--t-musgo)', fontFamily: T.display }}>Registrar ocupantes</h3>
                   </div>
                   <button onClick={() => setModalFuec(null)}
-                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '30px', height: '30px', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
+                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '30px', height: '30px', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '17px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
                 </div>
-                <p style={{ margin: '8px 0 0', fontSize: '13px', color: 'rgba(255,255,255,0.45)' }}>
+                <p style={{ margin: '8px 0 0', fontSize: '14px', color: 'rgba(255,255,255,0.45)' }}>
                   Ingresa el nombre y documento de cada persona que viajará.
                 </p>
               </div>
@@ -1930,24 +1930,24 @@ const Dashboard = () => {
                 {ocupantesFuec.map((ocupante, idx) => (
                   <div key={idx} style={{ backgroundColor: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.12)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: '700', color: 'rgba(255,255,255,0.5)' }}>Ocupante {idx + 1}</span>
+                      <span style={{ fontSize: '13px', fontWeight: '700', color: 'rgba(255,255,255,0.5)' }}>Ocupante {idx + 1}</span>
                       {ocupantesFuec.length > 1 && (
                         <button onClick={() => quitarOcupante(idx)}
-                          style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '6px', color: 'var(--t-alerta-linea)', cursor: 'pointer', fontSize: '11px', padding: '3px 8px', fontWeight: '600' }}>
+                          style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '6px', color: 'var(--t-alerta-linea)', cursor: 'pointer', fontSize: '12px', padding: '3px 8px', fontWeight: '600' }}>
                           Quitar
                         </button>
                       )}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 130px', gap: '8px', minWidth: 0 }}>
                       <div>
-                        <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Nombre completo</label>
+                        <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Nombre completo</label>
                         <input value={ocupante.full_name}
                           onChange={e => actualizarOcupante(idx, 'full_name', e.target.value)}
                           placeholder="Juan Pérez"
                           className="fuec-input" style={{}} />
                       </div>
                       <div>
-                        <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Tipo</label>
+                        <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Tipo</label>
                         <select value={ocupante.document_type}
                           onChange={e => actualizarOcupante(idx, 'document_type', e.target.value)}
                           className="fuec-select" style={{}}>
@@ -1958,7 +1958,7 @@ const Dashboard = () => {
                         </select>
                       </div>
                       <div>
-                        <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Número</label>
+                        <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Número</label>
                         <input value={ocupante.document_number}
                           onChange={e => actualizarOcupante(idx, 'document_number', e.target.value)}
                           placeholder="1234567890"
@@ -1969,7 +1969,7 @@ const Dashboard = () => {
                 ))}
 
                 <button onClick={agregarOcupante}
-                  style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px dashed rgba(34,197,94,0.3)', borderRadius: '10px', color: BRAND_GREEN, fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}>
+                  style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px dashed rgba(34,197,94,0.3)', borderRadius: '10px', color: BRAND_GREEN, fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}>
                   + Agregar otro ocupante
                 </button>
               </div>
@@ -1977,11 +1977,11 @@ const Dashboard = () => {
               {/* FOOTER — fijo abajo, siempre visible */}
               <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(34,197,94,0.12)', flexShrink: 0, display: 'flex', gap: '10px', backgroundColor: '#0a1a0a' }}>
                 <button onClick={() => setModalFuec(null)}
-                  style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', color: 'rgba(255,255,255,0.6)', fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>
+                  style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', color: 'rgba(255,255,255,0.6)', fontWeight: '600', fontSize: '15px', cursor: 'pointer' }}>
                   Cancelar
                 </button>
                 <button onClick={enviarFuec} disabled={enviandoFuec}
-                  style={{ flex: 2, padding: '12px', background: enviandoFuec ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${BRAND_GREEN}, var(--t-ruta))`, border: 'none', borderRadius: '9px', color: enviandoFuec ? 'rgba(255,255,255,0.4)' : '#08210F', fontWeight: 700, fontSize: '14px', cursor: enviandoFuec ? 'not-allowed' : 'pointer', fontFamily: T.display, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                  style={{ flex: 2, padding: '12px', background: enviandoFuec ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${BRAND_GREEN}, var(--t-ruta))`, border: 'none', borderRadius: '9px', color: enviandoFuec ? 'rgba(255,255,255,0.4)' : '#08210F', fontWeight: 700, fontSize: '15px', cursor: enviandoFuec ? 'not-allowed' : 'pointer', fontFamily: T.display, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                   {enviandoFuec ? 'Guardando…' : <><IconVisto size={15} />Confirmar ocupantes</>}
                 </button>
               </div>
@@ -2001,7 +2001,7 @@ const Dashboard = () => {
             <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
               style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '360px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: T.ui }}>
               <h3 style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px', fontFamily: T.display, fontWeight: 800, letterSpacing: '-.01em', display: 'flex', alignItems: 'center', gap: '8px' }}><IconEstrella size={17} color="var(--t-chiva)" />¿Cómo estuvo tu viaje?</h3>
-              <p style={{ margin: '0 0 18px', color: 'var(--t-piedra)', fontSize: '13px' }}>Tu calificación ayuda a otros pasajeros a elegir mejor.</p>
+              <p style={{ margin: '0 0 18px', color: 'var(--t-piedra)', fontSize: '14px' }}>Tu calificación ayuda a otros pasajeros a elegir mejor.</p>
 
               <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '16px' }}>
                 {[1, 2, 3, 4, 5].map(n => (
@@ -2018,15 +2018,15 @@ const Dashboard = () => {
 
               <textarea value={comentarioCalificar} onChange={e => setComentarioCalificar(e.target.value)}
                 placeholder="Cuéntanos más (opcional)" rows={3}
-                style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '13px', boxSizing: 'border-box', outline: 'none', resize: 'none', fontFamily: 'inherit', marginBottom: '16px' }} />
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', outline: 'none', resize: 'none', fontFamily: 'inherit', marginBottom: '16px' }} />
 
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button onClick={() => setModalCalificar(null)}
-                  style={{ flex: 1, background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
+                  style={{ flex: 1, background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>
                   Cancelar
                 </button>
                 <button onClick={enviarCalificacion} disabled={enviandoCalificacion || estrellasCalificar < 1}
-                  style={{ flex: 1, background: (enviandoCalificacion || estrellasCalificar < 1) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: (enviandoCalificacion || estrellasCalificar < 1) ? 'not-allowed' : 'pointer' }}>
+                  style={{ flex: 1, background: (enviandoCalificacion || estrellasCalificar < 1) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: (enviandoCalificacion || estrellasCalificar < 1) ? 'not-allowed' : 'pointer' }}>
                   {enviandoCalificacion ? 'Enviando...' : 'Enviar calificación'}
                 </button>
               </div>

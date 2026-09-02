@@ -116,9 +116,12 @@ def create_service_request(
         # no hay nadie cerca, la búsqueda se amplía sola en vez de dejar al
         # pasajero sin notificar a nadie.
         if new_request.search_lat is not None and new_request.search_lng is not None:
+            # Ya no se exige is_online: los viajes son premeditados y al conductor
+            # le sirve enterarse aunque no tenga la app abierta en ese momento.
+            # El único requisito es tener una ubicación conocida, que es lo que
+            # permite ordenar por cercanía.
             conductores_online = db.query(models.User).filter(
                 models.User.role == "DRIVER",
-                models.User.is_online == True,
                 models.User.current_lat.isnot(None),
                 models.User.current_lng.isnot(None),
             ).all()
@@ -273,21 +276,10 @@ def get_pending_requests(
 ):
     """
     Retorna la lista de viajes con estado 'PENDING'.
-    - Conductores: si NO están disponibles (is_online = false), no ven ninguna
-      solicitud — el radar queda vacío hasta que se conecten. Si están
-      disponibles, ven TODAS las solicitudes pendientes dentro del radio de
-      visibilidad automático (HU09), ordenadas por cercanía (las más cercanas
-      primero) — el filtro de comodidades (HU38) ya NO oculta solicitudes; cada
-      una trae "comodidades_cumplidas"/"comodidades_faltantes" para que el
-      conductor sepa si su vehículo calza antes de ofertar.
-    - Pasajeros: Ven SOLO sus propias solicitudes pendientes, ordenadas por
-      fecha de creación (sin filtro geográfico).
-    """
+    - Conductores: ven las solicitudes pendientes dentro del radio de visibilidad
+      del viaje, ordenadas de más cerca a más lejos.
+"""
     try:
-        # Conductor desconectado → radar vacío, ni siquiera consultamos la BD
-        if current_user.role == "DRIVER" and not current_user.is_online:
-            return []
-
         # Iniciamos la consulta base buscando los PENDING
         query = db.query(models.ServiceRequest).filter(models.ServiceRequest.status == "PENDING")
         
@@ -299,7 +291,7 @@ def get_pending_requests(
 
         if current_user.role == "DRIVER":
             # HU09 — radio de visibilidad automático + orden por cercanía. El
-            # conductor ya está disponible (is_online = true) en este punto.
+            # conductor ve todas las solicitudes pendientes de su zona.
             if current_user.current_lat is not None and current_user.current_lng is not None:
                 con_distancia = []
                 for sr in pending_requests:
@@ -333,7 +325,7 @@ def get_pending_requests(
 
 
 # HU06 — Zonas de demanda agregadas (SCRUM-164). A diferencia de /pending, esto NO
-# requiere que el conductor esté conectado (is_online): el objetivo es que pueda ver
+# no depende de ningún estado de conexión: el objetivo es que pueda ver
 # dónde hay más flujo de solicitudes y decidir dónde posicionarse ANTES de conectarse.
 # Por privacidad no se exponen ubicaciones exactas de pasajeros individuales, solo
 # centroides agrupados por zona (grilla ~3km) con un conteo.
@@ -465,6 +457,59 @@ async def create_driver_offer(
 
 # SCRUM-77 — GET /api/service-requests/{request_id}/offers
 # El pasajero ve todas las ofertas de su viaje con datos del conductor
+# ── Historial de viajes del conductor ────────────────────────────────────────
+# El conductor no tenía dónde ver lo que ya manejó: /assigned filtra por
+# passenger_id y /driver/my-offers solo trae negociaciones abiertas. Este trae
+# los viajes que efectivamente hizo, es decir aquellos donde su oferta quedó
+# ACCEPTED, con el pasajero y el precio final.
+@router.get("/driver/history")
+def get_driver_trip_history(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    if current_user.role != 'DRIVER':
+        raise HTTPException(status_code=403, detail="Solo los conductores pueden ver su historial.")
+
+    filas = (
+        db.query(models.ServiceRequest, models.DriverOffer)
+        .join(models.DriverOffer, models.DriverOffer.request_id == models.ServiceRequest.request_id)
+        .filter(
+            models.DriverOffer.driver_id == current_user.user_id,
+            models.DriverOffer.status == 'ACCEPTED',
+            models.ServiceRequest.status.in_(['ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+        )
+        .order_by(models.ServiceRequest.departure_time.desc())
+        .all()
+    )
+
+    resultado = []
+    for viaje, oferta in filas:
+        pasajero = db.query(models.User).filter(
+            models.User.user_id == viaje.passenger_id
+        ).first()
+
+        # ¿Ya calificó a este pasajero? Sirve para no ofrecer calificar dos veces.
+        ya_califico = db.query(models.Rating).filter(
+            models.Rating.request_id == viaje.request_id,
+            models.Rating.rater_id == current_user.user_id
+        ).first() is not None
+
+        resultado.append({
+            "request_id": viaje.request_id,
+            "origin": viaje.origin,
+            "destination": viaje.destination,
+            "departure_time": viaje.departure_time,
+            "trip_status": viaje.status,
+            "precio": float(oferta.offered_price) if oferta.offered_price is not None else 0,
+            "pasajero_nombre": pasajero.full_name if pasajero else "Pasajero",
+            "pasajero_foto": pasajero.profile_photo_url if pasajero else None,
+            "asientos": (viaje.adults_count or 1) + (viaje.children_count or 0),
+            "ya_califico": ya_califico,
+        })
+
+    return resultado
+
+
 @router.get("/driver/my-offers")
 def get_driver_active_offers(
     db: Session = Depends(get_db),

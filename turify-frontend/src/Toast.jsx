@@ -56,13 +56,13 @@ const ToastItem = ({ id, type, message, duration, onRemove }) => {
       position: 'relative',
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-        <span style={{ fontSize: '16px', flexShrink: 0, marginTop: '1px' }}><cfg.Ico size={15} /></span>
-        <p style={{ margin: 0, fontSize: '13px', color: cfg.color, fontWeight: '500', lineHeight: '1.4', flex: 1 }}>
+        <span style={{ fontSize: '17px', flexShrink: 0, marginTop: '1px' }}><cfg.Ico size={15} /></span>
+        <p style={{ margin: 0, fontSize: '14px', color: cfg.color, fontWeight: '500', lineHeight: '1.4', flex: 1 }}>
           {message}
         </p>
         <button
           onClick={() => { setVisible(false); setTimeout(() => onRemove(id), 300); }}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: cfg.color, opacity: 0.5, fontSize: '16px', padding: 0, flexShrink: 0, lineHeight: 1 }}>
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: cfg.color, opacity: 0.5, fontSize: '17px', padding: 0, flexShrink: 0, lineHeight: 1 }}>
           ×
         </button>
       </div>

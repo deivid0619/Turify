@@ -135,7 +135,7 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
           onChange={handleChange}
           onFocus={() => (sugerencias.length > 0 || sinResultados) && setMostrar(true)}
           autoComplete="off"
-          style={{ border: 'none', outline: 'none', fontSize: '13px', backgroundColor: 'transparent', width: ancho }}
+          style={{ border: 'none', outline: 'none', fontSize: '14px', backgroundColor: 'transparent', width: ancho }}
         />
         {cargando && <span style={{ display: 'inline-flex', color: T.piedraClara, animation: 't-girar .9s linear infinite' }}><IconGirar size={12} /></span>}
 
@@ -173,9 +173,9 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fff'}>
                 <span style={{ marginTop: '1px', flexShrink: 0, display: 'flex', color: T.piedra }}><IconPin size={15} /></span>
                 <div>
-                  <div style={{ fontWeight: '600', fontSize: '13px', color: 'var(--t-tinta)' }}>{nombrePrincipal}</div>
+                  <div style={{ fontWeight: '600', fontSize: '14px', color: 'var(--t-tinta)' }}>{nombrePrincipal}</div>
                   {secundario && (
-                    <div style={{ fontSize: '11px', color: 'var(--t-piedra)', marginTop: '2px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--t-piedra)', marginTop: '2px' }}>
                       {secundario}
                     </div>
                   )}
@@ -190,8 +190,8 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '10px' }}>
                 <span style={{ flexShrink: 0, display: 'flex', color: T.piedraClara }}><IconRadar size={16} /></span>
                 <div>
-                  <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: 'var(--t-tinta)' }}>No encontramos esa dirección</p>
-                  <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--t-piedra)' }}>Las direcciones con número de casa tienen cobertura limitada.</p>
+                  <p style={{ margin: 0, fontWeight: '700', fontSize: '14px', color: 'var(--t-tinta)' }}>No encontramos esa dirección</p>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>Las direcciones con número de casa tienen cobertura limitada.</p>
                 </div>
               </div>
 
@@ -202,14 +202,14 @@ const InputDireccion = ({ name, placeholder, value, onChange, esOrigen = false, 
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--t-musgo)'}>
                 <span style={{ flexShrink: 0, display: 'flex', color: T.musgoTexto }}><IconVisto size={15} /></span>
                 <div>
-                  <p style={{ margin: 0, fontWeight: '700', fontSize: '12px', color: BRAND_GREEN }}>Usar "{value}" de todas formas</p>
-                  <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--t-musgo-texto)' }}>El conductor verá esta dirección tal como la escribiste</p>
+                  <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: BRAND_GREEN }}>Usar "{value}" de todas formas</p>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--t-musgo-texto)' }}>El conductor verá esta dirección tal como la escribiste</p>
                 </div>
               </div>
 
               <div style={{ backgroundColor: 'var(--t-niebla)', borderRadius: '8px', padding: '10px 12px', border: '1px solid var(--t-linea)' }}>
-                <p style={{ margin: '0 0 5px', fontSize: '11px', fontWeight: '700', color: T.piedra, display: 'flex', alignItems: 'center', gap: '6px' }}><IconIdea size={12} />O probá con:</p>
-                <ul style={{ margin: 0, padding: '0 0 0 14px', fontSize: '11px', color: 'var(--t-piedra)', lineHeight: '1.9' }}>
+                <p style={{ margin: '0 0 5px', fontSize: '12px', fontWeight: '700', color: T.piedra, display: 'flex', alignItems: 'center', gap: '6px' }}><IconIdea size={12} />O probá con:</p>
+                <ul style={{ margin: 0, padding: '0 0 0 14px', fontSize: '12px', color: 'var(--t-piedra)', lineHeight: '1.9' }}>
                   <li>Nombre del <strong>barrio</strong> — ej: <em>"Laureles"</em></li>
                   <li>Nombre de la <strong>comuna</strong> — ej: <em>"El Poblado"</em></li>
                   <li>Un <strong>lugar cercano</strong> — ej: <em>"Parque Lleras"</em></li>

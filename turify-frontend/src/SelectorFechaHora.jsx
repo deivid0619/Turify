@@ -129,13 +129,13 @@ export default function SelectorFechaHora({ label, value, onChange, min, placeho
 
   const bonito = formatearBonito(value);
   const fieldBoxStyle = { display: 'flex', alignItems: 'center', border: '1px solid #e8e4db', borderRadius: '12px', padding: '11px 14px', backgroundColor: 'var(--t-papel)', cursor: 'pointer' };
-  const fieldLabelStyle = { fontSize: '10px', fontWeight: '700', color: 'var(--t-piedra-clara)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '5px' };
+  const fieldLabelStyle = { fontSize: '11px', fontWeight: '700', color: 'var(--t-piedra-clara)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '5px' };
 
   return (
     <div ref={contenedorRef} style={{ position: 'relative', width: ancho || '100%' }}>
       <div style={{ ...fieldBoxStyle, flexDirection: 'column', alignItems: 'flex-start' }} onClick={() => setAbierto(o => !o)}>
         {label && <div style={fieldLabelStyle}>{label}</div>}
-        <div style={{ fontSize: '13px', color: bonito ? 'var(--t-tinta)' : 'var(--t-piedra-clara)', display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
+        <div style={{ fontSize: '14px', color: bonito ? 'var(--t-tinta)' : 'var(--t-piedra-clara)', display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a8578" strokeWidth="2" style={{ flexShrink: 0 }}>
             <rect x="3" y="5" width="18" height="16" rx="2" />
             <path d="M3 10h18M8 3v4M16 3v4" strokeLinecap="round" />
@@ -156,16 +156,16 @@ export default function SelectorFechaHora({ label, value, onChange, min, placeho
             {/* Encabezado mes/año */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
               <button type="button" onClick={() => cambiarMes(-1)} disabled={esMesMinimo}
-                style={{ border: 'none', background: 'none', cursor: esMesMinimo ? 'default' : 'pointer', color: esMesMinimo ? 'var(--t-piedra-clara)' : 'var(--t-tinta)', fontSize: '16px', padding: '4px 8px' }}>‹</button>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--t-tinta)' }}>{MESES[mesVisible]} {anioVisible}</span>
+                style={{ border: 'none', background: 'none', cursor: esMesMinimo ? 'default' : 'pointer', color: esMesMinimo ? 'var(--t-piedra-clara)' : 'var(--t-tinta)', fontSize: '17px', padding: '4px 8px' }}>‹</button>
+              <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--t-tinta)' }}>{MESES[mesVisible]} {anioVisible}</span>
               <button type="button" onClick={() => cambiarMes(1)}
-                style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--t-tinta)', fontSize: '16px', padding: '4px 8px' }}>›</button>
+                style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--t-tinta)', fontSize: '17px', padding: '4px 8px' }}>›</button>
             </div>
 
             {/* Días de la semana */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: '4px' }}>
               {DIAS_SEMANA.map(d => (
-                <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: '700', color: 'var(--t-piedra-clara)' }}>{d}</div>
+                <div key={d} style={{ textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--t-piedra-clara)' }}>{d}</div>
               ))}
             </div>
 
@@ -179,7 +179,7 @@ export default function SelectorFechaHora({ label, value, onChange, min, placeho
                   <button key={dia} type="button" disabled={deshabilitado} onClick={() => elegirDia(dia)}
                     style={{
                       aspectRatio: '1', border: 'none', borderRadius: '8px', cursor: deshabilitado ? 'default' : 'pointer',
-                      fontSize: '12px', fontWeight: seleccionado ? '700' : '500',
+                      fontSize: '13px', fontWeight: seleccionado ? '700' : '500',
                       background: seleccionado ? BRAND_GREEN : 'transparent',
                       color: deshabilitado ? 'var(--t-piedra-clara)' : seleccionado ? '#fff' : 'var(--t-tinta)',
                     }}>
@@ -195,14 +195,14 @@ export default function SelectorFechaHora({ label, value, onChange, min, placeho
                 <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" strokeLinecap="round" />
               </svg>
               <select value={borrador.hora} onChange={e => setBorrador(prev => ({ ...prev, hora: Number(e.target.value) }))}
-                style={{ flex: 1, padding: '7px 8px', border: '1px solid #E2E4DC', borderRadius: '8px', fontSize: '13px', background: 'var(--t-papel)', color: 'var(--t-tinta)', fontFamily: 'inherit' }}>
+                style={{ flex: 1, padding: '7px 8px', border: '1px solid #E2E4DC', borderRadius: '8px', fontSize: '14px', background: 'var(--t-papel)', color: 'var(--t-tinta)', fontFamily: 'inherit' }}>
                 {Array.from({ length: 24 }, (_, h) => h)
                   .filter(h => horaMinimaHoy === null || h * 60 + 45 >= horaMinimaHoy)
                   .map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}</option>)}
               </select>
               <span style={{ color: 'var(--t-piedra-clara)', fontWeight: '700' }}>:</span>
               <select value={borrador.minuto} onChange={e => setBorrador(prev => ({ ...prev, minuto: Number(e.target.value) }))}
-                style={{ flex: 1, padding: '7px 8px', border: '1px solid #E2E4DC', borderRadius: '8px', fontSize: '13px', background: 'var(--t-papel)', color: 'var(--t-tinta)', fontFamily: 'inherit' }}>
+                style={{ flex: 1, padding: '7px 8px', border: '1px solid #E2E4DC', borderRadius: '8px', fontSize: '14px', background: 'var(--t-papel)', color: 'var(--t-tinta)', fontFamily: 'inherit' }}>
                 {MINUTOS_DISPONIBLES
                   .filter(m => horaMinimaHoy === null || borrador.hora * 60 + m >= horaMinimaHoy)
                   .map(m => <option key={m} value={m}>{String(m).padStart(2, '0')}</option>)}
@@ -211,11 +211,11 @@ export default function SelectorFechaHora({ label, value, onChange, min, placeho
 
             <div style={{ display: 'flex', gap: '8px' }}>
               <button type="button" onClick={() => setAbierto(false)}
-                style={{ flex: 1, padding: '9px', borderRadius: '8px', border: '1px solid #E2E4DC', background: 'var(--t-papel)', color: 'var(--t-piedra)', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>
+                style={{ flex: 1, padding: '9px', borderRadius: '8px', border: '1px solid #E2E4DC', background: 'var(--t-papel)', color: 'var(--t-piedra)', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
                 Cancelar
               </button>
               <button type="button" onClick={confirmar}
-                style={{ flex: 1.4, padding: '9px', borderRadius: '8px', border: 'none', background: BRAND_GREEN, color: '#fff', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                style={{ flex: 1.4, padding: '9px', borderRadius: '8px', border: 'none', background: BRAND_GREEN, color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
                 Confirmar horario
               </button>
             </div>
