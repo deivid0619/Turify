@@ -8,7 +8,7 @@ const FOREST = 'var(--t-monte)';
 const GOLD = 'var(--t-chiva)';
 const BRAND_GREEN = 'var(--t-ruta)';
 
-// HU21 — Perfil público del conductor como página completa (no una tarjeta
+// HU38 — Perfil público del conductor como página completa (no una tarjeta
 // flotando sobre fondo gris): la cabecera ocupa todo el ancho como en cualquier
 // página del sitio, y el contenido corre debajo en una columna editorial.
 // Sin emojis decorativos — solo tipografía, iconos de trazo, y el

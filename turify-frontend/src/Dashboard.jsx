@@ -94,9 +94,9 @@ const Dashboard = () => {
   const [pasajeros, setPasajeros] = useState({ adultos: 1, ninos: 0, mascotas: false });
   const [cargandoMapa, setCargandoMapa] = useState(false);
   const [datosMapa, setDatosMapa] = useState({ origen: null, destino: null, ruta: [] });
-  // HU09 — la búsqueda de conductores es automática (por origen del viaje, con
+  // HU26 — la búsqueda de conductores es automática (por origen del viaje, con
   // radio ampliable), ya no la elige el pasajero.
-  // HU38 — comodidades que el pasajero puede exigir del vehículo al publicar el viaje
+  // HU55 — comodidades que el pasajero puede exigir del vehículo al publicar el viaje
   const [comodidadesFiltro, setComodidadesFiltro] = useState({
     tiene_ac: false, tiene_wifi: false, tiene_bano: false, tiene_musica: false,
     tiene_maletero_amplio: false, tiene_sillas_bebe: false, acepta_mascotas: false,
@@ -136,7 +136,7 @@ const Dashboard = () => {
   const [cancelandoId, setCancelandoId] = useState(null);
   const [actualizandoViajes, setActualizandoViajes] = useState(false);
 
-  // HU21 — Perfil público del conductor: se abre en una pestaña nueva
+  // HU38 — Perfil público del conductor: se abre en una pestaña nueva
   // (página aparte), no como modal encima del dashboard.
   const abrirPerfilConductor = (driverId) => {
     if (!driverId) return;
@@ -147,7 +147,7 @@ const Dashboard = () => {
   const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
   const [mostrarPerfil, setMostrarPerfil] = useState(false);
   const [modalFuec, setModalFuec] = useState(null); // request_id del viaje a registrar
-  // HU29 — Calificaciones bidireccionales
+  // HU46 — Calificaciones bidireccionales
   const [modalCalificar, setModalCalificar] = useState(null); // request_id del viaje a calificar
   const [estrellasCalificar, setEstrellasCalificar] = useState(0);
   const [comentarioCalificar, setComentarioCalificar] = useState('');
@@ -435,7 +435,7 @@ const Dashboard = () => {
         adults_count: pasajeros.adultos, children_count: pasajeros.ninos, has_pets: pasajeros.mascotas
       };
 
-      // Épica 2 (HU08) — distancia y tipo de vía salen de lo que YA calculó el Directions Service
+      // Épica 2 (HU25) — distancia y tipo de vía salen de lo que YA calculó el Directions Service
       // clásico al trazar la ruta (sin llamada extra ni costo adicional). Los peajes NO se piden a
       // Google: la Routes API no tiene cobertura de precios de peajes en Colombia (solo EE.UU.,
       // Canadá, México, Brasil, Argentina, Australia, India, Indonesia y Japón por ahora), así que
@@ -453,7 +453,7 @@ const Dashboard = () => {
         }
       }
 
-      // HU38 — comodidades que el pasajero exige del vehículo (filtro de búsqueda)
+      // HU55 — comodidades que el pasajero exige del vehículo (filtro de búsqueda)
       payload.requiere_ac = comodidadesFiltro.tiene_ac;
       payload.requiere_wifi = comodidadesFiltro.tiene_wifi;
       payload.requiere_bano = comodidadesFiltro.tiene_bano;
@@ -469,7 +469,7 @@ const Dashboard = () => {
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Error al publicar el viaje'); }
 
-      // HU09 — el filtro de comodidades (HU38) ya NO excluye a nadie de la
+      // HU26 — el filtro de comodidades (HU55) ya NO excluye a nadie de la
       // notificación inicial (es flexible: se avisa a todos los cercanos, y el
       // pasajero decide al ver las ofertas quién cumple qué). Si nadie fue
       // notificado es sencillamente porque no hay ningún conductor conectado
@@ -570,7 +570,7 @@ const Dashboard = () => {
     }
   };
 
-  // HU29: Enviar calificación al conductor
+  // HU46: Enviar calificación al conductor
   const enviarCalificacion = async () => {
     if (estrellasCalificar < 1) { toast.warning('Elige de 1 a 5 estrellas.'); return; }
     setEnviandoCalificacion(true);
@@ -597,7 +597,7 @@ const Dashboard = () => {
     }
   };
 
-  // HU25: Descargar recibo del viaje en PDF (SCRUM-190) — el endpoint requiere
+  // HU42: Descargar recibo del viaje en PDF (SCRUM-190) — el endpoint requiere
   // Authorization, así que no se puede usar un <a href> plano: se pide el PDF como
   // blob autenticado y se dispara la descarga manualmente con un object URL.
   const [descargandoRecibo, setDescargandoRecibo] = useState(null); // request_id en descarga
@@ -666,14 +666,14 @@ const Dashboard = () => {
               driverId: o.driver_id,
               conductor: o.driver_name || `Conductor #${o.driver_id}`,
               foto: o.driver_photo || null,
-              // HU21 — badge de experiencia verificada (RUNT aprobado por el admin)
+              // HU38 — badge de experiencia verificada (RUNT aprobado por el admin)
               verificado: !!o.driver_verificado,
-              // HU29 — calificación real (antes venía simulada); null si el conductor aún no tiene calificaciones
+              // HU46 — calificación real (antes venía simulada); null si el conductor aún no tiene calificaciones
               calificacion: o.driver_rating ?? null,
               calificacionCantidad: o.driver_rating_count || 0,
               precio: o.offered_price,
               estado: o.status,
-              // HU38 — comodidades y categoría del vehículo, y si es un buen ajuste para el grupo
+              // HU55 — comodidades y categoría del vehículo, y si es un buen ajuste para el grupo
               comodidades: o.comodidades || null,
               recomendado: !!o.recomendado
             }));
@@ -708,11 +708,11 @@ const Dashboard = () => {
             conductor_foto: v.conductor_foto || null,
             precio_acordado: v.precio_acordado || 0,
             trip_status: v.trip_status || v.status || 'ASSIGNED',
-            // HU26 — tracking en tiempo real
+            // HU43 — tracking en tiempo real
             driver_id: v.driver_id || null,
             conductor_lat: v.conductor_lat ?? null,
             conductor_lng: v.conductor_lng ?? null,
-            // HU29 — calificaciones
+            // HU46 — calificaciones
             ya_califico: v.ya_califico || false,
           })));
         }
@@ -749,7 +749,7 @@ const Dashboard = () => {
     }
   };
 
-  // HU09 — el pasajero puede cancelar la búsqueda mientras el viaje sigue
+  // HU26 — el pasajero puede cancelar la búsqueda mientras el viaje sigue
   // pendiente (aún no aceptó ninguna oferta). Una vez cancelado, el backend lo
   // marca CANCELLED y ya no aparece en /pending, así que simplemente lo
   // quitamos de la lista local sin esperar al próximo refresco.
@@ -858,7 +858,7 @@ const Dashboard = () => {
     }
   }, [token, usuario]);
 
-  // HU26 — Tracking en tiempo real del conductor mientras el viaje está IN_PROGRESS.
+  // HU43 — Tracking en tiempo real del conductor mientras el viaje está IN_PROGRESS.
   // Se suscribe (Supabase Realtime) a los cambios de ubicación del conductor asignado
   // y actualiza solo esa tarjeta, sin recargar toda la lista de viajes.
   useEffect(() => {
@@ -909,7 +909,7 @@ const Dashboard = () => {
     return `hace ${Math.floor(diff / 86400)}d`;
   };
 
-  // HU09 — a partir de cuánto tiempo sin ninguna oferta le avisamos al pasajero
+  // HU26 — a partir de cuánto tiempo sin ninguna oferta le avisamos al pasajero
   // que la búsqueda sigue en curso (útil sobre todo en veredas/zonas con pocos
   // conductores conectados, donde una respuesta puede tardar más).
   const MINUTOS_AVISO_SIN_OFERTAS = 15;
@@ -918,7 +918,7 @@ const Dashboard = () => {
     return Math.floor((Date.now() - new Date(fechaStr).getTime()) / 60000);
   };
 
-  // ── Estilos del sidebar (rediseño HU05 — inspirado en el layout de Uber, pero
+  // ── Estilos del sidebar (rediseño HU22 — inspirado en el layout de Uber, pero
   // sin adoptar su paleta: el mapa deja de ser el fondo de toda la pantalla y pasa
   // a ser un panel contenido junto a un panel fijo con el formulario de búsqueda) ──
   const sidebarStyle = { width: '470px', minWidth: '470px', height: '100vh', backgroundColor: 'var(--t-niebla)', borderRight: '1px solid var(--t-linea)', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', position: 'relative', zIndex: 500, overflowY: 'auto' };
@@ -946,7 +946,7 @@ const Dashboard = () => {
     );
   };
 
-  // HU06 — Un conductor siempre ve el panel de conductor, no el dashboard de
+  // HU23 — Un conductor siempre ve el panel de conductor, no el dashboard de
   // pasajero con un botón para abrirlo aparte.
   if (usuario?.role === 'DRIVER') {
     return (
@@ -1331,13 +1331,13 @@ const Dashboard = () => {
                   </p>
                 )}
 
-                {/* HU09 — la búsqueda de conductores es automática desde el origen del
+                {/* HU26 — la búsqueda de conductores es automática desde el origen del
                     viaje: empieza cerca y se amplía sola si no hay nadie disponible. */}
                 <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--t-piedra)', textAlign: 'left' }}>
                   Buscamos automáticamente a los conductores disponibles más cercanos a tu origen.
                 </p>
 
-                {/* HU38 — Filtro de comodidades del vehículo */}
+                {/* HU55 — Filtro de comodidades del vehículo */}
                 <div style={{ textAlign: 'left', margin: '0 0 14px', padding: '10px 12px', background: 'var(--t-niebla)', border: '1px solid var(--t-linea)', borderRadius: '10px' }}>
                   <p style={{ margin: '0 0 8px', fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     ¿Necesitas alguna comodidad? (opcional)
@@ -1673,7 +1673,7 @@ const Dashboard = () => {
                           </div>
                         </div>
 
-                        {/* HU26 — Tracking en tiempo real del conductor */}
+                        {/* HU43 — Tracking en tiempo real del conductor */}
                         {esEnCurso && viaje.conductor_lat && viaje.conductor_lng && mapsLoaded && (
                           <div style={{ marginTop: '10px', borderRadius: '9px', overflow: 'hidden', border: `1px solid ${cfg.color}33`, height: '160px' }}>
                             <GoogleMap
@@ -1716,7 +1716,7 @@ const Dashboard = () => {
                         </button>
                       )}
 
-                      {/* Botón calificar — HU29 (SCRUM-194) */}
+                      {/* Botón calificar — HU46 (SCRUM-194) */}
                       {viaje.trip_status === 'COMPLETED' && (
                         <button
                           disabled={viaje.ya_califico}
@@ -1734,7 +1734,7 @@ const Dashboard = () => {
                         </button>
                       )}
 
-                      {/* Botón descargar recibo — HU25 (SCRUM-190) */}
+                      {/* Botón descargar recibo — HU42 (SCRUM-190) */}
                       {viaje.trip_status === 'COMPLETED' && (
                         <button
                           disabled={descargandoRecibo === viaje.id}
@@ -1821,7 +1821,7 @@ const Dashboard = () => {
                             </div>
                           )}
 
-                          {/* HU38 — filtro flexible: si pediste comodidades y este conductor no
+                          {/* HU55 — filtro flexible: si pediste comodidades y este conductor no
                               las tiene todas, se muestra igual (no se oculta), pero se avisa qué
                               le falta para que decidas tú si igual te sirve. */}
                           {oferta.comodidades && oferta.comodidades.comodidades_faltantes && oferta.comodidades.comodidades_faltantes.length > 0 && (
@@ -2042,7 +2042,7 @@ const Dashboard = () => {
         )}
       </AnimatePresence>
 
-      {/* MODAL CALIFICAR VIAJE — HU29 (SCRUM-194) */}
+      {/* MODAL CALIFICAR VIAJE — HU46 (SCRUM-194) */}
       <AnimatePresence>
         {modalCalificar && (
           <>

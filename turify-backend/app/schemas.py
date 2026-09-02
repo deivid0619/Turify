@@ -38,7 +38,7 @@ class DocumentTypeEnum(str, Enum):
     TarjetaOperacion = 'Tarjeta de operacion'
     Tecnomecanica = 'Tecnomecanica'
     Seguros = 'Seguros Contractual y extracontractual'
-    RUNT = 'RUNT'  # HU20 — RUNT (experiencia del conductor), opcional y posterior al registro
+    RUNT = 'RUNT'  # HU37 — RUNT (experiencia del conductor), opcional y posterior al registro
 
 class VerificationStatusEnum(str, Enum):
     PENDING = 'PENDING'
@@ -54,7 +54,7 @@ class DocumentResponse(BaseModel):
     document_type: DocumentTypeEnum
     file_url: str
     verification_status: VerificationStatusEnum
-    # HU20/HU21 — solo presentes en documentos tipo RUNT
+    # HU37/HU38 — solo presentes en documentos tipo RUNT
     years_experience: Optional[int] = None
     license_categories: Optional[str] = None
 
@@ -108,7 +108,7 @@ class ServiceRequestCreate(BaseModel):
     adults_count: int
     children_count: int = 0
     has_pets: bool = False
-    # Épica 2 (HU08) — datos de la ruta calculados con Google Maps, para el motor de precio (Épica 12)
+    # Épica 2 (HU25) — datos de la ruta calculados con Google Maps, para el motor de precio (Épica 12)
     origin_lat: Optional[float] = None
     origin_lng: Optional[float] = None
     destination_lat: Optional[float] = None
@@ -117,7 +117,7 @@ class ServiceRequestCreate(BaseModel):
     tolls_count: Optional[int] = None
     tolls_cost: Optional[float] = None
     tipo_via: Optional[str] = None  # 'PAVIMENTADA' | 'DESTAPADA' | 'MIXTA'
-    # HU38 — comodidades que el pasajero exige del vehículo (filtro de búsqueda).
+    # HU55 — comodidades que el pasajero exige del vehículo (filtro de búsqueda).
     # Si no marca ninguna, no se filtra por comodidades: se notifica a todos los
     # conductores cercanos, sea cual sea su vehículo.
     requiere_ac: Optional[bool] = False
@@ -170,7 +170,7 @@ class ServiceRequestRead(BaseModel):
     # HU06 — coordenadas de origen, para pintar la solicitud como pin en el mapa del conductor
     origin_lat: Optional[float] = None
     origin_lng: Optional[float] = None
-    # HU38 — comodidades exigidas por el pasajero, visibles para el conductor en el radar
+    # HU55 — comodidades exigidas por el pasajero, visibles para el conductor en el radar
     requiere_ac: Optional[bool] = False
     requiere_wifi: Optional[bool] = False
     requiere_bano: Optional[bool] = False
@@ -178,7 +178,7 @@ class ServiceRequestRead(BaseModel):
     requiere_maletero_amplio: Optional[bool] = False
     requiere_sillas_bebe: Optional[bool] = False
     requiere_acepta_mascotas: Optional[bool] = False
-    # HU38 — filtro flexible: solo presentes para el CONDUCTOR (indican cuántas de
+    # HU55 — filtro flexible: solo presentes para el CONDUCTOR (indican cuántas de
     # las comodidades exigidas cumple su propio vehículo y cuáles le faltan)
     comodidades_exigidas: Optional[int] = None
     comodidades_cumplidas: Optional[int] = None
@@ -237,18 +237,18 @@ class UserProfileResponse(BaseModel):
 
     class Config:
         from_attributes = True
-# HU09 — Rango geográfico de conductores
+# HU26 — Rango geográfico de conductores
 class DriverLocationUpdate(BaseModel):
     current_lat: Optional[float] = None
     current_lng: Optional[float] = None
     is_online: Optional[bool] = None
 
-# HU29 — Calificaciones bidireccionales
+# HU46 — Calificaciones bidireccionales
 class RatingCreate(BaseModel):
     score: int = Field(..., ge=1, le=5, description="Calificación de 1 a 5 estrellas")
     comment: Optional[str] = None
 
-# HU38 — Comodidades del vehículo. Las tarifas (por km, espera, día, etc.) NO las
+# HU55 — Comodidades del vehículo. Las tarifas (por km, espera, día, etc.) NO las
 # decide el conductor — quedaron fuera de este schema a propósito, así que PATCH
 # /drivers/vehicle no puede tocarlas aunque alguien las envíe en el body.
 class VehicleSettingsUpdate(BaseModel):

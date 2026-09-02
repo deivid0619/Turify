@@ -62,7 +62,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
   const [errorPassword, setErrorPassword] = useState('');
   const [exitoPassword, setExitoPassword] = useState(false);
 
-  // HU20 — Subida de RUNT (experiencia del conductor)
+  // HU37 — Subida de RUNT (experiencia del conductor)
   const [mostrarFormRunt, setMostrarFormRunt] = useState(false);
   const [archivoRunt, setArchivoRunt] = useState(null);
   const [aniosExperiencia, setAniosExperiencia] = useState('');
@@ -126,7 +126,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
     finally { setGuardandoPassword(false); }
   };
 
-  // HU20 — Subir el RUNT con los años de experiencia declarados
+  // HU37 — Subir el RUNT con los años de experiencia declarados
   const subirRunt = async () => {
     setErrorRunt('');
     if (!archivoRunt) { setErrorRunt('Selecciona el archivo de tu RUNT (PDF o imagen).'); return; }
@@ -426,7 +426,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                         );
                       })}
 
-                      {/* HU20 — Subida de RUNT (opcional, posterior al registro) */}
+                      {/* HU37 — Subida de RUNT (opcional, posterior al registro) */}
                       {(() => {
                         const runt = perfil.documentos?.find(d => d.document_type === 'RUNT');
                         const puedeSubir = !runt || runt.verification_status === 'REJECTED';

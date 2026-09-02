@@ -5,7 +5,7 @@ import { T, IconPersona, IconEstrella, IconVisto, IconGorro, IconEmpresa,
 const FOREST = 'var(--t-monte)';
 const GOLD = 'var(--t-chiva)';
 
-// HU21 — Perfil público del conductor: el pasajero lo abre tocando el nombre/foto
+// HU38 — Perfil público del conductor: el pasajero lo abre tocando el nombre/foto
 // del conductor en una tarjeta de oferta. Formato "pase de abordar" (coherente con
 // ser una app de transporte) — sello dorado para experiencia verificada, distinto
 // del verde de "conectado/aprobado" que ya usa el resto de la app.

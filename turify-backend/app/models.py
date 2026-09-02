@@ -42,7 +42,7 @@ class User(Base):
     # Campos nuevos — calificaciones (Épica 7)
     rating_avg          = Column(Numeric(3, 2), default=0.00)
     total_ratings       = Column(Integer, default=0)
-    # HU21 — Badge de "conductor verificado": se activa cuando el admin aprueba el
+    # HU38 — Badge de "conductor verificado": se activa cuando el admin aprueba el
     # RUNT del conductor (experiencia declarada verificada). Es independiente del
     # rol DRIVER/documentos obligatorios de registro — el RUNT es opcional y posterior.
     conductor_verificado = Column(Boolean, default=False)
@@ -68,7 +68,7 @@ class Document(Base):
         'PENDING', 'APPROVED', 'REJECTED', 'AI_PRE_APPROVED', 'AI_PRE_REJECTED',
         name='verification_status'
     ), default='PENDING')
-    # Campos nuevos — Agente IA verificación (Épica 4 HU44)
+    # Campos nuevos — Agente IA verificación (Épica 4 HU61)
     ai_extracted_data   = Column(JSONB)
     ai_expiry_date      = Column(DateTime)
     ai_holder_name      = Column(String(100))
@@ -99,7 +99,7 @@ class Vehicle(Base):
     tarifa_dia              = Column(Numeric(10, 2))
     km_incluidos_por_dia    = Column(Integer, default=200)
     recargo_dificil_acceso  = Column(Numeric(5, 2), default=15.00)
-    # Comodidades (Épica 4 HU38)
+    # Comodidades (Épica 4 HU55)
     tiene_ac                = Column(Boolean, default=False)
     tiene_wifi              = Column(Boolean, default=False)
     tiene_bano              = Column(Boolean, default=False)
@@ -152,14 +152,14 @@ class ServiceRequest(Base):
     suggested_price_max = Column(Numeric(10, 2))
     price_explanation   = Column(Text)
     intermediate_stops  = Column(JSONB)
-    # HU09 — Punto y radio de búsqueda de conductores. Ya NO lo elige el pasajero:
+    # HU26 — Punto y radio de búsqueda de conductores. Ya NO lo elige el pasajero:
     # se calculan automáticamente al crear el viaje (search_lat/lng = origen del
     # viaje; search_radius_km = radio amplio fijo usado para que cualquier
     # conductor que se conecte más tarde siga viendo la solicitud en su radar).
     search_lat           = Column(Numeric(10, 8))
     search_lng           = Column(Numeric(11, 8))
     search_radius_km     = Column(Numeric(5, 2), default=15)
-    # HU38 — Comodidades del vehículo que el pasajero exige (filtro de búsqueda).
+    # HU55 — Comodidades del vehículo que el pasajero exige (filtro de búsqueda).
     # Si todas quedan en False, no se filtra por comodidades.
     requiere_ac              = Column(Boolean, default=False)
     requiere_wifi            = Column(Boolean, default=False)

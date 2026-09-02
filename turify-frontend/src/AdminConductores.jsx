@@ -184,7 +184,7 @@ const AdminConductores = () => {
   const [procesando, setProcesando] = useState(null);
   const [alerta, setAlerta] = useState(null);
   const [docPreview, setDocPreview] = useState(null);
-  // HU21 — años de experiencia que el admin está editando por documento RUNT (document_id -> texto)
+  // HU38 — años de experiencia que el admin está editando por documento RUNT (document_id -> texto)
   const [experienciaEditada, setExperienciaEditada] = useState({});
 
   const mostrarAlerta = (tipo, mensaje) => {

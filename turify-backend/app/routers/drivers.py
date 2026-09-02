@@ -40,7 +40,7 @@ TAMANO_MAXIMO_MB = 5
 
 router = APIRouter(prefix="/drivers", tags=["Modo Conductor"])
 
-# ── HU38 — Categorías de vehículo y rango estándar de tarifa por km ─────────
+# ── HU55 — Categorías de vehículo y rango estándar de tarifa por km ─────────
 # Rangos en COP/km, orientativos — el conductor puede moverse dentro de su
 # categoría pero no salirse de ella (evita tarifas absurdas por error).
 RANGOS_CATEGORIA = [
@@ -123,7 +123,7 @@ async def register_driver_info(
     affiliated_company: int = Form(...),
     plate: str = Form(...),
     capacity: int = Form(...),
-    # HU38 — comodidades del vehículo, opcionales desde el registro (el conductor
+    # HU55 — comodidades del vehículo, opcionales desde el registro (el conductor
     # puede dejarlas todas sin marcar y configurarlas después en su panel).
     tiene_ac: bool = Form(False),
     tiene_wifi: bool = Form(False),
@@ -186,7 +186,7 @@ async def register_driver_info(
                 plate=plate.upper(),
                 capacity=capacity,
                 photo_url=vehicle_photo_url,
-                # HU38 — comodidades declaradas desde el registro (opcionales)
+                # HU55 — comodidades declaradas desde el registro (opcionales)
                 tiene_ac=tiene_ac,
                 tiene_wifi=tiene_wifi,
                 tiene_bano=tiene_bano,
@@ -248,11 +248,11 @@ async def register_driver_info(
         raise HTTPException(status_code=500, detail=f"Error procesando el registro: {str(e)}")
 
 
-# ── HU20 — Subida de documento RUNT (SCRUM-183) ─────────────────────────────
+# ── HU37 — Subida de documento RUNT (SCRUM-183) ─────────────────────────────
 # A diferencia de los 5 documentos obligatorios de /register-details, el RUNT es
 # opcional y se sube DESPUÉS del registro, para declarar/verificar años de
 # experiencia. No afecta el rol DRIVER ya activo — solo habilita el badge de
-# "conductor verificado" (HU21) cuando el admin lo aprueba.
+# "conductor verificado" (HU38) cuando el admin lo aprueba.
 @router.post("/upload-runt")
 async def upload_runt(
     years_experience: int = Form(...),
@@ -360,7 +360,7 @@ def get_registration_status(
         ]
     }
 
-# ── HU09 — Rango geográfico de conductores ──────────────────────────────────
+# ── HU26 — Rango geográfico de conductores ──────────────────────────────────
 @router.patch("/location")
 def update_driver_location(
     payload: schemas.DriverLocationUpdate,
@@ -394,7 +394,7 @@ def update_driver_location(
     }
 
 
-# ── HU38 — Comodidades, capacidad real y tarifas del vehículo (SCRUM-207) ───
+# ── HU55 — Comodidades, capacidad real y tarifas del vehículo (SCRUM-207) ───
 @router.get("/vehicle", response_model=schemas.VehicleSettingsResponse)
 def get_my_vehicle(
     db: Session = Depends(get_db),
@@ -465,7 +465,7 @@ def update_my_vehicle(
     return get_my_vehicle(db=db, current_user=current_user)
 
 
-# ── HU35 — Panel de ganancias del conductor (SCRUM-204) ─────────────────────
+# ── HU52 — Panel de ganancias del conductor (SCRUM-204) ─────────────────────
 @router.get("/earnings")
 def get_driver_earnings(
     db: Session = Depends(get_db),
@@ -478,7 +478,7 @@ def get_driver_earnings(
     del día) y sus 3 rutas más frecuentes.
 
     La "calificación promedio" del criterio de aceptación queda pendiente:
-    todavía no existe HU29 (Calificaciones bidireccionales / SCRUM-194), así
+    todavía no existe HU46 (Calificaciones bidireccionales / SCRUM-194), así
     que el frontend debe mostrar "Próximamente" para ese dato por ahora.
     """
     if current_user.role != "DRIVER":
@@ -536,7 +536,7 @@ def get_driver_earnings(
 
     top_rutas = sorted(rutas.items(), key=lambda x: x[1], reverse=True)[:3]
 
-    # HU29 — ahora que existen calificaciones reales (Rating), las usamos aquí
+    # HU46 — ahora que existen calificaciones reales (Rating), las usamos aquí
     fila_rating = db.query(
         func.avg(models.Rating.score),
         func.count(models.Rating.rating_id)
@@ -555,7 +555,7 @@ def get_driver_earnings(
     }
 
 
-# ── HU21 — Perfil público del conductor (lo ve el pasajero desde una oferta) ─
+# ── HU38 — Perfil público del conductor (lo ve el pasajero desde una oferta) ─
 @router.get("/{driver_id}/public-profile")
 def get_driver_public_profile(
     driver_id: int,

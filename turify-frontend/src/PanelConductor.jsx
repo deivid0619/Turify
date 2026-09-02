@@ -54,7 +54,7 @@ const PanelConductor = ({ onVerRuta }) => {
   const [tarjetaRutaId, setTarjetaRutaId] = useState(null);
   const [notificaciones, setNotificaciones] = useState([]);
   const [mostrarNotifPanel, setMostrarNotifPanel] = useState(false);
-  // HU20 — el conductor accede a "Mis Docs" (subir RUNT) desde el drawer de perfil,
+  // HU37 — el conductor accede a "Mis Docs" (subir RUNT) desde el drawer de perfil,
   // que antes solo se abría desde el Dashboard del pasajero.
   const [mostrarPerfil, setMostrarPerfil] = useState(false);
 
@@ -84,7 +84,7 @@ const PanelConductor = ({ onVerRuta }) => {
     });
   }, [ubicacionActual]);
 
-  // HU29 — Calificaciones bidireccionales
+  // HU46 — Calificaciones bidireccionales
   const [modalCalificar, setModalCalificar] = useState(null); // request_id del viaje a calificar
   const [estrellasCalificar, setEstrellasCalificar] = useState(0);
   const [comentarioCalificar, setComentarioCalificar] = useState('');
@@ -167,7 +167,7 @@ const PanelConductor = ({ onVerRuta }) => {
     notificaciones.filter(n => !n.is_read).forEach(n => marcarLeida(n.notification_id));
   };
 
-  // HU09 — Envía current_lat/current_lng/is_online al backend
+  // HU26 — Envía current_lat/current_lng/is_online al backend
   const actualizarUbicacionBackend = async (payload) => {
     try {
       const res = await fetch(`${API_BASE_URL}/drivers/location`, {
@@ -224,7 +224,7 @@ const PanelConductor = ({ onVerRuta }) => {
     if (!silencioso) setCargando(true);
     if (!silencioso) setError(null);
     try {
-      // HU09 — el radio de búsqueda ahora es automático (origen del viaje +
+      // HU26 — el radio de búsqueda ahora es automático (origen del viaje +
       // expansión), el backend ya lo resuelve y ordena por cercanía.
       const res = await fetch(`${API_BASE_URL}/api/service-requests/pending`, {
         headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
@@ -321,7 +321,7 @@ const PanelConductor = ({ onVerRuta }) => {
     if (token && pestanaActiva === 'historial') cargarHistorial();
   }, [token, pestanaActiva]);
 
-  // HU35 — Panel de ganancias del conductor (SCRUM-204)
+  // HU52 — Panel de ganancias del conductor (SCRUM-204)
   const [ganancias, setGanancias] = useState(null);
   const [cargandoGanancias, setCargandoGanancias] = useState(false);
   const [errorGanancias, setErrorGanancias] = useState(null);
@@ -359,7 +359,7 @@ const PanelConductor = ({ onVerRuta }) => {
     if (token && pestanaActiva === 'ganancias') cargarGanancias();
   }, [token, pestanaActiva]);
 
-  // HU38 — Comodidades, capacidad real y tarifas del vehículo (SCRUM-207)
+  // HU55 — Comodidades, capacidad real y tarifas del vehículo (SCRUM-207)
   const [vehiculo, setVehiculo] = useState(null);
   const [formVehiculo, setFormVehiculo] = useState(null);
   const [cargandoVehiculo, setCargandoVehiculo] = useState(false);
@@ -432,7 +432,7 @@ const PanelConductor = ({ onVerRuta }) => {
     }
   };
 
-  // HU26 — Sondeo ligero en segundo plano (independiente de la pestaña activa) para
+  // HU43 — Sondeo ligero en segundo plano (independiente de la pestaña activa) para
   // saber si el conductor tiene un viaje EN CURSO y así activar el tracking cada 3s.
   useEffect(() => {
     if (!token) return;
@@ -443,7 +443,7 @@ const PanelConductor = ({ onVerRuta }) => {
 
   const viajeEnCurso = viajesActivos.some(v => v.trip_status === 'IN_PROGRESS');
 
-  // HU26 — Mientras haya un viaje IN_PROGRESS, reporta la ubicación cada 3 segundos
+  // HU43 — Mientras haya un viaje IN_PROGRESS, reporta la ubicación cada 3 segundos
   // (más frecuente que el reporte de disponibilidad, para que el pasajero vea al
   // conductor moverse en tiempo real durante el viaje).
   useEffect(() => {
@@ -868,7 +868,7 @@ const PanelConductor = ({ onVerRuta }) => {
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconCalendario size={12} />{formatearFecha(sol.departure_time)}</span>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconPersonas size={12} />{(sol.adults_count || 1) + (sol.children_count || 0)} pasajero(s){sol.has_pets && <IconMascota size={12} />}</span>
                     </div>
-                    {/* HU38 — filtro flexible de comodidades: el viaje se ve igual aunque tu
+                    {/* HU55 — filtro flexible de comodidades: el viaje se ve igual aunque tu
                         vehículo no cumpla todo, pero te avisamos qué te falta para que decidas
                         si te conviene ofertar de todas formas. */}
                     {sol.comodidades_exigidas > 0 && (
@@ -1025,7 +1025,7 @@ const PanelConductor = ({ onVerRuta }) => {
                     </div>
                   )}
 
-                  {/* Botón calificar pasajero — HU29 (SCRUM-194) */}
+                  {/* Botón calificar pasajero — HU46 (SCRUM-194) */}
                   {esAceptado && estadoViaje === 'COMPLETED' && (
                     <button
                       disabled={viaje.ya_califico}
@@ -1047,7 +1047,7 @@ const PanelConductor = ({ onVerRuta }) => {
           </>
         )}
 
-        {/* PESTAÑA GANANCIAS — HU35 (SCRUM-204) */}
+        {/* PESTAÑA GANANCIAS — HU52 (SCRUM-204) */}
         {pestanaActiva === 'ganancias' && (
           <>
             {cargandoGanancias && (
@@ -1132,7 +1132,7 @@ const PanelConductor = ({ onVerRuta }) => {
           </>
         )}
 
-        {/* PESTAÑA MI VEHÍCULO — HU38 (SCRUM-207) */}
+        {/* PESTAÑA MI VEHÍCULO — HU55 (SCRUM-207) */}
         {pestanaActiva === 'historial' && (
           <div style={{ padding: '18px' }}>
             {cargandoHistorial && (
@@ -1229,7 +1229,7 @@ const PanelConductor = ({ onVerRuta }) => {
                     style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '14px' }} />
                 </div>
 
-                {/* HU38 — los pasajeros ahora pueden filtrar por comodidades al publicar un
+                {/* HU55 — los pasajeros ahora pueden filtrar por comodidades al publicar un
                     viaje: si el conductor no marca ninguna, simplemente no le llegarán esas
                     solicitudes filtradas, aunque su vehículo sí las tenga. */}
                 {!formVehiculo.tiene_ac && !formVehiculo.tiene_wifi && !formVehiculo.tiene_bano &&
@@ -1465,7 +1465,7 @@ const PanelConductor = ({ onVerRuta }) => {
         )}
       </AnimatePresence>
 
-      {/* MODAL CALIFICAR PASAJERO — HU29 (SCRUM-194) */}
+      {/* MODAL CALIFICAR PASAJERO — HU46 (SCRUM-194) */}
       <AnimatePresence>
         {modalCalificar && (
           <>

@@ -235,7 +235,7 @@ const FormularioConductor = () => {
     plate: '', capacity: '', vehicle_photo: null,
     doc_soat: null, doc_licencia: null, doc_tarjeta_operacion: null,
     doc_tecnomecanica: null, doc_seguros: null,
-    // HU38 — comodidades del vehículo, opcionales (se pueden dejar sin marcar
+    // HU55 — comodidades del vehículo, opcionales (se pueden dejar sin marcar
     // y configurar después desde el panel del conductor)
     tiene_ac: false, tiene_wifi: false, tiene_bano: false, tiene_musica: false,
     tiene_maletero_amplio: false, tiene_sillas_bebe: false, acepta_mascotas: false,
@@ -292,7 +292,7 @@ const FormularioConductor = () => {
     formData.append('affiliated_company', formConductor.affiliated_company);
     formData.append('plate', formConductor.plate);
     formData.append('capacity', formConductor.capacity);
-    // HU38 — comodidades opcionales del vehículo
+    // HU55 — comodidades opcionales del vehículo
     formData.append('tiene_ac', formConductor.tiene_ac);
     formData.append('tiene_wifi', formConductor.tiene_wifi);
     formData.append('tiene_bano', formConductor.tiene_bano);
@@ -452,7 +452,7 @@ const FormularioConductor = () => {
                 </div>
               </div>
 
-              {/* HU38 — comodidades del vehículo, opcionales. Se preguntan aquí, en el
+              {/* HU55 — comodidades del vehículo, opcionales. Se preguntan aquí, en el
                   registro, para que la mayoría de conductores queden con esto
                   configurado desde el primer día; el que prefiera puede dejarlas
                   todas sin marcar y configurarlas después en su panel. */}

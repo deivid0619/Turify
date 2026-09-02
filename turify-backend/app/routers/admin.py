@@ -19,7 +19,7 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 # --- Schemas locales ---
 class DocumentVerifyRequest(BaseModel):
     verification_status: str  # 'APPROVED' | 'REJECTED'
-    # HU21 — el admin puede corregir/confirmar los años de experiencia declarados
+    # HU38 — el admin puede corregir/confirmar los años de experiencia declarados
     # al aprobar un documento RUNT. Se ignora para cualquier otro tipo de documento.
     years_experience: int | None = None
 
@@ -88,7 +88,7 @@ def verify_document(
     if not documento:
         raise HTTPException(status_code=404, detail="Documento no encontrado.")
 
-    # HU21 — si el admin corrige los años de experiencia al revisar un RUNT
+    # HU38 — si el admin corrige los años de experiencia al revisar un RUNT
     if documento.document_type == 'RUNT' and payload.years_experience is not None:
         documento.years_experience = payload.years_experience
 
@@ -97,7 +97,7 @@ def verify_document(
     db.refresh(documento)
 
     if documento.document_type == 'RUNT':
-        # HU21 — el RUNT es opcional y posterior al registro: no toca el rol DRIVER,
+        # HU38 — el RUNT es opcional y posterior al registro: no toca el rol DRIVER,
         # solo activa/desactiva el badge de "conductor verificado".
         conductor = db.query(models.User).filter(
             models.User.user_id == documento.user_id

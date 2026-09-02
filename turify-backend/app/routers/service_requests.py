@@ -66,7 +66,7 @@ def create_service_request(
             children_count=request_data.children_count,
             has_pets=request_data.has_pets,
             status="PENDING",
-            # Épica 2 (HU08) — datos de ruta de Google Maps, para el motor de precio (Épica 12)
+            # Épica 2 (HU25) — datos de ruta de Google Maps, para el motor de precio (Épica 12)
             origin_lat=request_data.origin_lat,
             origin_lng=request_data.origin_lng,
             destination_lat=request_data.destination_lat,
@@ -75,7 +75,7 @@ def create_service_request(
             tolls_count=request_data.tolls_count or 0,
             tolls_cost=request_data.tolls_cost or 0,
             tipo_via=request_data.tipo_via or "PAVIMENTADA",
-            # HU09 — búsqueda de conductores 100% automática: ya no la elige el
+            # HU26 — búsqueda de conductores 100% automática: ya no la elige el
             # pasajero. El centro de búsqueda es siempre el origen del viaje, y el
             # radio guardado es amplio y fijo (RADIO_VISIBILIDAD_KM) para que la
             # solicitud siga siendo visible en el radar (GET /pending) de cualquier
@@ -84,7 +84,7 @@ def create_service_request(
             search_lat=request_data.origin_lat,
             search_lng=request_data.origin_lng,
             search_radius_km=RADIO_VISIBILIDAD_KM,
-            # HU38 — comodidades que el pasajero exige del vehículo
+            # HU55 — comodidades que el pasajero exige del vehículo
             requiere_ac=request_data.requiere_ac or False,
             requiere_wifi=request_data.requiere_wifi or False,
             requiere_bano=request_data.requiere_bano or False,
@@ -108,7 +108,7 @@ def create_service_request(
             detail=f"Viaje creado: {request_data.origin} → {request_data.destination}"
         )
 
-        # HU09 — Notificar (push, vía Supabase Realtime + tabla Notification) a los
+        # HU26 — Notificar (push, vía Supabase Realtime + tabla Notification) a los
         # conductores DISPONIBLES más cercanos al origen del viaje. En vez de un
         # radio fijo elegido por el pasajero, probamos radios cada vez más amplios
         # (RADIOS_NOTIFICACION_KM) y nos quedamos con el primero que encuentre al
@@ -126,7 +126,7 @@ def create_service_request(
                 models.User.current_lng.isnot(None),
             ).all()
 
-            # HU38 — las comodidades ya NO excluyen a nadie de la notificación inicial
+            # HU55 — las comodidades ya NO excluyen a nadie de la notificación inicial
             # (filtro flexible): un conductor que cumple 2 de 3 comodidades pedidas
             # igual se entera del viaje y puede ofertar — el pasajero ve, al revisar
             # las ofertas, cuáles comodidades cumple cada uno y cuáles le faltan, y
@@ -161,7 +161,7 @@ def create_service_request(
 
         # Se agrega "conductores_notificados" a la respuesta para que el frontend
         # pueda avisarle al pasajero si, con los filtros de comodidades que eligió,
-        # no había ningún conductor conectado en este momento (HU38).
+        # no había ningún conductor conectado en este momento (HU55).
         respuesta = {c.name: getattr(new_request, c.name) for c in new_request.__table__.columns}
         respuesta["conductores_notificados"] = conductores_notificados
         return respuesta
@@ -184,7 +184,7 @@ def _distancia_km(lat1, lon1, lat2, lon2):
     return R * 2 * atan2(sqrt(a), sqrt(1 - a))
 
 
-# HU09 — Radios de expansión automática para la notificación inicial (se prueba
+# HU26 — Radios de expansión automática para la notificación inicial (se prueba
 # 5km, si no hay nadie 10km, luego 20, 40 y por último 80km) y radio fijo de
 # visibilidad guardado en cada solicitud para que el radar (GET /pending) no
 # dependa de la ubicación de los conductores en el instante de publicar el viaje.
@@ -192,7 +192,7 @@ RADIOS_NOTIFICACION_KM = [5, 10, 20, 40, 80]
 RADIO_VISIBILIDAD_KM = 60
 
 
-# HU38 — Filtro FLEXIBLE de comodidades (no excluyente): en vez de decir
+# HU55 — Filtro FLEXIBLE de comodidades (no excluyente): en vez de decir
 # "cumple / no cumple" a secas, dice CUÁNTAS de las comodidades pedidas
 # cumple este conductor y cuáles le faltan, para que el pasajero decida con
 # esa información (nunca se oculta un conductor solo por no tener el 100%).
@@ -290,7 +290,7 @@ def get_pending_requests(
         pending_requests = query.order_by(models.ServiceRequest.created_at.desc()).all()
 
         if current_user.role == "DRIVER":
-            # HU09 — radio de visibilidad automático + orden por cercanía. El
+            # HU26 — radio de visibilidad automático + orden por cercanía. El
             # conductor ve todas las solicitudes pendientes de su zona.
             if current_user.current_lat is not None and current_user.current_lng is not None:
                 con_distancia = []
@@ -304,7 +304,7 @@ def get_pending_requests(
                 con_distancia.sort(key=lambda par: par[0])
                 pending_requests = [sr for _, sr in con_distancia]
 
-            # HU38 — filtro flexible: se anota, no se oculta.
+            # HU55 — filtro flexible: se anota, no se oculta.
             resultado = []
             for sr in pending_requests:
                 match = _match_comodidades(db, current_user, sr)
@@ -324,7 +324,7 @@ def get_pending_requests(
         )
 
 
-# HU06 — Zonas de demanda agregadas (SCRUM-164). A diferencia de /pending, esto NO
+# HU23 — Zonas de demanda agregadas (SCRUM-164). A diferencia de /pending, esto NO
 # no depende de ningún estado de conexión: el objetivo es que pueda ver
 # dónde hay más flujo de solicitudes y decidir dónde posicionarse ANTES de conectarse.
 # Por privacidad no se exponen ubicaciones exactas de pasajeros individuales, solo
@@ -529,7 +529,7 @@ def get_driver_active_offers(
             models.ServiceRequest.request_id == oferta.request_id
         ).first()
 
-        # HU29 — ¿el conductor ya calificó al pasajero de este viaje?
+        # HU46 — ¿el conductor ya calificó al pasajero de este viaje?
         ya_califico = False
         if viaje and viaje.status == 'COMPLETED':
             ya_califico = db.query(models.Rating).filter(
@@ -636,13 +636,13 @@ def get_assigned_requests(
             if conductor:
                 conductor_nombre = conductor.full_name
                 conductor_foto = conductor.profile_photo_url
-                # HU26 — ubicación en vivo del conductor, solo tiene sentido mientras el viaje está en curso
+                # HU43 — ubicación en vivo del conductor, solo tiene sentido mientras el viaje está en curso
                 if v.status == 'IN_PROGRESS':
                     conductor_lat = float(conductor.current_lat) if conductor.current_lat is not None else None
                     conductor_lng = float(conductor.current_lng) if conductor.current_lng is not None else None
             precio_acordado = float(oferta_aceptada.offered_price)
 
-        # HU29 — ¿el pasajero ya calificó este viaje?
+        # HU46 — ¿el pasajero ya calificó este viaje?
         ya_califico = False
         if v.status == 'COMPLETED':
             ya_califico = db.query(models.Rating).filter(
@@ -674,7 +674,7 @@ def get_assigned_requests(
     return resultado
 
 
-# HU25 — Recibo en PDF de un viaje completado (SCRUM-190)
+# HU42 — Recibo en PDF de un viaje completado (SCRUM-190)
 @router.get("/{request_id}/receipt")
 def descargar_recibo(
     request_id: int,
@@ -804,10 +804,10 @@ def get_offers_for_request(
         conductor = db.query(models.User).filter(
             models.User.user_id == oferta.driver_id
         ).first()
-        # HU29 — calificación real del conductor (antes venía simulada en el frontend)
+        # HU46 — calificación real del conductor (antes venía simulada en el frontend)
         promedio, cantidad = _promedio_calificacion(db, oferta.driver_id)
 
-        # HU38 — comodidades, capacidad y categoría del vehículo (badges para el radar)
+        # HU55 — comodidades, capacidad y categoría del vehículo (badges para el radar)
         vehiculo = db.query(models.Vehicle).filter(
             models.Vehicle.vehicle_id == oferta.vehicle_id
         ).first()
@@ -815,7 +815,7 @@ def get_offers_for_request(
         recomendado = False
         if vehiculo:
             capacidad = vehiculo.capacidad_real or vehiculo.capacity
-            # HU38 — filtro flexible: se muestra la oferta igual aunque no cumpla
+            # HU55 — filtro flexible: se muestra la oferta igual aunque no cumpla
             # el 100% de las comodidades pedidas; el pasajero ve cuántas cumple y
             # cuáles le faltan, y decide él mismo con esa información.
             match = _match_comodidades(db, conductor, service_request) if conductor else {"exigidas": 0, "cumplidas": 0, "cumple_todas": True, "faltantes": []}
@@ -852,7 +852,7 @@ def get_offers_for_request(
             "driver_id": oferta.driver_id,
             "driver_name": conductor.full_name if conductor else "Conductor",
             "driver_photo": conductor.profile_photo_url if conductor else None,
-            # HU21 — badge de conductor verificado (RUNT aprobado), visible en la oferta
+            # HU38 — badge de conductor verificado (RUNT aprobado), visible en la oferta
             "driver_verificado": bool(conductor.conductor_verificado) if conductor else False,
             "vehicle_id": oferta.vehicle_id,
             "offered_price": float(oferta.offered_price),
@@ -1035,7 +1035,7 @@ def crear_notificacion(db, user_id: int, title: str, message: str, tipo: str, of
         print(f"[Notificación] Error: {e}")
 
 
-# HU38 — Categoría de vehículo (misma tabla de rangos que app/routers/drivers.py)
+# HU55 — Categoría de vehículo (misma tabla de rangos que app/routers/drivers.py)
 _RANGOS_CATEGORIA_VEHICULO = [
     (1, 4,   "SEDAN"),
     (5, 10,  "VAN"),
@@ -1052,7 +1052,7 @@ def _categoria_vehiculo(capacidad: int) -> str:
     return "BUS_GRANDE" if capacidad > 60 else "SEDAN"
 
 
-# HU29 — Calificaciones bidireccionales (SCRUM-194)
+# HU46 — Calificaciones bidireccionales (SCRUM-194)
 def _promedio_calificacion(db, user_id: int):
     """Promedio y cantidad de calificaciones (Rating.score) recibidas por un usuario."""
     fila = db.query(
@@ -1162,7 +1162,7 @@ def resolve_counter_offer(
 # El conductor ve sus negociaciones activas (SCRUM-83)
 
 
-# HU09 — PATCH /api/service-requests/{request_id}/cancel
+# HU26 — PATCH /api/service-requests/{request_id}/cancel
 # El pasajero cancela la búsqueda mientras el viaje sigue PENDING (todavía no
 # aceptó ninguna oferta). Una vez el viaje pasa a ASSIGNED ya no se puede
 # cancelar desde aquí — a esa altura hay un conductor comprometido y eso
@@ -1450,7 +1450,7 @@ def get_ocupantes(
     ]
 
 
-# ── HU29 — Calificaciones bidireccionales (SCRUM-194) ────────────────────────
+# ── HU46 — Calificaciones bidireccionales (SCRUM-194) ────────────────────────
 @router.post("/{request_id}/rating", status_code=status.HTTP_201_CREATED)
 def calificar_viaje(
     request_id: int,
