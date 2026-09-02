@@ -228,6 +228,35 @@ const Dashboard = () => {
 
   const handleBusqueda = (e) => setBusqueda(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
+  // ── Elegir el punto tocando el mapa ──
+  // Alternativa a escribir la dirección: útil en veredas y fincas, donde la
+  // dirección exacta no existe o el buscador no la encuentra.
+  const [marcandoEnMapa, setMarcandoEnMapa] = useState(null); // 'origen' | 'destino' | null
+
+  const nombreDelPunto = useCallback(async ({ lat, lng }) => {
+    // Geocodificación inversa: se guarda un nombre legible, no coordenadas
+    // crudas, porque ese texto es lo que después ve el conductor.
+    try {
+      const geocoder = new window.google.maps.Geocoder();
+      const { results } = await geocoder.geocode({ location: { lat, lng } });
+      if (results?.[0]) return results[0].formatted_address;
+    } catch { /* sin resultado: se usa el punto */ }
+    return `Punto en el mapa (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+  }, []);
+
+  const alTocarMapa = useCallback(async (evento) => {
+    if (!marcandoEnMapa) return;
+    const lat = evento.latLng.lat();
+    const lng = evento.latLng.lng();
+    const campo = marcandoEnMapa;
+    setMarcandoEnMapa(null);
+
+    const texto = await nombreDelPunto({ lat, lng });
+    setBusqueda(prev => ({ ...prev, [campo]: texto }));
+    setDatosMapa(prev => ({ ...prev, [campo === 'origen' ? 'origen' : 'destino']: { lat, lng } }));
+    toast(`${campo === 'origen' ? 'Origen' : 'Destino'} marcado en el mapa.`, 'success');
+  }, [marcandoEnMapa, nombreDelPunto]);
+
   const handleUbicacionActual = ({ texto, coords }) => {
     // coords llega como [lat, lng] desde InputDireccion — lo convertimos al formato {lat, lng} de Google
     setDatosMapa(prev => ({ ...prev, origen: { lat: coords[0], lng: coords[1] } }));
@@ -1136,12 +1165,22 @@ const Dashboard = () => {
               <div style={{ width: '100%' }}>
                 <div style={fieldLabelStyle}>Origen</div>
                 <InputDireccion name="origen" placeholder="¿Desde dónde sales?" value={busqueda.origen} onChange={handleBusqueda} esOrigen={true} onUbicacionActual={handleUbicacionActual} mapsLoaded={mapsLoaded} ancho="260px" />
+                <button type="button" onClick={() => setMarcandoEnMapa(marcandoEnMapa === 'origen' ? null : 'origen')}
+                  className="t-foco" title="Marcar el origen en el mapa"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '5px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '11.5px', fontWeight: 600, fontFamily: T.ui, color: marcandoEnMapa === 'origen' ? T.ruta : T.piedraClara }}>
+                  <IconPin size={12} />{marcandoEnMapa === 'origen' ? 'Tocá el mapa…' : 'Marcar en el mapa'}
+                </button>
               </div>
             </div>
             <div style={fieldBoxStyle}>
               <div style={{ width: '100%' }}>
                 <div style={fieldLabelStyle}>Destino</div>
                 <InputDireccion name="destino" placeholder="¿A dónde vas?" value={busqueda.destino} onChange={handleBusqueda} mapsLoaded={mapsLoaded} ancho="260px" />
+                <button type="button" onClick={() => setMarcandoEnMapa(marcandoEnMapa === 'destino' ? null : 'destino')}
+                  className="t-foco" title="Marcar el destino en el mapa"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '5px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '11.5px', fontWeight: 600, fontFamily: T.ui, color: marcandoEnMapa === 'destino' ? T.ruta : T.piedraClara }}>
+                  <IconPin size={12} />{marcandoEnMapa === 'destino' ? 'Tocá el mapa…' : 'Marcar en el mapa'}
+                </button>
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', width: '100%' }}>
@@ -1249,7 +1288,9 @@ const Dashboard = () => {
               center={datosMapa.origen || centroDefaultColombia}
               zoom={datosMapa.origen ? 15 : 6}
               onLoad={onMapLoad}
-              options={{ disableDefaultUI: true, zoomControl: true, styles: tema === 'oscuro' ? MAPA_OSCURO : undefined }}
+              onClick={alTocarMapa}
+              options={{ disableDefaultUI: true, zoomControl: true, styles: tema === 'oscuro' ? MAPA_OSCURO : undefined,
+                         draggableCursor: marcandoEnMapa ? 'crosshair' : undefined }}
             >
               {datosMapa.origen && <MarkerF position={datosMapa.origen} title="Origen" />}
               {datosMapa.destino && <MarkerF position={datosMapa.destino} title="Destino" />}
@@ -1257,6 +1298,16 @@ const Dashboard = () => {
                 <PolylineF path={datosMapa.ruta} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
               )}
             </GoogleMap>
+            {marcandoEnMapa && (
+              <div style={{ position: 'absolute', top: '16px', left: '50%', transform: 'translateX(-50%)', zIndex: 20, display: 'flex', alignItems: 'center', gap: '10px', background: T.monte, color: '#EAF2EC', borderRadius: T.rControl, padding: '10px 14px', boxShadow: '0 6px 18px rgba(0,0,0,.28)', fontSize: '13px' }}>
+                <IconPin size={15} color={T.chiva} />
+                Tocá en el mapa el {marcandoEnMapa === 'origen' ? 'punto de partida' : 'destino'}
+                <button onClick={() => setMarcandoEnMapa(null)} className="t-foco"
+                  style={{ background: 'none', border: 'none', color: 'rgba(234,242,236,.6)', cursor: 'pointer', display: 'flex', padding: 0, marginLeft: '2px' }}>
+                  <IconEquis size={15} />
+                </button>
+              </div>
+            )}
             <BotonCentrarMapa onClick={encuadrarMapa}
               titulo={datosMapa.origen && datosMapa.destino ? 'Ver la ruta completa' : 'Centrar en mi ubicación'} />
             </>
@@ -1911,7 +1962,7 @@ const Dashboard = () => {
               }}>
 
               {/* HEADER — fijo arriba */}
-              <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid rgba(34,197,94,0.12)', flexShrink: 0, backgroundColor: '#0a1a0a' }}>
+              <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid rgba(34,197,94,0.12)', flexShrink: 0, backgroundColor: T.monteAlto }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
                     <p style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: BRAND_GREEN }}>Documento de viaje</p>
@@ -1975,7 +2026,7 @@ const Dashboard = () => {
               </div>
 
               {/* FOOTER — fijo abajo, siempre visible */}
-              <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(34,197,94,0.12)', flexShrink: 0, display: 'flex', gap: '10px', backgroundColor: '#0a1a0a' }}>
+              <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(34,197,94,0.12)', flexShrink: 0, display: 'flex', gap: '10px', backgroundColor: T.monteAlto }}>
                 <button onClick={() => setModalFuec(null)}
                   style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', color: 'rgba(255,255,255,0.6)', fontWeight: '600', fontSize: '15px', cursor: 'pointer' }}>
                   Cancelar

@@ -189,6 +189,27 @@ export const IconEmpresa = (p) => <Icono {...p}><path d="M4 20.5V6.5l7-3v17M11 2
 
 export const IconSenal      = (p) => <Icono {...p}><path d="M4 17.5v-2M8.6 17.5v-5M13.2 17.5v-8M17.8 17.5v-11" /></Icono>;
 
+// ── Documentos oficiales — se repiten entre el registro del conductor y la
+//    verificación del admin, así que viven acá y no sueltos en cada pantalla.
+export const IconEscudo   = (p) => <Icono {...p}><path d="M12 3.2 5 6v5.6c0 4.3 3 7.7 7 9.2 4-1.5 7-4.9 7-9.2V6l-7-2.8Z" /><path d="M9 12l2.2 2.2L15.4 10" /></Icono>;
+export const IconTarjeta  = (p) => <Icono {...p}><rect x="3" y="6" width="18" height="12" rx="2.4" /><path d="M3 10h18M6.5 14h4" /></Icono>;
+export const IconLlave    = (p) => <Icono {...p}><circle cx="8.5" cy="12" r="3.6" /><path d="M12.1 12H20M17 12v3M20 12v2.4" /></Icono>;
+export const IconDocumento = (p) => <Icono {...p}><path d="M13.5 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8.5Z" /><path d="M13.5 3.5v5h5" /><path d="M8.8 13h6.4M8.8 16.4h4.2" /></Icono>;
+export const IconDescargar = (p) => <Icono {...p}><path d="M12 4v11M8 11.2l4 4 4-4" /><path d="M4.5 17v2.2a1.3 1.3 0 0 0 1.3 1.3h12.4a1.3 1.3 0 0 0 1.3-1.3V17" /></Icono>;
+
+// ── Navegación y acciones de la barra del admin ──
+export const IconFlechaIzq = (p) => <Icono {...p}><path d="M11 6l-6 6 6 6M5 12h14" /></Icono>;
+export const IconSalir     = (p) => <Icono {...p}><path d="M15 4.5H6.5A1.5 1.5 0 0 0 5 6v12a1.5 1.5 0 0 0 1.5 1.5H15" /><path d="M14.5 12H21M18 8.8l3.2 3.2-3.2 3.2" /></Icono>;
+export const IconRecargar  = (p) => <Icono {...p}><path d="M20.4 11.2A8.4 8.4 0 0 0 6.2 6.6L3.6 9.2" /><path d="M3.6 5v4.2h4.2" /><path d="M3.6 12.8a8.4 8.4 0 0 0 14.2 4.6l2.6-2.6" /><path d="M20.4 19v-4.2h-4.2" /></Icono>;
+export const IconLupa      = (p) => <Icono {...p}><circle cx="11" cy="11" r="6.5" /><path d="M15.8 15.8 20.5 20.5" /></Icono>;
+
+// ── Bitácora de auditoría ──
+export const IconCandado   = (p) => <Icono {...p}><rect x="4.5" y="10.5" width="15" height="10" rx="2.4" /><path d="M8 10.5V7.6a4 4 0 0 1 8 0v2.9" /><path d="M12 14.4v2.4" /></Icono>;
+export const IconProhibido = (p) => <Icono {...p}><circle cx="12" cy="12" r="8.6" /><path d="M6 18 18 6" /></Icono>;
+export const IconMapa      = (p) => <Icono {...p}><path d="M9 4.5 3.5 6.8v12.7L9 17.2l6 2.3 5.5-2.3V4.5L15 6.8Z" /><path d="M9 4.5v12.7M15 6.8v12.7" /></Icono>;
+export const IconChincheta = (p) => <Icono {...p}><path d="M9 3.5h6M10.2 3.5v6.2L7.5 13h9l-2.7-3.3V3.5" /><path d="M12 13v7.5" /></Icono>;
+export const IconBandeja   = (p) => <Icono {...p}><path d="M3.5 13.5 6 5.8a2 2 0 0 1 1.9-1.3h8.2A2 2 0 0 1 18 5.8l2.5 7.7" /><path d="M3.5 13.5h4.2l1.2 2.6h6.2l1.2-2.6h4.2v4.2a1.8 1.8 0 0 1-1.8 1.8H5.3a1.8 1.8 0 0 1-1.8-1.8Z" /></Icono>;
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  CENTRAR EL MAPA — flota sobre el mapa, arriba de los controles de zoom, que

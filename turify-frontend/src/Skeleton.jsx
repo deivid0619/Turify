@@ -130,7 +130,7 @@ export const ErrorConexion = ({ onReintentar }) => (
     padding: 24,
   }}>
     <div style={{
-      backgroundColor: '#0f1a0f',
+      backgroundColor: 'var(--t-monte-alto)',
       border: '1px solid rgba(239,68,68,0.3)',
       borderRadius: 16,
       padding: '40px 48px',

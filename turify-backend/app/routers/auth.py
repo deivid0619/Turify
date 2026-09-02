@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.database import get_db
 from app import models, schemas, security
 from fastapi.security import OAuth2PasswordRequestForm
@@ -69,6 +70,40 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db
 @router.get("/me", response_model=schemas.UserResponse)
 def get_my_profile(current_user: models.User = Depends(get_current_user)):
     return current_user
+
+
+def _resumen_calificaciones(db: Session, user_id: int) -> dict:
+    """Promedio, cantidad y últimos comentarios recibidos por un usuario.
+
+    Sirve igual para pasajero y conductor: las calificaciones son bidireccionales,
+    así que ambos reciben y a ambos les interesa ver cómo los califican.
+    """
+    promedio, cantidad = db.query(
+        func.avg(models.Rating.score),
+        func.count(models.Rating.rating_id),
+    ).filter(models.Rating.rated_id == user_id).first()
+
+    recientes = (
+        db.query(models.Rating)
+        .filter(models.Rating.rated_id == user_id)
+        .order_by(models.Rating.created_at.desc())
+        .limit(5)
+        .all()
+    )
+
+    return {
+        "rating_avg": round(float(promedio), 1) if promedio is not None else None,
+        "rating_count": cantidad or 0,
+        "rating_comentarios": [
+            {
+                "score": r.score,
+                "comment": r.comment,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in recientes if r.comment
+        ],
+    }
+
 
 # SCRUM-113 — GET /users/me (enriquecido con datos completos según rol)
 @router.get("/me/profile")
@@ -155,7 +190,9 @@ def get_full_profile(
             "photo_url": vehiculo.photo_url
         } if vehiculo else None
         base["empresa_afiliada"] = empresa
-        base["rating_avg"] = 5.0  # Por ahora fijo — se implementará con calificaciones reales
+
+    # Calificaciones recibidas — mismas para los dos roles
+    base.update(_resumen_calificaciones(db, current_user.user_id))
 
     return base
 

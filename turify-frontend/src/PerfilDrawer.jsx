@@ -285,14 +285,54 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                     </div>
                   ))}
 
+                  {/* Calificaciones — las reciben pasajeros y conductores por igual,
+                      así que esta sección ya no vive dentro del ramal de conductor. */}
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: T.piedra, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                      Tus calificaciones
+                    </label>
+                    {perfil.rating_count > 0 ? (
+                      <>
+                        <div style={{ marginTop: '7px', padding: '13px 15px', background: T.chivaSuave, borderRadius: T.rTarjeta, border: `1px solid ${T.chivaLinea}`, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ display: 'flex', color: T.chiva }}>
+                            <IconEstrella size={26} style={{ fill: 'currentColor' }} />
+                          </span>
+                          <div>
+                            <div style={{ fontFamily: T.display, fontWeight: 800, fontSize: '22px', color: T.chivaTexto, lineHeight: 1 }}>
+                              {Number(perfil.rating_avg).toFixed(1)}
+                              <span style={{ fontSize: '14px', fontWeight: 700, opacity: .6 }}> / 5</span>
+                            </div>
+                            <div style={{ fontSize: '12.5px', color: T.chivaTexto, opacity: .85, marginTop: '3px' }}>
+                              {perfil.rating_count} calificaci{perfil.rating_count === 1 ? 'ón' : 'ones'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {perfil.rating_comentarios?.length > 0 && (
+                          <div style={{ marginTop: '10px' }}>
+                            {perfil.rating_comentarios.map((c, i) => (
+                              <div key={i} style={{ padding: '11px 13px', background: T.niebla, border: `1px solid ${T.linea}`, borderRadius: T.rControl, marginBottom: '7px' }}>
+                                <div style={{ display: 'flex', gap: '2px', marginBottom: '5px', color: T.chiva }}>
+                                  {[1, 2, 3, 4, 5].map(n => (
+                                    <IconEstrella key={n} size={12}
+                                      style={{ fill: n <= c.score ? 'currentColor' : 'none', opacity: n <= c.score ? 1 : .3 }} />
+                                  ))}
+                                </div>
+                                <p style={{ margin: 0, fontSize: '13px', color: T.tinta, lineHeight: 1.5 }}>{c.comment}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div style={{ marginTop: '7px', padding: '13px 15px', background: T.niebla, borderRadius: T.rTarjeta, border: `1px solid ${T.linea}`, fontSize: '13px', color: T.piedra, lineHeight: 1.5 }}>
+                        Todavía no te han calificado. Al terminar un viaje, la otra persona puede dejarte una calificación.
+                      </div>
+                    )}
+                  </div>
+
                   {perfil.role === 'DRIVER' && (
                     <>
-                      {perfil.rating_avg !== undefined && (
-                        <div style={{ marginBottom: '12px' }}>
-                          <label style={{ fontSize: '13px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Calificación promedio</label>
-                          <div style={{ marginTop: '6px', padding: '10px 12px', backgroundColor: 'var(--t-chiva-suave)', borderRadius: '8px', border: `1px solid ${T.chivaLinea}`, fontSize: '15px', color: T.chivaTexto, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px' }}><IconEstrella size={15} />{Number(perfil.rating_avg).toFixed(1)} / 5.0</div>
-                        </div>
-                      )}
                       {perfil.empresa_afiliada && (
                         <div style={{ marginBottom: '12px' }}>
                           <label style={{ fontSize: '13px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Empresa afiliada</label>
