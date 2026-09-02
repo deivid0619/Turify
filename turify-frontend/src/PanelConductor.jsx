@@ -40,7 +40,30 @@ const PanelConductor = ({ onVerRuta }) => {
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
-  // HU09 — Disponibilidad y rango geográfico del conductor
+  const [pestanaActiva, setPestanaActiva] = useState('radar');
+  const [tema, alternarTema] = useTema();
+  const [solicitudes, setSolicitudes] = useState([]);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState(null);
+  const [solicitudModal, setSolicitudModal] = useState(null);
+  const [precio, setPrecio] = useState('');
+  const [enviandoOferta, setEnviandoOferta] = useState(false);
+  const [alertaExito, setAlertaExito] = useState(false);
+  const [errorPrecio, setErrorPrecio] = useState('');
+  const [viajesActivos, setViajesActivos] = useState([]);
+  const [tarjetaRutaId, setTarjetaRutaId] = useState(null);
+  const [notificaciones, setNotificaciones] = useState([]);
+  const [mostrarNotifPanel, setMostrarNotifPanel] = useState(false);
+  // HU20 — el conductor accede a "Mis Docs" (subir RUNT) desde el drawer de perfil,
+  // que antes solo se abría desde el Dashboard del pasajero.
+  const [mostrarPerfil, setMostrarPerfil] = useState(false);
+
+  // Filtros del radar
+  const [filtros, setFiltros] = useState({ tipo: 'todos', pasajeros: 'todos', mascotas: false });
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+
+  // Ubicación del conductor — ya no hay estado de "conectarse": la posición se
+  // reporta desde que se abre el panel.
   const [ubicacionActual, setUbicacionActual] = useState(null); // { lat, lng }
   // Referencia al mapa: hace falta para centrarlo sin pelear con la prop `center`,
   // que si se fuerza en cada render impide que el conductor lo mueva a mano.
@@ -557,15 +580,6 @@ const PanelConductor = ({ onVerRuta }) => {
 
   // HU06 — solicitudes con coordenadas, para pintarlas como pines en el mapa
   const solicitudesConUbicacion = solicitudes.filter(sol => sol.origin_lat != null && sol.origin_lng != null);
-
-  // Zonas de demanda: se ven estés conectado o no (ayuda a decidir dónde posicionarte),
-  // se refrescan cada 30s.
-  useEffect(() => {
-    if (!token) return;
-    cargarZonasDemanda();
-    const intervalo = setInterval(cargarZonasDemanda, 30000);
-    return () => clearInterval(intervalo);
-  }, [token]);
 
   return (
     <>

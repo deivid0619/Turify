@@ -4,7 +4,7 @@ import { GoogleMap, MarkerF, PolylineF, useJsApiLoader } from '@react-google-map
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './AuthContext';
 import PanelConductor from './PanelConductor';
-import AdminConductores from './Adminconductores';
+import AdminConductores from './AdminConductores';
 import InputDireccion from './InputDireccion';
 import SelectorFechaHora from './SelectorFechaHora';
 import PerfilDrawer from './PerfilDrawer';
