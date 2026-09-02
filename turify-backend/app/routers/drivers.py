@@ -1,7 +1,7 @@
 import os
 import uuid
 from io import BytesIO
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
@@ -484,7 +484,12 @@ def get_driver_earnings(
     if current_user.role != "DRIVER":
         raise HTTPException(status_code=403, detail="Solo los conductores pueden ver su panel de ganancias.")
 
-    ahora = datetime.utcnow()
+    # departure_time es TIMESTAMP(timezone=True): la base devuelve fechas CON zona.
+    # Con datetime.utcnow() (sin zona) la comparación de más abajo reventaba con
+    # "can't compare offset-naive and offset-aware datetimes", y como el error subía
+    # sin manejar, FastAPI respondía 500 SIN las cabeceras de CORS: el navegador lo
+    # veía como fallo de red y la pestaña solo decía "no pudimos conectarnos".
+    ahora = datetime.now(timezone.utc)
     inicio_semana = ahora - timedelta(days=7)
     inicio_mes = ahora - timedelta(days=30)
 
@@ -516,6 +521,10 @@ def get_driver_earnings(
     for v in viajes:
         precio = float(v.offered_price or 0)
         fecha = v.departure_time
+        # Cinturón y tirantes: si alguna fila llegara sin zona (SQLite en pruebas,
+        # o un dato viejo), se asume UTC en vez de tumbar la pestaña entera.
+        if fecha is not None and fecha.tzinfo is None:
+            fecha = fecha.replace(tzinfo=timezone.utc)
         if fecha and fecha >= inicio_semana:
             ganancias_semana += precio
         if fecha and fecha >= inicio_mes:
