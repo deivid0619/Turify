@@ -13,7 +13,7 @@ const IconMascota = (p) => <Icono {...p}><ellipse cx="8" cy="9" rx="1.8" ry="2.4
 const IconGrafico = (p) => <Icono {...p}><path d="M4 20V4M4 20h16" /><path d="M8 16.5v-4M12.5 16.5V8M17 16.5v-6.5" /></Icono>;
 const IconMapa    = (p) => <Icono {...p}><path d="M9 4.5 3.5 6.8v12.7L9 17.2l6 2.3 5.5-2.3V4.5L15 6.8Z" /><path d="M9 4.5v12.7M15 6.8v12.7" /></Icono>;
 import { motion, AnimatePresence } from 'framer-motion';
-import { GoogleMap, MarkerF, useJsApiLoader } from '@react-google-maps/api';
+import { GoogleMap, MarkerF, PolylineF, useJsApiLoader } from '@react-google-maps/api';
 import { AuthContext } from './AuthContext';
 import { ToastContainer, useToast } from './Toast';
 import { SkeletonTarjetaViaje } from './Skeleton';
@@ -52,6 +52,9 @@ const PanelConductor = ({ onVerRuta }) => {
   const [errorPrecio, setErrorPrecio] = useState('');
   const [viajesActivos, setViajesActivos] = useState([]);
   const [tarjetaRutaId, setTarjetaRutaId] = useState(null);
+  // Ruta origen→destino que se dibuja en el mapa grande cuando el conductor toca
+  // 'ver ruta' de una solicitud. { path:[{lat,lng}], origen, destino } | null
+  const [rutaConductor, setRutaConductor] = useState(null);
   const [notificaciones, setNotificaciones] = useState([]);
   const [mostrarNotifPanel, setMostrarNotifPanel] = useState(false);
   // HU37 — el conductor accede a "Mis Docs" (subir RUNT) desde el drawer de perfil,
@@ -231,7 +234,13 @@ const PanelConductor = ({ onVerRuta }) => {
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setSolicitudes(data);
+      // El backend ya filtró por el radio de visibilidad; acá se ordena por
+      // recencia para que la última solicitud publicada quede siempre de
+      // primero (y no en un orden que al conductor le parezca aleatorio).
+      const ordenadas = [...data].sort(
+        (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
+      );
+      setSolicitudes(ordenadas);
     } catch {
       if (!silencioso) setError('No se pudieron cargar las solicitudes.');
     } finally {
@@ -460,6 +469,22 @@ const PanelConductor = ({ onVerRuta }) => {
     return () => clearInterval(intervalo);
   }, [viajeEnCurso, token]);
 
+  // HU43 — Cuando arranca un viaje en curso, su ruta se dibuja automáticamente en
+  // el mapa grande del conductor (una sola vez por viaje).
+  const rutaAutoRef = useRef(null);
+  useEffect(() => {
+    const enCurso = viajesActivos.find(v => v.trip_status === 'IN_PROGRESS'
+      && v.origin_lat != null && v.origin_lng != null
+      && v.destination_lat != null && v.destination_lng != null);
+    if (!enCurso) { rutaAutoRef.current = null; return; }
+    if (rutaAutoRef.current === enCurso.request_id) return;
+    if (!mapsLoaded) return;
+    rutaAutoRef.current = enCurso.request_id;
+    setTarjetaRutaId(enCurso.request_id);
+    trazarRutaConductor(enCurso);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viajesActivos, mapsLoaded]);
+
   // SCRUM-82: Conductor responde a contraoferta
   const [resolviendoOferta, setResolviendoOferta] = useState(null);
   const [ocupantesPorViaje, setOcupantesPorViaje] = useState({});
@@ -551,10 +576,58 @@ const PanelConductor = ({ onVerRuta }) => {
     }
   };
 
+  // Dibuja la ruta de una solicitud (origen→destino) en el mapa grande del
+  // conductor, usando el Directions Service. Si no hay coordenadas de destino,
+  // al menos centra en el origen.
+  const trazarRutaConductor = (sol) => {
+    if (!mapsLoaded || !window.google) return;
+    const tieneOrigen = sol.origin_lat != null && sol.origin_lng != null;
+    const tieneDestino = sol.destination_lat != null && sol.destination_lng != null;
+    if (!tieneOrigen || !tieneDestino) {
+      if (tieneOrigen && mapaRef.current) {
+        mapaRef.current.panTo({ lat: sol.origin_lat, lng: sol.origin_lng });
+        mapaRef.current.setZoom(14);
+      }
+      setRutaConductor(null);
+      return;
+    }
+    const origen = { lat: sol.origin_lat, lng: sol.origin_lng };
+    const destino = { lat: sol.destination_lat, lng: sol.destination_lng };
+    const ajustar = (path) => {
+      setRutaConductor({ path, origen, destino });
+      if (mapaRef.current) {
+        const b = new window.google.maps.LatLngBounds();
+        path.forEach(pt => b.extend(pt));
+        mapaRef.current.fitBounds(b, 64);
+      }
+    };
+    const ds = new window.google.maps.DirectionsService();
+    ds.route(
+      { origin: origen, destination: destino, travelMode: window.google.maps.TravelMode.DRIVING },
+      (result, status) => {
+        if (status === 'OK' && result?.routes?.[0]) {
+          const path = window.google.maps.geometry.encoding
+            .decodePath(result.routes[0].overview_polyline)
+            .map(pt => ({ lat: pt.lat(), lng: pt.lng() }));
+          ajustar(path);
+        } else {
+          // Sin ruta por carretera: al menos una línea recta origen→destino.
+          ajustar([origen, destino]);
+        }
+      }
+    );
+  };
+
   const handleClickTarjeta = (sol) => {
     const esLaMisma = tarjetaRutaId === sol.request_id;
-    setTarjetaRutaId(esLaMisma ? null : sol.request_id);
-    if (!esLaMisma && onVerRuta) onVerRuta(sol.origin, sol.destination);
+    if (esLaMisma) {
+      setTarjetaRutaId(null);
+      setRutaConductor(null);
+    } else {
+      setTarjetaRutaId(sol.request_id);
+      trazarRutaConductor(sol);
+      if (onVerRuta) onVerRuta(sol.origin, sol.destination);
+    }
   };
 
   const formatearFecha = (f) => {
@@ -1320,6 +1393,16 @@ const PanelConductor = ({ onVerRuta }) => {
                 onClick={() => { setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); }}
                 icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: '#f59e0b', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
             ))}
+
+            {/* Ruta trazada del viaje seleccionado (botón "ver ruta" de la tarjeta) */}
+            {rutaConductor && (
+              <>
+                <PolylineF path={rutaConductor.path} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
+                <MarkerF position={rutaConductor.origen} title="Origen" />
+                <MarkerF position={rutaConductor.destino} title="Destino"
+                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#0E2A1E', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
+              </>
+            )}
           </GoogleMap>
           <BotonCentrarMapa onClick={centrarEnMiUbicacion}
             titulo={ubicacionActual ? 'Centrar en mi ubicación' : 'Buscar mi ubicación'} />

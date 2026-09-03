@@ -259,6 +259,8 @@ def _serializar_service_request(sr) -> dict:
         "created_at": sr.created_at,
         "origin_lat": float(sr.origin_lat) if sr.origin_lat is not None else None,
         "origin_lng": float(sr.origin_lng) if sr.origin_lng is not None else None,
+        "destination_lat": float(sr.destination_lat) if sr.destination_lat is not None else None,
+        "destination_lng": float(sr.destination_lng) if sr.destination_lng is not None else None,
         "requiere_ac": sr.requiere_ac,
         "requiere_wifi": sr.requiere_wifi,
         "requiere_bano": sr.requiere_bano,
@@ -548,6 +550,11 @@ def get_driver_active_offers(
             "trip_status": viaje.status if viaje else "",
             "created_at": oferta.created_at.isoformat() if oferta.created_at else None,
             "passenger_id": viaje.passenger_id if viaje else None,
+            # Coordenadas, para trazar la ruta del viaje en curso en el mapa grande del conductor
+            "origin_lat": float(viaje.origin_lat) if viaje and viaje.origin_lat is not None else None,
+            "origin_lng": float(viaje.origin_lng) if viaje and viaje.origin_lng is not None else None,
+            "destination_lat": float(viaje.destination_lat) if viaje and viaje.destination_lat is not None else None,
+            "destination_lng": float(viaje.destination_lng) if viaje and viaje.destination_lng is not None else None,
             "ya_califico": ya_califico,
         })
 
@@ -668,6 +675,11 @@ def get_assigned_requests(
             "driver_id": driver_id,
             "conductor_lat": conductor_lat,
             "conductor_lng": conductor_lng,
+            # Coordenadas del viaje, para trazar la ruta de seguimiento en el mapa grande
+            "origin_lat": float(v.origin_lat) if v.origin_lat is not None else None,
+            "origin_lng": float(v.origin_lng) if v.origin_lng is not None else None,
+            "destination_lat": float(v.destination_lat) if v.destination_lat is not None else None,
+            "destination_lng": float(v.destination_lng) if v.destination_lng is not None else None,
             "ya_califico": ya_califico,
         })
 

@@ -1,13 +1,57 @@
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from pydantic import BaseModel, EmailStr, Field, model_validator, field_validator
+import re
 from typing import Optional
 from datetime import datetime
 from enum import Enum
+
+# ── Validadores reutilizables ──────────────────────────────────────────────
+# Teléfono: se aceptan espacios, guiones y un prefijo internacional opcional al
+# escribir, pero se guarda solo dígitos (con un posible '+' al inicio). Debe
+# quedar entre 7 y 15 dígitos — nunca letras.
+_RE_TELEFONO = re.compile(r'^\+?\d{7,15}$')
+def _validar_telefono(v: str) -> str:
+    if v is None:
+        raise ValueError("El teléfono es obligatorio.")
+    limpio = re.sub(r'[\s\-()]', '', str(v))
+    if not _RE_TELEFONO.match(limpio):
+        raise ValueError("El teléfono debe tener entre 7 y 15 dígitos y no puede contener letras.")
+    return limpio
+
+# Nombre de persona: solo letras (con tildes/ñ), espacios y algunos signos de
+# nombre; mínimo 3 caracteres. Nunca dígitos.
+_RE_NOMBRE = re.compile(r"^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ .'-]+$")
+def _validar_nombre(v: str) -> str:
+    limpio = (v or '').strip()
+    if len(limpio) < 3:
+        raise ValueError("El nombre debe tener al menos 3 caracteres.")
+    if not _RE_NOMBRE.match(limpio):
+        raise ValueError("El nombre solo puede contener letras y espacios.")
+    return limpio
+
+# Número de documento según el tipo. CC/TI: 5-10 dígitos. CE/PA: 5-15 alfanum.
+def _validar_documento(numero: str, tipo: str) -> str:
+    n = (numero or '').strip()
+    if tipo in ('CC', 'TI'):
+        if not re.match(r'^\d{5,10}$', n):
+            raise ValueError("El documento (CC/TI) debe tener entre 5 y 10 dígitos.")
+    else:  # CE, PA
+        if not re.match(r'^[A-Za-z0-9]{5,15}$', n):
+            raise ValueError("El documento (CE/PA) debe tener entre 5 y 15 caracteres alfanuméricos.")
+    return n
 
 class UserCreate(BaseModel):
     full_name: str
     email: EmailStr
     password: str = Field(..., min_length=8)
-    phone_number: str # Ahora es obligatorio según tu SQL
+    phone_number: str  # obligatorio
+
+    @field_validator('full_name')
+    @classmethod
+    def _v_nombre(cls, v): return _validar_nombre(v)
+
+    @field_validator('phone_number')
+    @classmethod
+    def _v_tel(cls, v): return _validar_telefono(v)
 
 class UserResponse(BaseModel):
     user_id: int
@@ -71,55 +115,25 @@ class TripType(str, Enum):
     ROUND_TRIP = "ROUND_TRIP"
     
 class ServiceRequestCreate(BaseModel):
-    departure_time: datetime
-    trip_type: TripType
-    return_time: Optional[datetime] = None
-    # Otros campos que necesites del formulario (ej. origen, destino)
-    origin: str
-    destination: str
-
-    @model_validator(mode='after')
-    def validate_dates(self) -> 'ServiceRequestCreate':
-        ahora = datetime.now()
-        
-        # Validación 1: Fecha de salida no puede estar en el pasado
-        if self.departure_time < ahora:
-            raise ValueError("La fecha de salida no puede estar en el pasado.")
-
-        # Validación 2: Lógica de Ida y Vuelta
-        if self.trip_type == TripType.ROUND_TRIP:
-            if not self.return_time:
-                raise ValueError("El campo 'return_time' es obligatorio para viajes de ida y vuelta.")
-            if self.return_time <= self.departure_time:
-                raise ValueError("La fecha de regreso debe ser posterior a la de salida.")
-        else:
-            # Si es ONE_WAY, nos aseguramos de que sea nulo
-            self.return_time = None
-            
-        return self
-    
-class ServiceRequestCreate(BaseModel):
-    origin: str
-    destination: str
+    origin: str = Field(..., min_length=3, max_length=255)
+    destination: str = Field(..., min_length=3, max_length=255)
     departure_time: datetime
     return_time: Optional[datetime] = None
     trip_type: TripType
-    # Nuevos campos según tu tabla SQL
-    adults_count: int
-    children_count: int = 0
+    # Nuevos campos según la tabla SQL
+    adults_count: int = Field(..., ge=1, le=60, description="Al menos un adulto")
+    children_count: int = Field(0, ge=0, le=60)
     has_pets: bool = False
     # Épica 2 (HU25) — datos de la ruta calculados con Google Maps, para el motor de precio (Épica 12)
-    origin_lat: Optional[float] = None
-    origin_lng: Optional[float] = None
-    destination_lat: Optional[float] = None
-    destination_lng: Optional[float] = None
-    distance_km: Optional[float] = None
-    tolls_count: Optional[int] = None
-    tolls_cost: Optional[float] = None
+    origin_lat: Optional[float] = Field(None, ge=-90, le=90)
+    origin_lng: Optional[float] = Field(None, ge=-180, le=180)
+    destination_lat: Optional[float] = Field(None, ge=-90, le=90)
+    destination_lng: Optional[float] = Field(None, ge=-180, le=180)
+    distance_km: Optional[float] = Field(None, ge=0)
+    tolls_count: Optional[int] = Field(None, ge=0)
+    tolls_cost: Optional[float] = Field(None, ge=0)
     tipo_via: Optional[str] = None  # 'PAVIMENTADA' | 'DESTAPADA' | 'MIXTA'
     # HU55 — comodidades que el pasajero exige del vehículo (filtro de búsqueda).
-    # Si no marca ninguna, no se filtra por comodidades: se notifica a todos los
-    # conductores cercanos, sea cual sea su vehículo.
     requiere_ac: Optional[bool] = False
     requiere_wifi: Optional[bool] = False
     requiere_bano: Optional[bool] = False
@@ -128,14 +142,32 @@ class ServiceRequestCreate(BaseModel):
     requiere_sillas_bebe: Optional[bool] = False
     requiere_acepta_mascotas: Optional[bool] = False
 
+    @field_validator('tipo_via')
+    @classmethod
+    def _v_tipo_via(cls, v):
+        if v is None:
+            return v
+        if v not in ('PAVIMENTADA', 'DESTAPADA', 'MIXTA'):
+            raise ValueError("tipo_via debe ser PAVIMENTADA, DESTAPADA o MIXTA.")
+        return v
+
     @model_validator(mode='after')
     def validate_dates(self) -> 'ServiceRequestCreate':
-        # ... (mantén tu lógica de validación de fechas anterior)
+        # La fecha de salida no puede estar en el pasado (se compara con la misma
+        # zona horaria del dato recibido para no romper por naive/aware).
+        ahora = datetime.now(self.departure_time.tzinfo) if self.departure_time.tzinfo else datetime.now()
+        if self.departure_time < ahora:
+            raise ValueError("La fecha de salida no puede estar en el pasado.")
 
-        # Validación adicional: Al menos debe viajar un adulto
-        if self.adults_count <= 0:
-            raise ValueError("Debe haber al menos un adulto en la solicitud.")
+        if self.trip_type == TripType.ROUND_TRIP:
+            if not self.return_time:
+                raise ValueError("El campo 'return_time' es obligatorio para viajes de ida y vuelta.")
+            if self.return_time <= self.departure_time:
+                raise ValueError("La fecha de regreso debe ser posterior a la de salida.")
+        else:
+            self.return_time = None
         return self
+
 
 class ServiceRequestResponse(ServiceRequestCreate):
     request_id: int
@@ -170,6 +202,9 @@ class ServiceRequestRead(BaseModel):
     # HU06 — coordenadas de origen, para pintar la solicitud como pin en el mapa del conductor
     origin_lat: Optional[float] = None
     origin_lng: Optional[float] = None
+    # Coordenadas de destino — para que el conductor pueda ver la ruta trazada en su mapa
+    destination_lat: Optional[float] = None
+    destination_lng: Optional[float] = None
     # HU55 — comodidades exigidas por el pasajero, visibles para el conductor en el radar
     requiere_ac: Optional[bool] = False
     requiere_wifi: Optional[bool] = False
@@ -216,11 +251,31 @@ class TripPassengerItem(BaseModel):
     document_type: str = 'CC'  # CC, TI, CE, PA
     document_number: str
 
+    @field_validator('full_name')
+    @classmethod
+    def _v_nombre(cls, v): return _validar_nombre(v)
+
+    @field_validator('document_type')
+    @classmethod
+    def _v_tipo(cls, v):
+        if v not in ('CC', 'TI', 'CE', 'PA'):
+            raise ValueError("Tipo de documento inválido (usa CC, TI, CE o PA).")
+        return v
+
+    @model_validator(mode='after')
+    def _v_documento(self):
+        self.document_number = _validar_documento(self.document_number, self.document_type)
+        return self
+
 class TripPassengersCreate(BaseModel):
     passengers: list[TripPassengerItem]
 # HU16 — Perfil de usuario
 class UpdatePhoneRequest(BaseModel):
     phone_number: str
+
+    @field_validator('phone_number')
+    @classmethod
+    def _v_tel(cls, v): return _validar_telefono(v)
 
 class UpdatePasswordRequest(BaseModel):
     current_password: str

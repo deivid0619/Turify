@@ -19,9 +19,17 @@ const Registro = ({ irALogin }) => {
   const hasNumber = /[0-9]/.test(formData.password);
   const isPasswordValid = hasMinLength && hasUppercase && hasNumber;
 
+  // Validaciones de formato (mismas reglas que valida el backend).
+  const RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  const emailValido = RE_EMAIL.test(formData.email.trim());
+  const telLimpio = formData.phone_number.replace(/[\s\-()]/g, '');
+  const telValido = /^\+?\d{7,15}$/.test(telLimpio);
+  const nombreValido = formData.full_name.trim().length >= 3 && /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ .'-]+$/.test(formData.full_name.trim());
+
   const isFormValid =
-    formData.full_name.trim() !== '' &&
-    formData.email.includes('@') &&
+    nombreValido &&
+    emailValido &&
+    telValido &&
     isPasswordValid &&
     formData.confirmPassword === formData.password &&
     formData.password !== '';
@@ -36,7 +44,11 @@ const Registro = ({ irALogin }) => {
   const validarFormulario = () => {
     let erroresVisuales = {};
     if (!formData.full_name.trim()) erroresVisuales.full_name = 'El nombre es obligatorio.';
-    if (!formData.email.includes('@')) erroresVisuales.email = 'Correo inválido.';
+    else if (!nombreValido) erroresVisuales.full_name = 'Escribe tu nombre completo (solo letras).';
+    if (!formData.email.trim()) erroresVisuales.email = 'El correo es obligatorio.';
+    else if (!emailValido) erroresVisuales.email = 'Correo inválido (ej. nombre@correo.com).';
+    if (!formData.phone_number.trim()) erroresVisuales.phone_number = 'El teléfono es obligatorio.';
+    else if (!telValido) erroresVisuales.phone_number = 'Teléfono inválido: solo números (7 a 15 dígitos).';
     if (!isPasswordValid) erroresVisuales.password = 'La contraseña no cumple los requisitos.';
     if (formData.password !== formData.confirmPassword) erroresVisuales.confirmPassword = 'Las contraseñas no coinciden.';
     return erroresVisuales;
@@ -229,9 +241,11 @@ const Registro = ({ irALogin }) => {
 
                 <div>
                   <label style={estiloEtiqueta}>Teléfono</label>
-                  <input type="text" name="phone_number" placeholder="3001234567" value={formData.phone_number}
-                    onChange={handleChange} onFocus={() => setCampoActivo('phone_number')} onBlur={() => setCampoActivo(null)}
-                    style={{ ...estiloCampo('phone_number', false), fontFamily: T.dato, letterSpacing: '.06em' }} disabled={isLoading} />
+                  <input type="tel" inputMode="tel" name="phone_number" placeholder="3001234567" value={formData.phone_number}
+                    onChange={(e) => handleChange({ target: { name: 'phone_number', value: e.target.value.replace(/[^0-9+\s()-]/g, '') } })}
+                    onFocus={() => setCampoActivo('phone_number')} onBlur={() => setCampoActivo(null)} maxLength={20}
+                    style={{ ...estiloCampo('phone_number', errores.phone_number), fontFamily: T.dato, letterSpacing: '.06em' }} disabled={isLoading} />
+                  {errores.phone_number && <span style={estiloErrorCampo}>{errores.phone_number}</span>}
                 </div>
 
                 <div>

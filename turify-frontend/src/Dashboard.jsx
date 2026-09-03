@@ -36,6 +36,51 @@ const centroDefaultColombia = { lat: 4.6097, lng: -74.0817 };
 // Iconos, tokens y componentes compartidos viven en ./diseno — un solo lugar.
 const IconTrazo = Icono;
 
+// Animación de "buscando conductor": un minibús estilo chiva que avanza sobre una
+// vía punteada mientras el pasajero espera ofertas. Respeta prefers-reduced-motion.
+const BusBuscando = ({ texto = 'Buscando conductor…', size = 96 }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '8px 0' }}>
+    <style>{`
+      @keyframes turify-bus-bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-2.5px) } }
+      @keyframes turify-bus-wheel { from { transform: rotate(0) } to { transform: rotate(360deg) } }
+      @keyframes turify-bus-road { from { background-position: 0 0 } to { background-position: -28px 0 } }
+      .turify-bus-svg { animation: turify-bus-bob .7s ease-in-out infinite; transform-origin: center; }
+      .turify-bus-wheel { animation: turify-bus-wheel .9s linear infinite; transform-origin: center; transform-box: fill-box; }
+      .turify-bus-road {
+        width: 120px; height: 6px; border-radius: 3px;
+        background-image: repeating-linear-gradient(90deg, var(--t-linea) 0 14px, transparent 14px 28px);
+        background-size: 28px 6px; animation: turify-bus-road .5s linear infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .turify-bus-svg, .turify-bus-wheel, .turify-bus-road { animation: none !important; }
+      }
+    `}</style>
+    <svg className="turify-bus-svg" width={size} height={size * 0.62} viewBox="0 0 100 62" fill="none" aria-hidden="true">
+      {/* carrocería */}
+      <rect x="8" y="12" width="78" height="34" rx="7" fill="var(--t-ruta)" />
+      <rect x="8" y="12" width="78" height="10" rx="7" fill="var(--t-chiva)" />
+      {/* ventanas */}
+      <rect x="15" y="25" width="13" height="11" rx="2.5" fill="#EAF2EC" />
+      <rect x="33" y="25" width="13" height="11" rx="2.5" fill="#EAF2EC" />
+      <rect x="51" y="25" width="13" height="11" rx="2.5" fill="#EAF2EC" />
+      {/* trompa / parabrisas */}
+      <path d="M86 20 h6 a4 4 0 0 1 4 4 v18 a4 4 0 0 1 -4 4 h-6 z" fill="var(--t-ruta)" />
+      <rect x="86" y="25" width="8" height="11" rx="2" fill="#EAF2EC" />
+      {/* faro */}
+      <circle cx="94.5" cy="41" r="1.8" fill="var(--t-chiva)" />
+      {/* ruedas */}
+      <g>
+        <circle cx="28" cy="47" r="7.5" fill="#0E2A1E" />
+        <circle className="turify-bus-wheel" cx="28" cy="47" r="3.2" fill="#EAF2EC" />
+        <circle cx="66" cy="47" r="7.5" fill="#0E2A1E" />
+        <circle className="turify-bus-wheel" cx="66" cy="47" r="3.2" fill="#EAF2EC" />
+      </g>
+    </svg>
+    <div className="turify-bus-road" />
+    {texto && <div style={{ color: 'var(--t-piedra)', fontSize: '14.5px', fontWeight: 500 }}>{texto}</div>}
+  </div>
+);
+
 const ModalErrorDireccion = ({ textoDireccion, onCerrar, onContinuar }) => (
   <>
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -94,6 +139,8 @@ const Dashboard = () => {
   const [pasajeros, setPasajeros] = useState({ adultos: 1, ninos: 0, mascotas: false });
   const [cargandoMapa, setCargandoMapa] = useState(false);
   const [datosMapa, setDatosMapa] = useState({ origen: null, destino: null, ruta: [] });
+  // Ruta del viaje en curso que se sigue en el mapa grande (HU43 — tracking).
+  const [rutaSeguimiento, setRutaSeguimiento] = useState(null);
   // HU26 — la búsqueda de conductores es automática (por origen del viaje, con
   // radio ampliable), ya no la elige el pasajero.
   // HU55 — comodidades que el pasajero puede exigir del vehículo al publicar el viaje
@@ -126,6 +173,43 @@ const Dashboard = () => {
   }, [datosMapa.origen, datosMapa.destino]);
 
   useEffect(() => { encuadrarMapa(); }, [encuadrarMapa]);
+
+  // HU43 — Tracking en el MAPA GRANDE. Cuando hay un viaje en curso con
+  // coordenadas, se traza su ruta una sola vez y se guarda para pintarla en el
+  // mapa principal, junto con la posición en vivo del conductor.
+  useEffect(() => {
+    const seg = viajesConfirmados.find(v => v.trip_status === 'IN_PROGRESS'
+      && v.origin_lat != null && v.origin_lng != null
+      && v.destination_lat != null && v.destination_lng != null);
+    if (!seg) { setRutaSeguimiento(null); return; }
+    if (rutaSeguimiento && rutaSeguimiento.request_id === seg.id) return; // ya trazada
+    if (!mapsLoaded || !window.google) return;
+    const origen = { lat: seg.origin_lat, lng: seg.origin_lng };
+    const destino = { lat: seg.destination_lat, lng: seg.destination_lng };
+    const ds = new window.google.maps.DirectionsService();
+    ds.route(
+      { origin: origen, destination: destino, travelMode: window.google.maps.TravelMode.DRIVING },
+      (result, status) => {
+        if (status === 'OK' && result?.routes?.[0]) {
+          const path = window.google.maps.geometry.encoding
+            .decodePath(result.routes[0].overview_polyline)
+            .map(pt => ({ lat: pt.lat(), lng: pt.lng() }));
+          setRutaSeguimiento({ path, origen, destino, request_id: seg.id });
+        } else {
+          setRutaSeguimiento({ path: [origen, destino], origen, destino, request_id: seg.id });
+        }
+      }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viajesConfirmados, mapsLoaded]);
+
+  // Recentrar el mapa grande sobre el conductor cada vez que reporta su posición.
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const seg = viajesConfirmados.find(v => v.trip_status === 'IN_PROGRESS' && v.conductor_lat != null && v.conductor_lng != null);
+    if (seg) { mapRef.current.panTo({ lat: seg.conductor_lat, lng: seg.conductor_lng }); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viajesConfirmados]);
   const [enviandoSolicitud, setEnviandoSolicitud] = useState(false);
   const [mostrarMisSolicitudes, setMostrarMisSolicitudes] = useState(false);
   const [listaSolicitudes, setListaSolicitudes] = useState([]);
@@ -153,6 +237,7 @@ const Dashboard = () => {
   const [comentarioCalificar, setComentarioCalificar] = useState('');
   const [enviandoCalificacion, setEnviandoCalificacion] = useState(false);
   const [ocupantesFuec, setOcupantesFuec] = useState([{ full_name: '', document_type: 'CC', document_number: '' }]);
+  const [ocupantesEsperados, setOcupantesEsperados] = useState(1); // nº de pasajeros que declaró el viaje
   const [enviandoFuec, setEnviandoFuec] = useState(false);
   const [fuecEnviado, setFuecEnviado] = useState({}); // { request_id: true } para saber cuáles ya se registraron
   const [errorDireccion, setErrorDireccion] = useState(null);
@@ -243,6 +328,24 @@ const Dashboard = () => {
     } catch { /* sin resultado: se usa el punto */ }
     return `Punto en el mapa (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
   }, []);
+
+  // Arrastrar el pin de origen (o destino) en el mapa: actualiza las coordenadas,
+  // vuelve a leer la dirección legible y, si ya hay origen y destino, re-traza la ruta.
+  const alArrastrarPunto = useCallback(async (campo, evento) => {
+    const lat = evento.latLng.lat();
+    const lng = evento.latLng.lng();
+    const punto = { lat, lng };
+    setDatosMapa(prev => {
+      const nuevo = { ...prev, [campo]: punto };
+      const o = campo === 'origen' ? punto : prev.origen;
+      const d = campo === 'destino' ? punto : prev.destino;
+      // Si ya hay origen y destino, se vuelve a trazar la ruta (fuera del render).
+      if (o && d) setTimeout(() => trazarRutaConCoords(o.lat, o.lng, d.lat, d.lng), 0);
+      return nuevo;
+    });
+    const texto = await nombreDelPunto(punto);
+    setBusqueda(prev => ({ ...prev, [campo]: texto }));
+  }, [nombreDelPunto]);
 
   const alTocarMapa = useCallback(async (evento) => {
     if (!marcandoEnMapa) return;
@@ -546,8 +649,12 @@ const Dashboard = () => {
 
   // HU10: Enviar FUEC
   const enviarFuec = async () => {
-    const invalidos = ocupantesFuec.filter(o => !o.full_name.trim() || !o.document_number.trim());
-    if (invalidos.length > 0) { toast.warning('Completa nombre y número de documento de todos los ocupantes.'); return; }
+    if (!ocupantesValidos) { toast.warning('Revisa los datos: hay ocupantes con información incompleta o inválida.'); return; }
+    const payloadOcupantes = ocupantesFuec.map(o => ({
+      full_name: o.full_name.trim(),
+      document_type: o.document_type,
+      document_number: o.document_number.trim(),
+    }));
     setEnviandoFuec(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/service-requests/${modalFuec}/passengers`, {
@@ -557,7 +664,7 @@ const Dashboard = () => {
           'Content-Type': 'application/json',
           'ngrok-skip-browser-warning': 'true'
         },
-        body: JSON.stringify({ passengers: ocupantesFuec })
+        body: JSON.stringify({ passengers: payloadOcupantes })
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
       setFuecEnviado(prev => ({ ...prev, [modalFuec]: true }));
@@ -628,8 +735,20 @@ const Dashboard = () => {
     }
   };
 
+  const MAX_OCUPANTES = 60;
+  const slotOcupanteVacio = () => ({ full_name: '', document_type: 'CC', document_number: '' });
+
+  // Abre el registro de ocupantes ya con tantos slots como pasajeros declaró el
+  // viaje (adultos + niños). El conductor/pasajero puede agregar más o quitar.
+  const abrirModalOcupantes = (viaje) => {
+    const n = Math.min(MAX_OCUPANTES, Math.max(1, viaje?.seats_needed || 1));
+    setOcupantesEsperados(n);
+    setOcupantesFuec(Array.from({ length: n }, slotOcupanteVacio));
+    setModalFuec(viaje.id);
+  };
+
   const agregarOcupante = () => {
-    setOcupantesFuec(prev => [...prev, { full_name: '', document_type: 'CC', document_number: '' }]);
+    setOcupantesFuec(prev => prev.length >= MAX_OCUPANTES ? prev : [...prev, slotOcupanteVacio()]);
   };
 
   const quitarOcupante = (idx) => {
@@ -637,9 +756,45 @@ const Dashboard = () => {
     setOcupantesFuec(prev => prev.filter((_, i) => i !== idx));
   };
 
+  // Al escribir, se normaliza según el campo: el nombre no admite dígitos y el
+  // número de documento solo admite lo que ese tipo de documento permite.
   const actualizarOcupante = (idx, campo, valor) => {
-    setOcupantesFuec(prev => prev.map((o, i) => i === idx ? { ...o, [campo]: valor } : o));
+    setOcupantesFuec(prev => prev.map((o, i) => {
+      if (i !== idx) return o;
+      let v = valor;
+      if (campo === 'full_name') v = valor.replace(/[0-9]/g, '');
+      if (campo === 'document_number') {
+        const tipo = o.document_type;
+        v = (tipo === 'CC' || tipo === 'TI') ? valor.replace(/[^0-9]/g, '') : valor.replace(/[^A-Za-z0-9]/g, '');
+      }
+      return { ...o, [campo]: v };
+    }));
   };
+
+  // Validación de un ocupante. Devuelve { full_name, document_number } con el
+  // mensaje de error de cada campo (o vacío si está bien).
+  const validarOcupante = (o, idx, lista) => {
+    const err = {};
+    const nombre = (o.full_name || '').trim();
+    if (!nombre) err.full_name = 'Escribe el nombre completo.';
+    else if (nombre.length < 3) err.full_name = 'Mínimo 3 letras.';
+    else if (!/^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$/.test(nombre)) err.full_name = 'Solo letras y espacios.';
+    else if (!/\s/.test(nombre)) err.full_name = 'Incluye nombre y apellido.';
+
+    const num = (o.document_number || '').trim();
+    const tipo = o.document_type;
+    if (!num) err.document_number = 'Escribe el número.';
+    else if ((tipo === 'CC' || tipo === 'TI') && !/^[0-9]{5,10}$/.test(num)) err.document_number = 'Debe tener entre 5 y 10 dígitos.';
+    else if ((tipo === 'CE' || tipo === 'PA') && !/^[A-Za-z0-9]{5,15}$/.test(num)) err.document_number = 'Entre 5 y 15 caracteres.';
+    else {
+      const dup = lista.some((otro, j) => j !== idx && (otro.document_number || '').trim() === num && num !== '');
+      if (dup) err.document_number = 'Documento repetido.';
+    }
+    return err;
+  };
+
+  const erroresOcupantes = ocupantesFuec.map((o, i) => validarOcupante(o, i, ocupantesFuec));
+  const ocupantesValidos = erroresOcupantes.every(e => !e.full_name && !e.document_number);
 
   const marcarTodasLeidas = () => {
     notificaciones.filter(n => !n.is_read).forEach(n => marcarLeida(n.notification_id));
@@ -712,13 +867,21 @@ const Dashboard = () => {
             driver_id: v.driver_id || null,
             conductor_lat: v.conductor_lat ?? null,
             conductor_lng: v.conductor_lng ?? null,
+            origin_lat: v.origin_lat ?? null,
+            origin_lng: v.origin_lng ?? null,
+            destination_lat: v.destination_lat ?? null,
+            destination_lng: v.destination_lng ?? null,
             // HU46 — calificaciones
             ya_califico: v.ya_califico || false,
           })));
         }
       } catch {}
 
-      setListaSolicitudes(viajesConOfertas);
+      // Orden: el último viaje buscado (created_at más reciente) siempre de primero.
+      const ordenados = [...viajesConOfertas].sort(
+        (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
+      );
+      setListaSolicitudes(ordenados);
     } catch (error) { console.error('Error al cargar los viajes:', error); }
   };
 
@@ -982,6 +1145,11 @@ const Dashboard = () => {
     .filter(v => v.trip_status === 'COMPLETED')
     .sort((a, b) => new Date(b.departure_time) - new Date(a.departure_time));
 
+  // Viaje en curso cuya posición del conductor se está siguiendo en el mapa grande.
+  const viajeSeguimiento = viajesConfirmados.find(
+    v => v.trip_status === 'IN_PROGRESS' && v.conductor_lat != null && v.conductor_lng != null
+  ) || null;
+
   return (
     <>
     {cargandoInicial && <SkeletonDashboard />}
@@ -1014,6 +1182,8 @@ const Dashboard = () => {
         background: rgba(34,197,94,0.08) !important;
         box-shadow: 0 0 0 3px rgba(34,197,94,0.1);
       }
+      .fuec-input--error { border-color: #f87171 !important; background: rgba(248,113,113,0.08) !important; }
+      .fuec-error-msg { color: #fca5a5; font-size: 11.5px; margin-top: 4px; }
       .fuec-select {
         width: 100%;
         padding: 9px 6px;
@@ -1122,7 +1292,17 @@ const Dashboard = () => {
         <div style={sidebarTopStyle}>
           {/* La barra tiene 400 px: cabe el nombre. La marca compacta se reserva
               para el favicon y las vistas angostas. */}
-          <LogoWordmark alto={17} />
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', minWidth: 0 }}>
+            <LogoWordmark alto={17} />
+            {usuario?.role !== 'DRIVER' && usuario?.role !== 'ADMIN' && (
+              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                onClick={() => navigate('/registro-conductor')}
+                title="Conviértete en conductor de Turify"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: BRAND_GREEN, border: 'none', color: '#fff', borderRadius: '20px', padding: '6px 12px', fontSize: '12.5px', fontWeight: 700, fontFamily: T.ui, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                <IconAuto size={14} />Ser conductor
+              </motion.button>
+            )}
+          </div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
               onClick={() => { setMostrarNotificaciones(true); }}
@@ -1256,12 +1436,6 @@ const Dashboard = () => {
               )}
             </motion.button>
 
-            {usuario?.role !== 'DRIVER' && usuario?.role !== 'ADMIN' && (
-              <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={() => navigate('/registro-conductor')}
-                style={{ ...navBtnStyle, background: BRAND_GREEN, border: 'none', color: '#fff' }}>
-                <IconAuto size={15} /><span>Quiero ser conductor</span>
-              </motion.button>
-            )}
           </div>
 
           {/* Apariencia — el interruptor vive al pie de la barra, fuera del flujo
@@ -1293,10 +1467,31 @@ const Dashboard = () => {
               options={{ disableDefaultUI: true, zoomControl: true, styles: tema === 'oscuro' ? MAPA_OSCURO : undefined,
                          draggableCursor: marcandoEnMapa ? 'crosshair' : undefined }}
             >
-              {datosMapa.origen && <MarkerF position={datosMapa.origen} title="Origen" />}
-              {datosMapa.destino && <MarkerF position={datosMapa.destino} title="Destino" />}
+              {datosMapa.origen && (
+                <MarkerF position={datosMapa.origen} title="Origen — arrástrame para ajustar"
+                  draggable onDragEnd={(e) => alArrastrarPunto('origen', e)} />
+              )}
+              {datosMapa.destino && (
+                <MarkerF position={datosMapa.destino} title="Destino — arrástrame para ajustar"
+                  draggable onDragEnd={(e) => alArrastrarPunto('destino', e)} />
+              )}
               {datosMapa.ruta.length > 0 && (
                 <PolylineF path={datosMapa.ruta} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
+              )}
+
+              {/* HU43 — Seguimiento del viaje en curso, en el mapa grande */}
+              {rutaSeguimiento && (
+                <>
+                  <PolylineF path={rutaSeguimiento.path} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
+                  <MarkerF position={rutaSeguimiento.origen} title="Origen" />
+                  <MarkerF position={rutaSeguimiento.destino} title="Destino"
+                    icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#0E2A1E', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
+                </>
+              )}
+              {viajeSeguimiento && (
+                <MarkerF position={{ lat: viajeSeguimiento.conductor_lat, lng: viajeSeguimiento.conductor_lng }}
+                  title="Tu conductor en camino"
+                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: '#2563eb', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 }} />
               )}
             </GoogleMap>
             {marcandoEnMapa && (
@@ -1674,21 +1869,15 @@ const Dashboard = () => {
                           </div>
                         </div>
 
-                        {/* HU43 — Tracking en tiempo real del conductor */}
-                        {esEnCurso && viaje.conductor_lat && viaje.conductor_lng && mapsLoaded && (
-                          <div style={{ marginTop: '10px', borderRadius: '9px', overflow: 'hidden', border: `1px solid ${cfg.color}33`, height: '160px' }}>
-                            <GoogleMap
-                              mapContainerStyle={{ width: '100%', height: '100%' }}
-                              center={{ lat: viaje.conductor_lat, lng: viaje.conductor_lng }}
-                              zoom={15}
-                              options={{ disableDefaultUI: true, gestureHandling: 'none', zoomControl: false, styles: tema === 'oscuro' ? MAPA_OSCURO : undefined }}
-                            >
-                              <MarkerF
-                                position={{ lat: viaje.conductor_lat, lng: viaje.conductor_lng }}
-                                title="Tu conductor"
-                                icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#2563eb', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }}
-                              />
-                            </GoogleMap>
+                        {/* HU43 — Tracking en tiempo real: se muestra en el MAPA GRANDE */}
+                        {esEnCurso && viaje.conductor_lat && viaje.conductor_lng && (
+                          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', borderRadius: '9px', background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.25)' }}>
+                            <span style={{ position: 'relative', display: 'inline-flex', width: '10px', height: '10px' }}>
+                              <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#2563eb', animation: 'pulse 1.4s ease-in-out infinite' }} />
+                            </span>
+                            <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--t-cielo-texto)' }}>
+                              Tu conductor va en camino — míralo moverse en el mapa
+                            </span>
                           </div>
                         )}
                         {esEnCurso && (!viaje.conductor_lat || !viaje.conductor_lng) && (
@@ -1700,10 +1889,7 @@ const Dashboard = () => {
                       {/* Botón FUEC */}
                       {(viaje.trip_status === 'ASSIGNED' || viaje.trip_status === 'IN_PROGRESS') && (
                         <button
-                          onClick={() => {
-                            setOcupantesFuec([{ full_name: '', document_type: 'CC', document_number: '' }]);
-                            setModalFuec(viaje.id);
-                          }}
+                          onClick={() => abrirModalOcupantes(viaje)}
                           style={{
                             marginTop: '10px', width: '100%', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
                             background: fuecEnviado[viaje.id] ? 'rgba(34,197,94,0.12)' : 'rgba(34,197,94,0.08)',
@@ -1763,11 +1949,8 @@ const Dashboard = () => {
                       const viajeActualizado = listaSolicitudes.find(v => v.id === viajeSeleccionado.id);
                       if (!viajeActualizado || viajeActualizado.ofertas.length === 0) {
                         return (
-                          <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                            <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--t-musgo)', border: '1px solid var(--t-musgo-linea)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: BRAND_GREEN }}>
-                              <IconRadar size={20} />
-                            </div>
-                            <div style={{ color: 'var(--t-piedra)', fontSize: '14.5px' }}>Esperando ofertas de conductores...</div>
+                          <div style={{ textAlign: 'center', padding: '28px 0' }}>
+                            <BusBuscando texto="Esperando ofertas de conductores…" />
                           </div>
                         );
                       }
@@ -1975,6 +2158,10 @@ const Dashboard = () => {
                 <p style={{ margin: '8px 0 0', fontSize: '14px', color: 'rgba(255,255,255,0.45)' }}>
                   Ingresa el nombre y documento de cada persona que viajará.
                 </p>
+                <p style={{ margin: '6px 0 0', fontSize: '13px', fontWeight: 700, color: ocupantesFuec.length >= ocupantesEsperados ? BRAND_GREEN : 'var(--t-chiva)' }}>
+                  {ocupantesFuec.length} de {ocupantesEsperados} pasajero(s) del viaje
+                  {ocupantesFuec.length < ocupantesEsperados && ' — faltan por registrar'}
+                </p>
               </div>
 
               {/* CONTENIDO — scrollable */}
@@ -1995,8 +2182,9 @@ const Dashboard = () => {
                         <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Nombre completo</label>
                         <input value={ocupante.full_name}
                           onChange={e => actualizarOcupante(idx, 'full_name', e.target.value)}
-                          placeholder="Juan Pérez"
-                          className="fuec-input" style={{}} />
+                          placeholder="Juan Pérez" maxLength={100}
+                          className={erroresOcupantes[idx]?.full_name ? 'fuec-input fuec-input--error' : 'fuec-input'} style={{}} />
+                        {erroresOcupantes[idx]?.full_name && <div className="fuec-error-msg">{erroresOcupantes[idx].full_name}</div>}
                       </div>
                       <div>
                         <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Tipo</label>
@@ -2013,16 +2201,19 @@ const Dashboard = () => {
                         <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Número</label>
                         <input value={ocupante.document_number}
                           onChange={e => actualizarOcupante(idx, 'document_number', e.target.value)}
-                          placeholder="1234567890"
-                          className="fuec-input" style={{}} />
+                          inputMode={(ocupante.document_type === 'CC' || ocupante.document_type === 'TI') ? 'numeric' : 'text'}
+                          placeholder={(ocupante.document_type === 'CC' || ocupante.document_type === 'TI') ? '1234567890' : 'AB123456'}
+                          maxLength={15}
+                          className={erroresOcupantes[idx]?.document_number ? 'fuec-input fuec-input--error' : 'fuec-input'} style={{}} />
+                        {erroresOcupantes[idx]?.document_number && <div className="fuec-error-msg">{erroresOcupantes[idx].document_number}</div>}
                       </div>
                     </div>
                   </div>
                 ))}
 
-                <button onClick={agregarOcupante}
-                  style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px dashed rgba(34,197,94,0.3)', borderRadius: '10px', color: BRAND_GREEN, fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}>
-                  + Agregar otro ocupante
+                <button onClick={agregarOcupante} disabled={ocupantesFuec.length >= MAX_OCUPANTES}
+                  style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px dashed rgba(34,197,94,0.3)', borderRadius: '10px', color: ocupantesFuec.length >= MAX_OCUPANTES ? 'rgba(255,255,255,0.3)' : BRAND_GREEN, fontSize: '14px', fontWeight: '600', cursor: ocupantesFuec.length >= MAX_OCUPANTES ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}>
+                  {ocupantesFuec.length >= MAX_OCUPANTES ? 'Máximo de ocupantes alcanzado' : '+ Agregar otro ocupante'}
                 </button>
               </div>
 
@@ -2032,8 +2223,8 @@ const Dashboard = () => {
                   style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', color: 'rgba(255,255,255,0.6)', fontWeight: '600', fontSize: '15px', cursor: 'pointer' }}>
                   Cancelar
                 </button>
-                <button onClick={enviarFuec} disabled={enviandoFuec}
-                  style={{ flex: 2, padding: '12px', background: enviandoFuec ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${BRAND_GREEN}, var(--t-ruta))`, border: 'none', borderRadius: '9px', color: enviandoFuec ? 'rgba(255,255,255,0.4)' : '#08210F', fontWeight: 700, fontSize: '15px', cursor: enviandoFuec ? 'not-allowed' : 'pointer', fontFamily: T.display, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                <button onClick={enviarFuec} disabled={enviandoFuec || !ocupantesValidos}
+                  style={{ flex: 2, padding: '12px', background: (enviandoFuec || !ocupantesValidos) ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${BRAND_GREEN}, var(--t-ruta))`, border: 'none', borderRadius: '9px', color: (enviandoFuec || !ocupantesValidos) ? 'rgba(255,255,255,0.4)' : '#08210F', fontWeight: 700, fontSize: '15px', cursor: (enviandoFuec || !ocupantesValidos) ? 'not-allowed' : 'pointer', fontFamily: T.display, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                   {enviandoFuec ? 'Guardando…' : <><IconVisto size={15} />Confirmar ocupantes</>}
                 </button>
               </div>

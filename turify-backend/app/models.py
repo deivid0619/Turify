@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, Enum, ForeignKey, DateTime,
-    Boolean, Numeric, Text, Index, JSON
+    Boolean, Numeric, Text, Index, JSON, CheckConstraint
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import TIMESTAMP
@@ -24,6 +24,12 @@ class AffiliatedCompany(Base):
 
 class User(Base):
     __tablename__ = "User"
+    __table_args__ = (
+        CheckConstraint("email ~ '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]{2,}$'", name="ck_user_email"),
+        CheckConstraint("phone_number ~ '^\\+?[0-9]{7,15}$'", name="ck_user_phone"),
+        CheckConstraint("age IS NULL OR (age >= 0 AND age <= 120)", name="ck_user_age"),
+        CheckConstraint("char_length(full_name) >= 3", name="ck_user_name_len"),
+    )
 
     user_id             = Column(Integer, primary_key=True, index=True, autoincrement=True)
     full_name           = Column(String(100), nullable=False)
@@ -117,6 +123,12 @@ class Vehicle(Base):
 
 class ServiceRequest(Base):
     __tablename__ = "ServiceRequest"
+    __table_args__ = (
+        CheckConstraint("adults_count >= 1", name="ck_sr_adults"),
+        CheckConstraint("children_count >= 0", name="ck_sr_children"),
+        CheckConstraint("infants_count >= 0", name="ck_sr_infants"),
+        CheckConstraint("return_time IS NULL OR return_time > departure_time", name="ck_sr_return_after"),
+    )
 
     request_id          = Column(Integer, primary_key=True, autoincrement=True)
     passenger_id        = Column(Integer, ForeignKey("User.user_id", ondelete="CASCADE"), nullable=False)
@@ -188,6 +200,14 @@ class DriverOffer(Base):
 
 class TripPassenger(Base):
     __tablename__ = "TripPassenger"
+    __table_args__ = (
+        CheckConstraint("char_length(full_name) >= 3", name="ck_tp_name_len"),
+        CheckConstraint(
+            "(document_type IN ('CC','TI') AND document_number ~ '^[0-9]{5,10}$') OR "
+            "(document_type IN ('CE','PA') AND document_number ~ '^[A-Za-z0-9]{5,15}$')",
+            name="ck_tp_document",
+        ),
+    )
 
     passenger_entry_id  = Column(Integer, primary_key=True, index=True, autoincrement=True)
     request_id          = Column(Integer, ForeignKey("ServiceRequest.request_id", ondelete="CASCADE"), nullable=False)
@@ -267,6 +287,9 @@ class TripStop(Base):
 class Rating(Base):
     """Calificaciones bidireccionales pasajero ↔ conductor (Épica 7)"""
     __tablename__ = "Rating"
+    __table_args__ = (
+        CheckConstraint("score >= 1 AND score <= 5", name="ck_rating_score"),
+    )
 
     rating_id   = Column(Integer, primary_key=True, autoincrement=True)
     request_id  = Column(Integer, ForeignKey("ServiceRequest.request_id", ondelete="CASCADE"), nullable=False)
