@@ -527,6 +527,15 @@ const Dashboard = () => {
     }
   };
 
+  // Cancela la ruta ya trazada: cierra el resumen y borra el destino/ruta para
+  // que el pasajero pueda intentar con otro destino. El origen se deja tal
+  // cual (así no pierde la ubicación que ya tenía puesta).
+  const cancelarRutaTrazada = () => {
+    setInfoRuta(null);
+    setDatosMapa(prev => ({ ...prev, destino: null, ruta: [] }));
+    setBusqueda(prev => ({ ...prev, destino: '' }));
+  };
+
   const crearViaje = async () => {
     if (!token) { toast.warning('Debes iniciar sesión para publicar un viaje.'); return; }
     setEnviandoSolicitud(true);
@@ -1482,12 +1491,12 @@ const Dashboard = () => {
                 <PolylineF path={datosMapa.ruta} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
               )}
 
-              {/* HU43 — Seguimiento del viaje en curso, en el mapa grande */}
+              {/* HU43 — Seguimiento del viaje en curso, en el mapa grande.
+                  No se repite el pin de origen: ya está el de la búsqueda que se esté
+                  armando (mismo verde), y duplicarlo se veía como un punto repetido. */}
               {rutaSeguimiento && (
                 <>
                   <PolylineF path={rutaSeguimiento.path} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
-                  <MarkerF position={rutaSeguimiento.origen} title="Origen"
-                    icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: FIJO.ruta, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
                   <MarkerF position={rutaSeguimiento.destino} title="Destino"
                     icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: FIJO.chiva, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
                 </>
@@ -1564,10 +1573,16 @@ const Dashboard = () => {
                   </p>
                 </div>
 
-                <button onClick={crearViaje} disabled={enviandoSolicitud}
-                  style={{ background: enviandoSolicitud ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: enviandoSolicitud ? 'not-allowed' : 'pointer', fontWeight: 'bold', width: '100%' }}>
-                  {enviandoSolicitud ? 'Procesando...' : 'Confirmar y Publicar Viaje'}
-                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={cancelarRutaTrazada} disabled={enviandoSolicitud} type="button"
+                    style={{ flex: 1, background: 'var(--t-papel)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', padding: '12px 16px', borderRadius: '8px', cursor: enviandoSolicitud ? 'not-allowed' : 'pointer', fontWeight: '600', fontSize: '14px' }}>
+                    Cancelar
+                  </button>
+                  <button onClick={crearViaje} disabled={enviandoSolicitud}
+                    style={{ flex: 2, background: enviandoSolicitud ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: enviandoSolicitud ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                    {enviandoSolicitud ? 'Procesando...' : 'Confirmar y Publicar Viaje'}
+                  </button>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
