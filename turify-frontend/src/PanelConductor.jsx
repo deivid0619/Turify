@@ -640,7 +640,12 @@ const PanelConductor = ({ onVerRuta }) => {
     return m[estado] || { bg: T.niebla2, color: T.piedra, Ico: IconReloj, label: estado };
   };
 
-  const solicitudesFiltradas = solicitudes.filter(sol => {
+  // Solicitudes a las que este conductor ya les hizo una oferta activa (aún sin
+  // resolver): no deben seguir apareciendo en el radar para volver a ofertar.
+  const misOfertasActivasIds = new Set(viajesActivos.map(v => v.request_id));
+  const solicitudesDisponibles = solicitudes.filter(sol => !misOfertasActivasIds.has(sol.request_id));
+
+  const solicitudesFiltradas = solicitudesDisponibles.filter(sol => {
     if (filtros.tipo !== 'todos' && sol.trip_type !== filtros.tipo) return false;
     const totalPax = (sol.adults_count || 1) + (sol.children_count || 0);
     if (filtros.pasajeros === '1') { if (totalPax !== 1) return false; }
@@ -652,7 +657,7 @@ const PanelConductor = ({ onVerRuta }) => {
   const filtrosActivos = filtros.tipo !== 'todos' || filtros.pasajeros !== 'todos' || filtros.mascotas;
 
   // HU06 — solicitudes con coordenadas, para pintarlas como pines en el mapa
-  const solicitudesConUbicacion = solicitudes.filter(sol => sol.origin_lat != null && sol.origin_lng != null);
+  const solicitudesConUbicacion = solicitudesDisponibles.filter(sol => sol.origin_lat != null && sol.origin_lng != null);
 
   return (
     <>
@@ -746,7 +751,7 @@ const PanelConductor = ({ onVerRuta }) => {
 
       {/* PESTAÑAS */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '0 20px 16px' }}>
-        {[{ id: 'radar', Ico: IconRadar, label: 'Radar', count: solicitudes.length }, { id: 'activos', Ico: IconClipboard, label: 'Ofertas', count: viajesActivos.length }, { id: 'historial', Ico: IconCalendario, label: 'Historial', count: 0 }, { id: 'ganancias', Ico: IconGrafico, label: 'Ganancias', count: 0 }, { id: 'vehiculo', Ico: IconAuto, label: 'Vehículo', count: 0 }].map(tab => (
+        {[{ id: 'radar', Ico: IconRadar, label: 'Radar', count: solicitudesDisponibles.length }, { id: 'activos', Ico: IconClipboard, label: 'Ofertas', count: viajesActivos.length }, { id: 'historial', Ico: IconCalendario, label: 'Historial', count: 0 }, { id: 'ganancias', Ico: IconGrafico, label: 'Ganancias', count: 0 }, { id: 'vehiculo', Ico: IconAuto, label: 'Vehículo', count: 0 }].map(tab => (
           <button key={tab.id} onClick={() => setPestanaActiva(tab.id)}
             style={{ flex: '1 1 28%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px 6px', borderRadius: '9px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '12px', fontFamily: T.ui, whiteSpace: 'nowrap', minWidth: 0, transition: 'background-color .18s, color .18s', backgroundColor: pestanaActiva === tab.id ? '#fff' : 'rgba(255,255,255,0.08)', color: pestanaActiva === tab.id ? T.monte : 'rgba(255,255,255,0.7)' }}>
             <tab.Ico size={13} />{tab.label}
@@ -866,7 +871,7 @@ const PanelConductor = ({ onVerRuta }) => {
               {/* Contador de resultados filtrados */}
               {filtrosActivos && !cargando && (
                 <p style={{ margin: '8px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>
-                  {solicitudesFiltradas.length} de {solicitudes.length} viaje(s) coinciden con tus filtros
+                  {solicitudesFiltradas.length} de {solicitudesDisponibles.length} viaje(s) coinciden con tus filtros
                 </p>
               )}
             </div>
@@ -885,7 +890,7 @@ const PanelConductor = ({ onVerRuta }) => {
               </div>
             )}
             {/* ESTADO VACÍO */}
-            {!cargando && !error && solicitudes.length === 0 && (
+            {!cargando && !error && solicitudesDisponibles.length === 0 && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', padding: '36px 20px' }}>
                 <svg width="110" height="90" viewBox="0 0 110 90" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginBottom: '14px', opacity: 0.75 }}>
                   <circle cx="55" cy="45" r="32" fill="var(--t-musgo)" stroke="var(--t-musgo-linea)" strokeWidth="1.5"/>
@@ -898,10 +903,12 @@ const PanelConductor = ({ onVerRuta }) => {
                   <line x1="87" y1="45" x2="93" y2="45" stroke="var(--t-ruta)" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
                 <p style={{ margin: '0 0 6px', fontWeight: 700, color: 'var(--t-tinta)', fontSize: '15px' }}>
-                  No hay viajes en tu zona
+                  {solicitudes.length > 0 ? 'Ya ofertaste en todo lo que hay cerca' : 'No hay viajes en tu zona'}
                 </p>
                 <p style={{ margin: '0 0 16px', color: 'var(--t-piedra)', fontSize: '14px', lineHeight: 1.5 }}>
-                  Apenas alguien publique un viaje cerca, aparece acá.<br />Te llega también una notificación.
+                  {solicitudes.length > 0
+                    ? <>Revisá la pestaña "Ofertas" para ver su estado.<br />Apenas haya uno nuevo, aparece acá.</>
+                    : <>Apenas alguien publique un viaje cerca, aparece acá.<br />Te llega también una notificación.</>}
                 </p>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={cargarSolicitudes}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '9px', padding: '10px 18px', fontWeight: 600, fontSize: '14px', cursor: 'pointer', fontFamily: T.ui }}>
@@ -910,11 +917,11 @@ const PanelConductor = ({ onVerRuta }) => {
               </motion.div>
             )}
             {/* ESTADO VACÍO CUANDO HAY VIAJES PERO NINGUNO PASA FILTROS */}
-            {!cargando && !error && solicitudes.length > 0 && solicitudesFiltradas.length === 0 && (
+            {!cargando && !error && solicitudesDisponibles.length > 0 && solicitudesFiltradas.length === 0 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ textAlign: 'center', padding: '30px 20px' }}>
                 <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: T.musgo, border: `1px solid ${T.musgoLinea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: T.musgoTexto }}><IconRadar size={22} /></div>
                 <p style={{ margin: '0 0 6px', fontWeight: '700', color: 'var(--t-tinta)', fontSize: '15px' }}>Sin resultados con estos filtros</p>
-                <p style={{ margin: '0 0 12px', color: 'var(--t-piedra)', fontSize: '14px' }}>Hay {solicitudes.length} viaje(s) disponibles, pero ninguno coincide.</p>
+                <p style={{ margin: '0 0 12px', color: 'var(--t-piedra)', fontSize: '14px' }}>Hay {solicitudesDisponibles.length} viaje(s) disponibles, pero ninguno coincide.</p>
                 <button onClick={() => setFiltros({ tipo: 'todos', pasajeros: 'todos', mascotas: false })}
                   style={{ background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, borderRadius: '8px', padding: '7px 14px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
                   Limpiar filtros

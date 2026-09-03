@@ -410,7 +410,20 @@ async def create_driver_offer(
             detail=f"No se pueden hacer ofertas a viajes cerrados. Estado actual: {service_request.status}"
         )
 
-    # 3. Obtener el vehicle_id del conductor automáticamente
+    # 3. Un mismo conductor no puede tener dos ofertas activas para la misma
+    #    solicitud (evita que siga ofertando sobre algo a lo que ya le ofertó).
+    oferta_existente = db.query(models.DriverOffer).filter(
+        models.DriverOffer.request_id == request_id,
+        models.DriverOffer.driver_id == current_user.user_id,
+        models.DriverOffer.status.in_(['DRIVER_OFFERED', 'PASSENGER_COUNTER_OFFERED', 'ACCEPTED'])
+    ).first()
+    if oferta_existente:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ya tienes una oferta activa para esta solicitud. Espera la respuesta del pasajero."
+        )
+
+    # 4. Obtener el vehicle_id del conductor automáticamente
     # Buscamos el primer vehículo registrado a nombre de este conductor
     vehicle = db.query(models.Vehicle).filter(models.Vehicle.owner_id == current_user.user_id).first()
     
@@ -421,7 +434,7 @@ async def create_driver_offer(
         )
 
     try:
-        # 4. Crear y guardar la oferta en la base de datos
+        # 5. Crear y guardar la oferta en la base de datos
         new_offer = models.DriverOffer(
             request_id=request_id,
             driver_id=current_user.user_id, # Se extrae del token automáticamente
