@@ -219,6 +219,7 @@ const Dashboard = () => {
   const [tema, alternarTema] = useTema();
   const [confirmandoCancelarId, setConfirmandoCancelarId] = useState(null);
   const [cancelandoId, setCancelandoId] = useState(null);
+  const [rechazandoOfertaId, setRechazandoOfertaId] = useState(null);
   const [actualizandoViajes, setActualizandoViajes] = useState(false);
 
   // HU38 — Perfil público del conductor: se abre en una pestaña nueva
@@ -945,16 +946,33 @@ const Dashboard = () => {
     }
   };
 
-  const handleRechazarOferta = (viajeId, ofertaId) => {
-    setListaSolicitudes(prev => prev.map(v => {
-      if (v.id !== viajeId) return v;
-      const nuevasOfertas = v.ofertas.filter(o => o.id !== ofertaId);
-      return { ...v, estado: nuevasOfertas.length > 0 ? 'Oferta recibida' : 'Buscando conductor', ofertas: nuevasOfertas };
-    }));
-    setViajeSeleccionado(prev => {
-      if (!prev || prev.id !== viajeId) return prev;
-      return { ...prev, ofertas: prev.ofertas.filter(o => o.id !== ofertaId) };
-    });
+  // Rechaza una oferta puntual — antes esto solo la ocultaba en el frontend sin
+  // avisarle al backend, así que la oferta seguía activa y bloqueaba al
+  // conductor para volver a ofertar. Ahora sí llama al endpoint real.
+  const handleRechazarOferta = async (viajeId, ofertaId) => {
+    setRechazandoOfertaId(ofertaId);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/offers/${ofertaId}/reject`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'No se pudo rechazar la oferta.'); }
+
+      setListaSolicitudes(prev => prev.map(v => {
+        if (v.id !== viajeId) return v;
+        const nuevasOfertas = v.ofertas.filter(o => o.id !== ofertaId);
+        return { ...v, estado: nuevasOfertas.length > 0 ? 'Oferta recibida' : 'Buscando conductor', ofertas: nuevasOfertas };
+      }));
+      setViajeSeleccionado(prev => {
+        if (!prev || prev.id !== viajeId) return prev;
+        return { ...prev, ofertas: prev.ofertas.filter(o => o.id !== ofertaId) };
+      });
+      toast.success('Oferta rechazada.');
+    } catch (error) {
+      toast.error(`Error: ${error.message}`);
+    } finally {
+      setRechazandoOfertaId(null);
+    }
   };
 
   // SCRUM-80: Contraofertar — input dinámico + llamada al endpoint real
@@ -2085,7 +2103,11 @@ const Dashboard = () => {
                           <div style={{ display: 'flex', gap: '8px', marginTop: '13px' }}>
                             <button onClick={() => handleAceptarOferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: BRAND_GREEN, color: '#fff', border: 'none', padding: '10px', borderRadius: '9px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Aceptar</button>
                             <button onClick={() => handleContraoferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: 'var(--t-cielo-suave)', color: 'var(--t-cielo-texto)', border: 'none', padding: '10px', borderRadius: '9px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Contra ofertar</button>
-                            <button onClick={() => handleRechazarOferta(viajeActualizado.id, oferta.id)} title="Rechazar oferta" style={{ background: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', border: 'none', padding: '10px 13px', borderRadius: '9px', display: 'flex', alignItems: 'center', cursor: 'pointer' }}><IconEquis size={14} /></button>
+                            <button onClick={() => handleRechazarOferta(viajeActualizado.id, oferta.id)} disabled={rechazandoOfertaId === oferta.id} title="Rechazar oferta" style={{ background: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', border: 'none', padding: '10px 13px', borderRadius: '9px', display: 'flex', alignItems: 'center', cursor: rechazandoOfertaId === oferta.id ? 'not-allowed' : 'pointer', opacity: rechazandoOfertaId === oferta.id ? 0.6 : 1 }}>
+                              {rechazandoOfertaId === oferta.id
+                                ? <span style={{ display: 'inline-flex', animation: 't-girar .9s linear infinite' }}><IconReloj size={14} /></span>
+                                : <IconEquis size={14} />}
+                            </button>
                           </div>
                         </div>
                       ));

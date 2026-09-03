@@ -1043,6 +1043,63 @@ def accept_offer(
         "estado_viaje": "ASSIGNED"
     }
 
+
+# El pasajero rechaza una oferta puntual (no toda la solicitud): esa oferta
+# queda REJECTED en la base de datos y el conductor puede volver a ofertar si
+# quiere. Antes esto solo se ocultaba en el frontend sin avisarle al backend,
+# así que la oferta seguía activa y el conductor no se enteraba.
+@router.patch("/offers/{offer_id}/reject")
+def reject_offer(
+    offer_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    oferta = db.query(models.DriverOffer).filter(
+        models.DriverOffer.offer_id == offer_id
+    ).first()
+
+    if not oferta:
+        raise HTTPException(status_code=404, detail="Oferta no encontrada.")
+
+    service_request = db.query(models.ServiceRequest).filter(
+        models.ServiceRequest.request_id == oferta.request_id
+    ).first()
+
+    if not service_request or service_request.passenger_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para rechazar esta oferta.")
+
+    if oferta.status not in ['DRIVER_OFFERED', 'PASSENGER_COUNTER_OFFERED']:
+        raise HTTPException(status_code=400, detail=f"No se puede rechazar una oferta en estado: {oferta.status}")
+
+    oferta.status = 'REJECTED'
+    db.commit()
+
+    registrar_log(
+        db,
+        action="REJECT_OFFER",
+        user_id=current_user.user_id,
+        entity="DriverOffer",
+        entity_id=oferta.offer_id,
+        detail=f"Pasajero rechazó la oferta #{offer_id} del viaje #{oferta.request_id}"
+    )
+
+    crear_notificacion(
+        db,
+        user_id=oferta.driver_id,
+        title="Oferta rechazada",
+        message=f"El pasajero rechazó tu oferta de ${float(oferta.offered_price):,.0f} para el viaje de {service_request.origin} → {service_request.destination}. Podés ofertar de nuevo si querés.",
+        tipo="TRIP_REJECTED",
+        offer_id=oferta.offer_id
+    )
+
+    return {
+        "message": "Oferta rechazada.",
+        "offer_id": oferta.offer_id,
+        "request_id": oferta.request_id,
+        "estado_oferta": "REJECTED"
+    }
+
+
 # --- Función auxiliar para crear notificaciones ---
 def crear_notificacion(db, user_id: int, title: str, message: str, tipo: str, offer_id: int = None):
     try:
