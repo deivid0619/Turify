@@ -1031,6 +1031,16 @@ const Dashboard = () => {
     }
   }, [token, usuario]);
 
+  // Refresco de respaldo mientras el panel "Mis viajes" está abierto: Supabase
+  // Realtime ya avisa de casi todos los cambios, pero si por lo que sea el
+  // evento no llega (p. ej. justo cuando el conductor finaliza el viaje), esto
+  // refresca solo la lista sin que el usuario tenga que recargar la página.
+  useEffect(() => {
+    if (!mostrarMisSolicitudes || !token) return;
+    const intervalo = setInterval(() => cargarMisViajes(), 10000);
+    return () => clearInterval(intervalo);
+  }, [mostrarMisSolicitudes, token]);
+
   // HU43 — Tracking en tiempo real del conductor mientras el viaje está IN_PROGRESS.
   // Se suscribe (Supabase Realtime) a los cambios de ubicación del conductor asignado
   // y actualiza solo esa tarjeta, sin recargar toda la lista de viajes.
@@ -1159,6 +1169,29 @@ const Dashboard = () => {
   const viajeSeguimiento = viajesConfirmados.find(
     v => v.trip_status === 'IN_PROGRESS' && v.conductor_lat != null && v.conductor_lng != null
   ) || null;
+
+  // Icono del busesito para el conductor en seguimiento — mismo dibujo que el
+  // de "buscando conductor" (BusBuscando), pero fijo, como pin sobre el mapa.
+  const iconBusConductor = (mapsLoaded && window.google) ? {
+    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 62">` +
+      `<rect x="8" y="12" width="78" height="34" rx="7" fill="${FIJO.ruta}"/>` +
+      `<rect x="8" y="12" width="78" height="10" rx="7" fill="${FIJO.chiva}"/>` +
+      `<rect x="15" y="25" width="13" height="11" rx="2.5" fill="#EAF2EC"/>` +
+      `<rect x="33" y="25" width="13" height="11" rx="2.5" fill="#EAF2EC"/>` +
+      `<rect x="51" y="25" width="13" height="11" rx="2.5" fill="#EAF2EC"/>` +
+      `<path d="M86 20 h6 a4 4 0 0 1 4 4 v18 a4 4 0 0 1 -4 4 h-6 z" fill="${FIJO.ruta}"/>` +
+      `<rect x="86" y="25" width="8" height="11" rx="2" fill="#EAF2EC"/>` +
+      `<circle cx="94.5" cy="41" r="1.8" fill="${FIJO.chiva}"/>` +
+      `<circle cx="28" cy="47" r="7.5" fill="${FIJO.monte}"/>` +
+      `<circle cx="28" cy="47" r="3.2" fill="#EAF2EC"/>` +
+      `<circle cx="66" cy="47" r="7.5" fill="${FIJO.monte}"/>` +
+      `<circle cx="66" cy="47" r="3.2" fill="#EAF2EC"/>` +
+      `</svg>`
+    ),
+    scaledSize: new window.google.maps.Size(40, 25),
+    anchor: new window.google.maps.Point(20, 13),
+  } : undefined;
 
   return (
     <>
@@ -1504,7 +1537,7 @@ const Dashboard = () => {
               {viajeSeguimiento && (
                 <MarkerF position={{ lat: viajeSeguimiento.conductor_lat, lng: viajeSeguimiento.conductor_lng }}
                   title="Tu conductor en camino"
-                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: '#2563eb', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 }} />
+                  icon={iconBusConductor} />
               )}
             </GoogleMap>
             {/* Aviso de que lo que se ve en el mapa es un viaje YA confirmado en curso,
