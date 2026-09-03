@@ -1199,6 +1199,7 @@ const Dashboard = () => {
                       value={busqueda.return_time}
                       onChange={val => setBusqueda(prev => ({ ...prev, return_time: val }))}
                       min={busqueda.departure_time || undefined}
+                      alinear="derecha"
                       placeholder="Fecha y hora de regreso"
                       required={tipoViaje === 'redondo'}
                     />

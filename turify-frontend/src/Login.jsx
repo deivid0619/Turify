@@ -14,9 +14,9 @@ const COPY_POR_VISTA = {
   //   <>Tu ruta existe,<br /><span>aunque no esté en el mapa.</span></>
   //   <>Hasta la última<br /><span>vereda de Antioquia.</span></>
   //   <>Que salir de la vereda<br /><span>no sea una odisea.</span></>
-  viajar:   { frase: <>Llegamos hasta donde<br /><span>el bus se devuelve.</span></> },
+  viajar:   { frase: <>Movilidad para<br /><span>toda Antioquia.</span></> },
   conducir: { frase: <>Caminos que otros<br /><span>no recorren.</span></> },
-  quienes:  { frase: <>Movilidad para<br /><span>toda Antioquia.</span></> },
+  quienes:  { frase: <>Hasta la última<br /><span>vereda de Antioquia.</span></> },
 };
 // Rutas reales de Antioquia que rotan en el tablero de la izquierda.
 const RUTAS = [

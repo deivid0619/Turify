@@ -53,7 +53,7 @@ const redondearAMinutosValidos = (p) => {
  * componente deja elegir día y hora libremente y solo confirma el valor
  * cuando el usuario presiona "Confirmar horario".
  */
-export default function SelectorFechaHora({ label, value, onChange, min, placeholder = 'Elige fecha y hora', required = false, ancho }) {
+export default function SelectorFechaHora({ label, value, onChange, min, placeholder = 'Elige fecha y hora', required = false, ancho, alinear = 'izquierda' }) {
   const [abierto, setAbierto] = useState(false);
   const contenedorRef = useRef(null);
 
@@ -151,7 +151,7 @@ export default function SelectorFechaHora({ label, value, onChange, min, placeho
         {abierto && (
           <motion.div initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.15 }}
-            style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 2000, background: 'var(--t-papel)', borderRadius: '16px', boxShadow: '0 12px 40px rgba(0,0,0,0.34)', border: '1px solid var(--t-linea)', padding: '16px', width: '290px' }}>
+            style={{ position: 'absolute', top: 'calc(100% + 8px)', ...(alinear === 'derecha' ? { right: 0 } : { left: 0 }), zIndex: 2000, background: 'var(--t-papel)', borderRadius: '16px', boxShadow: '0 12px 40px rgba(0,0,0,0.34)', border: '1px solid var(--t-linea)', padding: '16px', width: '290px' }}>
 
             {/* Encabezado mes/año */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
