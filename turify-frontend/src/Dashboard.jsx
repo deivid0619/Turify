@@ -174,6 +174,11 @@ const Dashboard = () => {
 
   useEffect(() => { encuadrarMapa(); }, [encuadrarMapa]);
 
+  const [enviandoSolicitud, setEnviandoSolicitud] = useState(false);
+  const [mostrarMisSolicitudes, setMostrarMisSolicitudes] = useState(false);
+  const [listaSolicitudes, setListaSolicitudes] = useState([]);
+  const [viajesConfirmados, setViajesConfirmados] = useState([]);
+
   // HU43 — Tracking en el MAPA GRANDE. Cuando hay un viaje en curso con
   // coordenadas, se traza su ruta una sola vez y se guarda para pintarla en el
   // mapa principal, junto con la posición en vivo del conductor.
@@ -210,10 +215,6 @@ const Dashboard = () => {
     if (seg) { mapRef.current.panTo({ lat: seg.conductor_lat, lng: seg.conductor_lng }); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viajesConfirmados]);
-  const [enviandoSolicitud, setEnviandoSolicitud] = useState(false);
-  const [mostrarMisSolicitudes, setMostrarMisSolicitudes] = useState(false);
-  const [listaSolicitudes, setListaSolicitudes] = useState([]);
-  const [viajesConfirmados, setViajesConfirmados] = useState([]);
   const [pestanaViajes, setPestanaViajes] = useState('activos'); // 'activos' | 'confirmados' | 'completados'
   const [tema, alternarTema] = useTema();
   const [confirmandoCancelarId, setConfirmandoCancelarId] = useState(null);
