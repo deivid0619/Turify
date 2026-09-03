@@ -1020,15 +1020,15 @@ const PanelConductor = ({ onVerRuta }) => {
 
               return (
                 <motion.div key={viaje.offer_id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                  style={{ border: `1px solid ${esContraoferta ? '#3b82f6' : 'var(--t-linea)'}`, borderRadius: '12px', padding: '14px', marginBottom: '12px',
+                  style={{ border: `1px solid ${esContraoferta ? '#3b82f6' : 'var(--t-linea)'}`, borderRadius: '12px', padding: '14px', marginBottom: '12px', overflow: 'hidden',
                     boxShadow: esContraoferta ? '0 0 0 2px #3b82f633' : 'none', transition: 'all 0.2s' }}>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '8px' }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
                       <TableroRuta origen={viaje.origin} destino={viaje.destination} size={11} />
                       <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>{formatearFecha(viaje.departure_time)}</p>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <p style={{ margin: 0, fontWeight: '700', fontSize: '16px', color: BRAND_GREEN }}>${Number(viaje.offered_price).toLocaleString()}</p>
                       <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--t-piedra-clara)' }}>
                         {esContraoferta ? 'Precio del pasajero' : 'Tu oferta'}

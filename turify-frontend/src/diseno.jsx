@@ -249,20 +249,23 @@ export const BotonCentrarMapa = ({ onClick, titulo = 'Centrar el mapa', deshabil
 // ─────────────────────────────────────────────────────────────────────────────
 export const TableroRuta = ({ origen, destino, oscuro = false, size = 12.5, style }) => (
   <div style={{
-    display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0,
+    display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0, width: '100%',
     fontFamily: T.dato, fontWeight: 600, textTransform: 'uppercase',
     letterSpacing: '.09em', fontSize: `${size}px`,
     color: oscuro ? '#EAF2EC' : T.tinta, ...style,
   }}>
-    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{origen}</span>
+    {/* minWidth: 0 en cada tramo — sin esto, un flex item por defecto no se
+        encoge más allá del tamaño de su contenido, así que direcciones largas
+        rompían el ancho de la tarjeta en vez de truncarse con "…". */}
+    <span style={{ minWidth: 0, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{origen}</span>
     <span style={{
-      flex: 1, minWidth: '14px', height: '1px', position: 'relative',
+      flex: '1 1 14px', minWidth: '14px', height: '1px', position: 'relative',
       background: oscuro ? T.monteLinea : T.linea,
     }}>
       <span style={{ position: 'absolute', left: 0, top: '50%', width: '4px', height: '4px', borderRadius: '50%', background: T.ruta, transform: 'translateY(-50%)' }} />
       <span style={{ position: 'absolute', right: 0, top: '50%', width: '4px', height: '4px', borderRadius: '50%', background: T.chiva, transform: 'translateY(-50%)' }} />
     </span>
-    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: oscuro ? T.chiva : T.chivaTexto }}>{destino}</span>
+    <span style={{ minWidth: 0, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: oscuro ? T.chiva : T.chivaTexto }}>{destino}</span>
   </div>
 );
 
