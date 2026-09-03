@@ -1,0 +1,8 @@
+# Secretos — nunca deben subirse al repo
+.env
+.env.*
+!.env.example
+
+# Sistema / editor
+.DS_Store
+.vscode/

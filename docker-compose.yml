@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: deivid0619
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: turify_db
     ports:
       - "5432:5432"
@@ -31,12 +31,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      SQLALCHEMY_DATABASE_URL: postgresql://postgres:deivid0619@db:5432/turify_db
-      SECRET_KEY: turify2026key
-      CLOUDINARY_CLOUD_NAME: dndhp5u2r
-      CLOUDINARY_API_KEY: "249839992439446"
-      CLOUDINARY_API_SECRET: WKngiBXyG8o2VWeevV_MeZ5gXxU
-      SUPABASE_URL: https://zuhuinrahcvnyluautow.supabase.co
+      SQLALCHEMY_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/turify_db
+      SECRET_KEY: ${SECRET_KEY}
+      SUPABASE_URL: ${SUPABASE_URL}
       SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
     depends_on:
       db:
@@ -51,10 +48,9 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: http://localhost:8000
-        VITE_SUPABASE_URL: https://zuhuinrahcvnyluautow.supabase.co
+        VITE_SUPABASE_URL: ${SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
-        VITE_ORS_API_KEY: ${VITE_ORS_API_KEY}
-        VITE_GEOAPIFY_API_KEY: df08a0d704f447cd91d7ab6d7f2896bf
+        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY}
     container_name: turify-frontend
     restart: unless-stopped
     ports:
