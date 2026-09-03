@@ -1470,11 +1470,13 @@ const Dashboard = () => {
             >
               {datosMapa.origen && (
                 <MarkerF position={datosMapa.origen} title="Origen — arrástrame para ajustar"
-                  draggable onDragEnd={(e) => alArrastrarPunto('origen', e)} />
+                  draggable onDragEnd={(e) => alArrastrarPunto('origen', e)}
+                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: FIJO.ruta, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2.5 }} />
               )}
               {datosMapa.destino && (
                 <MarkerF position={datosMapa.destino} title="Destino — arrástrame para ajustar"
-                  draggable onDragEnd={(e) => alArrastrarPunto('destino', e)} />
+                  draggable onDragEnd={(e) => alArrastrarPunto('destino', e)}
+                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: FIJO.chiva, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2.5 }} />
               )}
               {datosMapa.ruta.length > 0 && (
                 <PolylineF path={datosMapa.ruta} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
@@ -1484,9 +1486,10 @@ const Dashboard = () => {
               {rutaSeguimiento && (
                 <>
                   <PolylineF path={rutaSeguimiento.path} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
-                  <MarkerF position={rutaSeguimiento.origen} title="Origen" />
+                  <MarkerF position={rutaSeguimiento.origen} title="Origen"
+                    icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: FIJO.ruta, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
                   <MarkerF position={rutaSeguimiento.destino} title="Destino"
-                    icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#0E2A1E', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
+                    icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: FIJO.chiva, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
                 </>
               )}
               {viajeSeguimiento && (

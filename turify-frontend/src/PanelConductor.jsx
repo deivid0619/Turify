@@ -1398,9 +1398,10 @@ const PanelConductor = ({ onVerRuta }) => {
             {rutaConductor && (
               <>
                 <PolylineF path={rutaConductor.path} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
-                <MarkerF position={rutaConductor.origen} title="Origen" />
+                <MarkerF position={rutaConductor.origen} title="Origen"
+                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: FIJO.ruta, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
                 <MarkerF position={rutaConductor.destino} title="Destino"
-                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#0E2A1E', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
+                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: FIJO.chiva, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
               </>
             )}
           </GoogleMap>
