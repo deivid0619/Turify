@@ -1507,6 +1507,18 @@ const Dashboard = () => {
                   icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: '#2563eb', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 }} />
               )}
             </GoogleMap>
+            {/* Aviso de que lo que se ve en el mapa es un viaje YA confirmado en curso,
+                no la búsqueda que se esté armando — para no confundirlas (son capas
+                distintas: esta no se borra con "Cancelar" del resumen de búsqueda). */}
+            {rutaSeguimiento && (
+              <button type="button" onClick={() => { cargarMisViajes(); setMostrarMisSolicitudes(true); }}
+                style={{ position: 'absolute', top: '16px', left: '16px', zIndex: 15, display: 'flex', alignItems: 'center', gap: '8px', background: FIJO.monte, color: '#EAF2EC', border: 'none', borderRadius: T.rControl, padding: '9px 14px', boxShadow: '0 6px 18px rgba(0,0,0,.28)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}>
+                <span style={{ position: 'relative', display: 'inline-flex', width: '8px', height: '8px', flexShrink: 0 }}>
+                  <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#2563eb', animation: 'pulse 1.4s ease-in-out infinite' }} />
+                </span>
+                Viaje en curso — tu conductor va en camino
+              </button>
+            )}
             {marcandoEnMapa && (
               <div style={{ position: 'absolute', top: '16px', left: '50%', transform: 'translateX(-50%)', zIndex: 20, display: 'flex', alignItems: 'center', gap: '10px', background: T.monte, color: '#EAF2EC', borderRadius: T.rControl, padding: '10px 14px', boxShadow: '0 6px 18px rgba(0,0,0,.28)', fontSize: '13px' }}>
                 <IconPin size={15} color={T.chiva} />
