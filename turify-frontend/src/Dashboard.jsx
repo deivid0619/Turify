@@ -1193,7 +1193,7 @@ const Dashboard = () => {
               />
               <AnimatePresence>
                 {tipoViaje === 'redondo' && (
-                  <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} style={{ overflow: 'hidden', flexShrink: 0 }}>
+                  <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} style={{ flexShrink: 0 }}>
                     <SelectorFechaHora
                       label="Regreso"
                       value={busqueda.return_time}
