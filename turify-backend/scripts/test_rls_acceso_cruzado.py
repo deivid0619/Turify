@@ -66,7 +66,7 @@ def main():
     # --- A no deberia poder ver los documentos de B ---
     with engine.connect() as conn, conn.begin():
         conn.execute(text("SET LOCAL app.current_user_id = :v"), {"v": str(usuario_a)})
-        conn.execute(text("SET LOCAL app.current_role = :v"), {"v": rol_a})
+        conn.execute(text("SET LOCAL app.current_user_role = :v"), {"v": rol_a})
         docs_de_b = conn.execute(
             text('SELECT document_id FROM "Document" WHERE user_id = :b'), {"b": usuario_b}
         ).fetchall()
@@ -78,7 +78,7 @@ def main():
     # --- A no deberia poder ver las notificaciones de B ---
     with engine.connect() as conn, conn.begin():
         conn.execute(text("SET LOCAL app.current_user_id = :v"), {"v": str(usuario_a)})
-        conn.execute(text("SET LOCAL app.current_role = :v"), {"v": rol_a})
+        conn.execute(text("SET LOCAL app.current_user_role = :v"), {"v": rol_a})
         notifs_de_b = conn.execute(
             text('SELECT notification_id FROM "Notification" WHERE user_id = :b'), {"b": usuario_b}
         ).fetchall()
@@ -90,7 +90,7 @@ def main():
     # --- A si deberia poder ver su propio perfil ---
     with engine.connect() as conn, conn.begin():
         conn.execute(text("SET LOCAL app.current_user_id = :v"), {"v": str(usuario_a)})
-        conn.execute(text("SET LOCAL app.current_role = :v"), {"v": rol_a})
+        conn.execute(text("SET LOCAL app.current_user_role = :v"), {"v": rol_a})
         propio = conn.execute(
             text('SELECT user_id FROM "User" WHERE user_id = :a'), {"a": usuario_a}
         ).fetchall()
