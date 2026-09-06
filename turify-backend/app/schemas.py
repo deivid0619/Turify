@@ -140,7 +140,14 @@ class ServiceRequestCreate(BaseModel):
     requiere_musica: Optional[bool] = False
     requiere_maletero_amplio: Optional[bool] = False
     requiere_sillas_bebe: Optional[bool] = False
+    requiere_sillas_reclinables: Optional[bool] = False
+    requiere_cargador_usb: Optional[bool] = False
+    requiere_tv: Optional[bool] = False
+    requiere_buen_audio: Optional[bool] = False
     requiere_acepta_mascotas: Optional[bool] = False
+    # HU55.1 — "ECONOMICO" (default, sin filtro) o "ESTANDAR" (exige las
+    # comodidades marcadas arriba).
+    tipo_servicio: Optional[str] = "ECONOMICO"
 
     @field_validator('tipo_via')
     @classmethod
@@ -212,7 +219,12 @@ class ServiceRequestRead(BaseModel):
     requiere_musica: Optional[bool] = False
     requiere_maletero_amplio: Optional[bool] = False
     requiere_sillas_bebe: Optional[bool] = False
+    requiere_sillas_reclinables: Optional[bool] = False
+    requiere_cargador_usb: Optional[bool] = False
+    requiere_tv: Optional[bool] = False
+    requiere_buen_audio: Optional[bool] = False
     requiere_acepta_mascotas: Optional[bool] = False
+    tipo_servicio: Optional[str] = "ECONOMICO"
     # HU55 — filtro flexible: solo presentes para el CONDUCTOR (indican cuántas de
     # las comodidades exigidas cumple su propio vehículo y cuáles le faltan)
     comodidades_exigidas: Optional[int] = None
@@ -303,6 +315,22 @@ class RatingCreate(BaseModel):
     score: int = Field(..., ge=1, le=5, description="Calificación de 1 a 5 estrellas")
     comment: Optional[str] = None
 
+# HU55.1 — chequeo previo a publicar: cuántos conductores registrados
+# tienen un vehículo que cumple TODAS las comodidades marcadas, antes de
+# crear la solicitud (para no publicar un viaje Estándar al vacío).
+class VerificarComodidadesRequest(BaseModel):
+    requiere_ac: Optional[bool] = False
+    requiere_wifi: Optional[bool] = False
+    requiere_bano: Optional[bool] = False
+    requiere_maletero_amplio: Optional[bool] = False
+    requiere_sillas_bebe: Optional[bool] = False
+    requiere_sillas_reclinables: Optional[bool] = False
+    requiere_cargador_usb: Optional[bool] = False
+    requiere_tv: Optional[bool] = False
+    requiere_buen_audio: Optional[bool] = False
+    requiere_acepta_mascotas: Optional[bool] = False
+
+
 # HU55 — Comodidades del vehículo. Las tarifas (por km, espera, día, etc.) NO las
 # decide el conductor — quedaron fuera de este schema a propósito, así que PATCH
 # /drivers/vehicle no puede tocarlas aunque alguien las envíe en el body.
@@ -314,6 +342,10 @@ class VehicleSettingsUpdate(BaseModel):
     tiene_musica: Optional[bool] = None
     tiene_maletero_amplio: Optional[bool] = None
     tiene_sillas_bebe: Optional[bool] = None
+    tiene_sillas_reclinables: Optional[bool] = None
+    tiene_cargador_usb: Optional[bool] = None
+    tiene_tv: Optional[bool] = None
+    tiene_buen_audio: Optional[bool] = None
     acepta_mascotas: Optional[bool] = None
     cargo_mascota: Optional[float] = Field(None, ge=0)
     acepta_menores_2_anos: Optional[bool] = None
@@ -336,6 +368,10 @@ class VehicleSettingsResponse(BaseModel):
     tiene_musica: bool
     tiene_maletero_amplio: bool
     tiene_sillas_bebe: bool
+    tiene_sillas_reclinables: bool = False
+    tiene_cargador_usb: bool = False
+    tiene_tv: bool = False
+    tiene_buen_audio: bool = False
     acepta_mascotas: bool
     cargo_mascota: Optional[float] = None
     acepta_menores_2_anos: bool

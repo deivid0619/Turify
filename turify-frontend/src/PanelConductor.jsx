@@ -413,6 +413,10 @@ const PanelConductor = ({ onVerRuta }) => {
         tiene_musica: formVehiculo.tiene_musica,
         tiene_maletero_amplio: formVehiculo.tiene_maletero_amplio,
         tiene_sillas_bebe: formVehiculo.tiene_sillas_bebe,
+        tiene_sillas_reclinables: formVehiculo.tiene_sillas_reclinables,
+        tiene_cargador_usb: formVehiculo.tiene_cargador_usb,
+        tiene_tv: formVehiculo.tiene_tv,
+        tiene_buen_audio: formVehiculo.tiene_buen_audio,
         acepta_mascotas: formVehiculo.acepta_mascotas,
         cargo_mascota: formVehiculo.cargo_mascota === '' ? null : Number(formVehiculo.cargo_mascota),
         acepta_menores_2_anos: formVehiculo.acepta_menores_2_anos,
@@ -940,22 +944,27 @@ const PanelConductor = ({ onVerRuta }) => {
                       <div style={{ flex: 1 }}>
                         <TableroRuta origen={sol.origin} destino={sol.destination} size={11} />
                       </div>
-                      <span style={{ fontSize: '11px', background: 'var(--t-chiva-suave)', color: 'var(--t-chiva-texto)', padding: '3px 8px', borderRadius: '20px', fontWeight: '700', marginLeft: '8px', whiteSpace: 'nowrap' }}>
-                        {sol.trip_type === 'ROUND_TRIP' ? '↩ Ida y vuelta' : '→ Solo ida'}
+                      <span style={{ display: 'flex', gap: '6px', marginLeft: '8px', flexShrink: 0 }}>
+                        {sol.tipo_servicio === 'ESTANDAR' && (
+                          <span style={{ fontSize: '11px', background: 'var(--t-musgo)', color: 'var(--t-musgo-texto)', padding: '3px 8px', borderRadius: '20px', fontWeight: '700', whiteSpace: 'nowrap' }}>
+                            ★ Estándar
+                          </span>
+                        )}
+                        <span style={{ fontSize: '11px', background: 'var(--t-chiva-suave)', color: 'var(--t-chiva-texto)', padding: '3px 8px', borderRadius: '20px', fontWeight: '700', whiteSpace: 'nowrap' }}>
+                          {sol.trip_type === 'ROUND_TRIP' ? '↩ Ida y vuelta' : '→ Solo ida'}
+                        </span>
                       </span>
                     </div>
                     <div style={{ fontSize: '13px', color: 'var(--t-piedra)', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconCalendario size={12} />{formatearFecha(sol.departure_time)}</span>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconPersonas size={12} />{(sol.adults_count || 1) + (sol.children_count || 0)} pasajero(s){sol.has_pets && <IconMascota size={12} />}</span>
                     </div>
-                    {/* HU55 — filtro flexible de comodidades: el viaje se ve igual aunque tu
-                        vehículo no cumpla todo, pero te avisamos qué te falta para que decidas
-                        si te conviene ofertar de todas formas. */}
+                    {/* HU55.1 — filtro exclusivo: si esta tarjeta te aparece en el radar es
+                        porque tu vehículo ya cumple TODO lo que pidió el pasajero (si es
+                        Estándar). Solo se informa cuánto pidió, no puede faltarte nada. */}
                     {sol.comodidades_exigidas > 0 && (
-                      <div style={{ marginTop: '6px', fontSize: '12px', fontWeight: '600', color: sol.comodidades_faltantes?.length ? 'var(--t-chiva-texto)' : BRAND_GREEN }}>
-                        {sol.comodidades_faltantes?.length
-                          ? `El pasajero pidió comodidades que te faltan: ${sol.comodidades_faltantes.join(', ')}`
-                          : `Cumplís las ${sol.comodidades_exigidas} comodidad(es) que pidió el pasajero`}
+                      <div style={{ marginTop: '6px', fontSize: '12px', fontWeight: '600', color: BRAND_GREEN }}>
+                        Cumplís las {sol.comodidades_exigidas} comodidad(es) que pidió el pasajero
                       </div>
                     )}
                     {estaSeleccionada && (
@@ -1313,7 +1322,9 @@ const PanelConductor = ({ onVerRuta }) => {
                     viaje: si el conductor no marca ninguna, simplemente no le llegarán esas
                     solicitudes filtradas, aunque su vehículo sí las tenga. */}
                 {!formVehiculo.tiene_ac && !formVehiculo.tiene_wifi && !formVehiculo.tiene_bano &&
-                  !formVehiculo.tiene_musica && !formVehiculo.tiene_maletero_amplio && !formVehiculo.tiene_sillas_bebe && (
+                  !formVehiculo.tiene_musica && !formVehiculo.tiene_maletero_amplio && !formVehiculo.tiene_sillas_bebe &&
+                  !formVehiculo.tiene_sillas_reclinables && !formVehiculo.tiene_cargador_usb &&
+                  !formVehiculo.tiene_tv && !formVehiculo.tiene_buen_audio && (
                   <div style={{ background: 'var(--t-chiva-suave)', border: '1px solid var(--t-chiva-linea)', borderRadius: '10px', padding: '10px 12px', marginBottom: '12px' }}>
                     <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--t-chiva-texto)' }}>
                       Aún no has marcado ninguna comodidad. Los pasajeros ahora pueden filtrar su búsqueda por
@@ -1332,6 +1343,10 @@ const PanelConductor = ({ onVerRuta }) => {
                     ['tiene_musica', 'Música'],
                     ['tiene_maletero_amplio', 'Maletero amplio'],
                     ['tiene_sillas_bebe', 'Sillas para bebé'],
+                    ['tiene_sillas_reclinables', 'Sillas reclinables'],
+                    ['tiene_cargador_usb', 'Cargador USB'],
+                    ['tiene_tv', 'Televisor'],
+                    ['tiene_buen_audio', 'Buen audio'],
                   ].map(([campo, etiqueta]) => (
                     <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px', color: 'var(--t-tinta)', border: '1px solid var(--t-linea)', borderRadius: '8px', padding: '8px 10px', cursor: 'pointer' }}>
                       <input type="checkbox" checked={!!formVehiculo[campo]}

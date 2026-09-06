@@ -112,6 +112,10 @@ class Vehicle(Base):
     tiene_musica            = Column(Boolean, default=False)
     tiene_maletero_amplio   = Column(Boolean, default=False)
     tiene_sillas_bebe       = Column(Boolean, default=False)
+    tiene_sillas_reclinables = Column(Boolean, default=False)
+    tiene_cargador_usb     = Column(Boolean, default=False)
+    tiene_tv                = Column(Boolean, default=False)
+    tiene_buen_audio        = Column(Boolean, default=False)
     acepta_mascotas         = Column(Boolean, default=False)
     cargo_mascota           = Column(Numeric(10, 2), default=0)
     acepta_menores_2_anos   = Column(Boolean, default=True)
@@ -179,7 +183,16 @@ class ServiceRequest(Base):
     requiere_musica          = Column(Boolean, default=False)
     requiere_maletero_amplio = Column(Boolean, default=False)
     requiere_sillas_bebe     = Column(Boolean, default=False)
+    requiere_sillas_reclinables = Column(Boolean, default=False)
+    requiere_cargador_usb    = Column(Boolean, default=False)
+    requiere_tv              = Column(Boolean, default=False)
+    requiere_buen_audio      = Column(Boolean, default=False)
     requiere_acepta_mascotas = Column(Boolean, default=False)
+    # HU55.1 — tipo de servicio elegido por el pasajero. "ECONOMICO" no filtra
+    # por comodidades (cualquier buseta puede ofertar); "ESTANDAR" exige que el
+    # conductor cumpla TODAS las comodidades marcadas arriba para poder ver la
+    # solicitud en su radar y ofertar.
+    tipo_servicio            = Column(String(20), default="ECONOMICO")
     created_at          = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 

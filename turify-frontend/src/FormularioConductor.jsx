@@ -238,7 +238,9 @@ const FormularioConductor = () => {
     // HU55 — comodidades del vehículo, opcionales (se pueden dejar sin marcar
     // y configurar después desde el panel del conductor)
     tiene_ac: false, tiene_wifi: false, tiene_bano: false, tiene_musica: false,
-    tiene_maletero_amplio: false, tiene_sillas_bebe: false, acepta_mascotas: false,
+    tiene_maletero_amplio: false, tiene_sillas_bebe: false,
+    tiene_sillas_reclinables: false, tiene_cargador_usb: false, tiene_tv: false, tiene_buen_audio: false,
+    acepta_mascotas: false,
   });
 
   const datosUsuario = {
@@ -299,6 +301,10 @@ const FormularioConductor = () => {
     formData.append('tiene_musica', formConductor.tiene_musica);
     formData.append('tiene_maletero_amplio', formConductor.tiene_maletero_amplio);
     formData.append('tiene_sillas_bebe', formConductor.tiene_sillas_bebe);
+    formData.append('tiene_sillas_reclinables', formConductor.tiene_sillas_reclinables);
+    formData.append('tiene_cargador_usb', formConductor.tiene_cargador_usb);
+    formData.append('tiene_tv', formConductor.tiene_tv);
+    formData.append('tiene_buen_audio', formConductor.tiene_buen_audio);
     formData.append('acepta_mascotas', formConductor.acepta_mascotas);
     if (formConductor.profile_photo) formData.append('profile_photo', formConductor.profile_photo);
     if (formConductor.vehicle_photo) formData.append('vehicle_photo', formConductor.vehicle_photo);
@@ -471,6 +477,10 @@ const FormularioConductor = () => {
                     ['tiene_musica', 'Música'],
                     ['tiene_maletero_amplio', 'Maletero amplio'],
                     ['tiene_sillas_bebe', 'Sillas para bebé'],
+                    ['tiene_sillas_reclinables', 'Sillas reclinables'],
+                    ['tiene_cargador_usb', 'Cargador USB'],
+                    ['tiene_tv', 'Televisor'],
+                    ['tiene_buen_audio', 'Buen audio'],
                     ['acepta_mascotas', 'Acepta mascotas'],
                   ].map(([campo, etiqueta]) => {
                     const marcada = formConductor[campo];

@@ -20,6 +20,10 @@ const ETIQUETAS_COMODIDAD = [
   ['tiene_musica', 'Música'],
   ['tiene_maletero_amplio', 'Maletero amplio'],
   ['tiene_sillas_bebe', 'Sillas para bebé'],
+  ['tiene_sillas_reclinables', 'Sillas reclinables'],
+  ['tiene_cargador_usb', 'Cargador USB'],
+  ['tiene_tv', 'Televisor'],
+  ['tiene_buen_audio', 'Buen audio'],
   ['acepta_mascotas', 'Acepta mascotas'],
 ];
 

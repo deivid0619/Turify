@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { T, IconPersona, IconEstrella, IconVisto, IconGorro, IconEmpresa,
-         IconAire, IconWifi, IconBano, IconMusica, IconMaleta, IconBebe, IconMascota } from './diseno';
+         IconAire, IconWifi, IconBano, IconMusica, IconMaleta, IconBebe, IconMascota,
+         IconReclinable, IconUsb, IconTV, IconAudio } from './diseno';
 
 const FOREST = 'var(--t-monte)';
 const GOLD = 'var(--t-chiva)';
@@ -16,6 +17,10 @@ const ETIQUETAS_COMODIDAD = [
   ['tiene_musica', 'Música', IconMusica],
   ['tiene_maletero_amplio', 'Maletero amplio', IconMaleta],
   ['tiene_sillas_bebe', 'Sillas para bebé', IconBebe],
+  ['tiene_sillas_reclinables', 'Sillas reclinables', IconReclinable],
+  ['tiene_cargador_usb', 'Cargador USB', IconUsb],
+  ['tiene_tv', 'Televisor', IconTV],
+  ['tiene_buen_audio', 'Buen audio', IconAudio],
   ['acepta_mascotas', 'Acepta mascotas', IconMascota],
 ];
 

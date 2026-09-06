@@ -185,6 +185,12 @@ export const IconMusica  = (p) => <Icono {...p}><circle cx="7" cy="17.5" r="2.6"
 export const IconMaleta  = (p) => <Icono {...p}><rect x="3.5" y="7.5" width="17" height="12.5" rx="2.4" /><path d="M8.5 7.5V5.6A1.6 1.6 0 0 1 10.1 4h3.8a1.6 1.6 0 0 1 1.6 1.6v1.9" /><path d="M9 11v5.5M15 11v5.5" /></Icono>;
 export const IconBebe    = (p) => <Icono {...p}><path d="M9.5 3.5h5l-.6 3.2h-3.8Z" /><path d="M10.4 6.7 8.6 13.4a3.6 3.6 0 0 0 3.4 4.6h0a3.6 3.6 0 0 0 3.4-4.6l-1.8-6.7" /><path d="M8.4 20.5h7.2" /></Icono>;
 export const IconMascota = (p) => <Icono {...p}><ellipse cx="8" cy="9" rx="1.8" ry="2.4" /><ellipse cx="16" cy="9" rx="1.8" ry="2.4" /><ellipse cx="4.6" cy="13.6" rx="1.6" ry="2.1" /><ellipse cx="19.4" cy="13.6" rx="1.6" ry="2.1" /><path d="M12 13.2c2.6 0 4.6 2.1 4.6 4.2 0 1.6-1.3 2.4-2.8 2.4-1 0-1.3-.4-1.8-.4s-.8.4-1.8.4c-1.5 0-2.8-.8-2.8-2.4 0-2.1 2-4.2 4.6-4.2Z" /></Icono>;
+// HU55.1 — comodidades nuevas (sillas reclinables, cargador USB, TV, buen audio)
+export const IconReclinable = (p) => <Icono {...p}><path d="M6 20V9.5a2 2 0 0 1 2-2h2.2" /><path d="M6 14h5.4l3.4 3.6c.7.8 1.8 1.2 2.9 1.2H20" /><path d="M9.2 7.5 12 4.2" /><circle cx="7.4" cy="4.4" r="1.4" /></Icono>;
+export const IconUsb       = (p) => <Icono {...p}><rect x="4" y="9" width="7" height="6" rx="1.4" /><path d="M11 12h4" /><path d="M15 7v10" /><path d="M15 8.5h3a1.5 1.5 0 0 1 1.5 1.5v4a1.5 1.5 0 0 1-1.5 1.5h-3" /></Icono>;
+export const IconTV        = (p) => <Icono {...p}><rect x="3" y="5.5" width="18" height="12" rx="2" /><path d="M8 21h8M12 17.5V21" /></Icono>;
+export const IconAudio     = (p) => <Icono {...p}><circle cx="8" cy="15.5" r="3.2" /><circle cx="17" cy="13" r="3.2" /><path d="M11.2 15.5V6.4l9-1.8v8.4" /></Icono>;
+
 export const IconEmpresa = (p) => <Icono {...p}><path d="M4 20.5V6.5l7-3v17M11 20.5h9V10l-9-3.2" /><path d="M14.5 12.5h2M14.5 16h2M7 10h1M7 13.5h1" /></Icono>;
 
 export const IconSenal      = (p) => <Icono {...p}><path d="M4 17.5v-2M8.6 17.5v-5M13.2 17.5v-8M17.8 17.5v-11" /></Icono>;

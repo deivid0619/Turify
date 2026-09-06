@@ -131,6 +131,10 @@ async def register_driver_info(
     tiene_musica: bool = Form(False),
     tiene_maletero_amplio: bool = Form(False),
     tiene_sillas_bebe: bool = Form(False),
+    tiene_sillas_reclinables: bool = Form(False),
+    tiene_cargador_usb: bool = Form(False),
+    tiene_tv: bool = Form(False),
+    tiene_buen_audio: bool = Form(False),
     acepta_mascotas: bool = Form(False),
     profile_photo: UploadFile = File(...),
     vehicle_photo: UploadFile = File(...),
@@ -193,6 +197,10 @@ async def register_driver_info(
                 tiene_musica=tiene_musica,
                 tiene_maletero_amplio=tiene_maletero_amplio,
                 tiene_sillas_bebe=tiene_sillas_bebe,
+                tiene_sillas_reclinables=tiene_sillas_reclinables,
+                tiene_cargador_usb=tiene_cargador_usb,
+                tiene_tv=tiene_tv,
+                tiene_buen_audio=tiene_buen_audio,
                 acepta_mascotas=acepta_mascotas,
             )
             db.add(new_vehicle)
@@ -430,6 +438,10 @@ def get_my_vehicle(
         "tiene_musica": vehiculo.tiene_musica,
         "tiene_maletero_amplio": vehiculo.tiene_maletero_amplio,
         "tiene_sillas_bebe": vehiculo.tiene_sillas_bebe,
+        "tiene_sillas_reclinables": vehiculo.tiene_sillas_reclinables,
+        "tiene_cargador_usb": vehiculo.tiene_cargador_usb,
+        "tiene_tv": vehiculo.tiene_tv,
+        "tiene_buen_audio": vehiculo.tiene_buen_audio,
         "acepta_mascotas": vehiculo.acepta_mascotas,
         "cargo_mascota": float(vehiculo.cargo_mascota) if vehiculo.cargo_mascota is not None else None,
         "acepta_menores_2_anos": vehiculo.acepta_menores_2_anos,
@@ -601,6 +613,10 @@ def get_driver_public_profile(
             "tiene_musica": vehiculo.tiene_musica,
             "tiene_maletero_amplio": vehiculo.tiene_maletero_amplio,
             "tiene_sillas_bebe": vehiculo.tiene_sillas_bebe,
+            "tiene_sillas_reclinables": vehiculo.tiene_sillas_reclinables,
+            "tiene_cargador_usb": vehiculo.tiene_cargador_usb,
+            "tiene_tv": vehiculo.tiene_tv,
+            "tiene_buen_audio": vehiculo.tiene_buen_audio,
             "acepta_mascotas": vehiculo.acepta_mascotas,
         }
 

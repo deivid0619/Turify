@@ -17,6 +17,31 @@ from datetime import datetime
 from fastapi import HTTPException, status, Depends
 # Asegúrate de tener tus importaciones normales aquí...
 
+# HU55.1 — se llama ANTES de publicar el viaje (desde el checklist de
+# comodidades en modo Estándar) para avisarle al pasajero si ahora mismo NO hay
+# ningún conductor registrado cuyo vehículo cumpla esa combinación exacta, en
+# vez de dejarlo esperando ofertas que nunca van a llegar.
+@router.post("/verificar-comodidades")
+def verificar_comodidades_disponibles(
+    payload: schemas.VerificarComodidadesRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    campos_tiene = [
+        campo_tiene
+        for campo_requiere, campo_tiene, _ in COMODIDADES_FILTRABLES
+        if getattr(payload, campo_requiere, False)
+    ]
+    if not campos_tiene:
+        return {"conductores_que_cumplen": None}
+
+    query = db.query(models.Vehicle)
+    for campo_tiene in campos_tiene:
+        query = query.filter(getattr(models.Vehicle, campo_tiene) == True)  # noqa: E712
+
+    return {"conductores_que_cumplen": query.count()}
+
+
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_service_request(
     request_data: schemas.ServiceRequestCreate, 
@@ -91,7 +116,16 @@ def create_service_request(
             requiere_musica=request_data.requiere_musica or False,
             requiere_maletero_amplio=request_data.requiere_maletero_amplio or False,
             requiere_sillas_bebe=request_data.requiere_sillas_bebe or False,
+            requiere_sillas_reclinables=request_data.requiere_sillas_reclinables or False,
+            requiere_cargador_usb=request_data.requiere_cargador_usb or False,
+            requiere_tv=request_data.requiere_tv or False,
+            requiere_buen_audio=request_data.requiere_buen_audio or False,
             requiere_acepta_mascotas=request_data.requiere_acepta_mascotas or False,
+            # HU55.1 — ECONOMICO (default) no filtra a nadie; ESTANDAR exige que
+            # el conductor cumpla TODAS las comodidades de arriba.
+            tipo_servicio=(request_data.tipo_servicio or "ECONOMICO").upper()
+                if (request_data.tipo_servicio or "ECONOMICO").upper() in ("ECONOMICO", "ESTANDAR")
+                else "ECONOMICO",
         )
         
         db.add(new_request)
@@ -196,28 +230,31 @@ RADIO_VISIBILIDAD_KM = 60
 # "cumple / no cumple" a secas, dice CUÁNTAS de las comodidades pedidas
 # cumple este conductor y cuáles le faltan, para que el pasajero decida con
 # esa información (nunca se oculta un conductor solo por no tener el 100%).
-_ETIQUETAS_COMODIDAD = {
-    "tiene_ac": "Aire acondicionado",
-    "tiene_wifi": "WiFi",
-    "tiene_bano": "Baño",
-    "tiene_musica": "Música",
-    "tiene_maletero_amplio": "Maletero amplio",
-    "tiene_sillas_bebe": "Sillas para bebé",
-    "acepta_mascotas": "Acepta mascotas",
-}
+# HU55.1 — Comodidades realmente filtrables. La música se dejó por fuera a
+# propósito: casi todas las busetas la tienen, así que no discrimina nada —
+# se sigue guardando/mostrando como dato informativo, pero no se puede exigir.
+# Cada tupla es (campo "requiere_" en ServiceRequest, campo "tiene_" en
+# Vehicle, etiqueta legible).
+COMODIDADES_FILTRABLES = [
+    ("requiere_ac", "tiene_ac", "Aire acondicionado"),
+    ("requiere_wifi", "tiene_wifi", "WiFi"),
+    ("requiere_bano", "tiene_bano", "Baño"),
+    ("requiere_maletero_amplio", "tiene_maletero_amplio", "Maletero amplio"),
+    ("requiere_sillas_bebe", "tiene_sillas_bebe", "Sillas para bebé"),
+    ("requiere_sillas_reclinables", "tiene_sillas_reclinables", "Sillas reclinables"),
+    ("requiere_cargador_usb", "tiene_cargador_usb", "Cargador/puertos USB"),
+    ("requiere_tv", "tiene_tv", "Televisor"),
+    ("requiere_buen_audio", "tiene_buen_audio", "Buen sistema de audio"),
+    ("requiere_acepta_mascotas", "acepta_mascotas", "Acepta mascotas"),
+]
 
 
 def _match_comodidades(db, conductor, service_request) -> dict:
-    filtros = [
-        (service_request.requiere_ac, "tiene_ac"),
-        (service_request.requiere_wifi, "tiene_wifi"),
-        (service_request.requiere_bano, "tiene_bano"),
-        (service_request.requiere_musica, "tiene_musica"),
-        (service_request.requiere_maletero_amplio, "tiene_maletero_amplio"),
-        (service_request.requiere_sillas_bebe, "tiene_sillas_bebe"),
-        (service_request.requiere_acepta_mascotas, "acepta_mascotas"),
+    exigidos = [
+        (campo_tiene, etiqueta)
+        for campo_requiere, campo_tiene, etiqueta in COMODIDADES_FILTRABLES
+        if getattr(service_request, campo_requiere, False)
     ]
-    exigidos = [campo for exigido, campo in filtros if exigido]
     if not exigidos:
         return {"exigidas": 0, "cumplidas": 0, "cumple_todas": True, "faltantes": []}
 
@@ -225,12 +262,12 @@ def _match_comodidades(db, conductor, service_request) -> dict:
 
     cumplidas = 0
     faltantes = []
-    for campo in exigidos:
-        tiene = bool(getattr(vehiculo, campo)) if vehiculo else False
+    for campo_tiene, etiqueta in exigidos:
+        tiene = bool(getattr(vehiculo, campo_tiene)) if vehiculo else False
         if tiene:
             cumplidas += 1
         else:
-            faltantes.append(_ETIQUETAS_COMODIDAD[campo])
+            faltantes.append(etiqueta)
 
     return {
         "exigidas": len(exigidos),
@@ -267,7 +304,12 @@ def _serializar_service_request(sr) -> dict:
         "requiere_musica": sr.requiere_musica,
         "requiere_maletero_amplio": sr.requiere_maletero_amplio,
         "requiere_sillas_bebe": sr.requiere_sillas_bebe,
+        "requiere_sillas_reclinables": sr.requiere_sillas_reclinables,
+        "requiere_cargador_usb": sr.requiere_cargador_usb,
+        "requiere_tv": sr.requiere_tv,
+        "requiere_buen_audio": sr.requiere_buen_audio,
         "requiere_acepta_mascotas": sr.requiere_acepta_mascotas,
+        "tipo_servicio": sr.tipo_servicio,
     }
 
 
@@ -306,10 +348,15 @@ def get_pending_requests(
                 con_distancia.sort(key=lambda par: par[0])
                 pending_requests = [sr for _, sr in con_distancia]
 
-            # HU55 — filtro flexible: se anota, no se oculta.
+            # HU55.1 — filtro exclusivo para ESTANDAR: si el pasajero exigió
+            # comodidades (tipo_servicio == "ESTANDAR"), el conductor solo ve la
+            # solicitud si su vehículo las cumple TODAS. Los viajes ECONOMICO
+            # (sin comodidades exigidas) se siguen viendo igual que siempre.
             resultado = []
             for sr in pending_requests:
                 match = _match_comodidades(db, current_user, sr)
+                if sr.tipo_servicio == "ESTANDAR" and not match["cumple_todas"]:
+                    continue
                 item = _serializar_service_request(sr)
                 item["comodidades_exigidas"] = match["exigidas"]
                 item["comodidades_cumplidas"] = match["cumplidas"]
@@ -432,6 +479,19 @@ async def create_driver_offer(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="No tienes un vehículo registrado para realizar esta oferta."
         )
+
+    # 4.1. HU55.1 — si el pasajero pidió servicio Estándar (exige comodidades),
+    #      el conductor solo puede ofertar si su vehículo las cumple TODAS.
+    if service_request.tipo_servicio == "ESTANDAR":
+        match = _match_comodidades(db, current_user, service_request)
+        if not match["cumple_todas"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Este viaje es de servicio Estándar y tu vehículo no tiene: "
+                    + ", ".join(match["faltantes"]) + "."
+                )
+            )
 
     try:
         # 5. Crear y guardar la oferta en la base de datos
@@ -853,6 +913,10 @@ def get_offers_for_request(
                 "tiene_musica": vehiculo.tiene_musica,
                 "tiene_maletero_amplio": vehiculo.tiene_maletero_amplio,
                 "tiene_sillas_bebe": vehiculo.tiene_sillas_bebe,
+                "tiene_sillas_reclinables": vehiculo.tiene_sillas_reclinables,
+                "tiene_cargador_usb": vehiculo.tiene_cargador_usb,
+                "tiene_tv": vehiculo.tiene_tv,
+                "tiene_buen_audio": vehiculo.tiene_buen_audio,
                 "acepta_mascotas": vehiculo.acepta_mascotas,
                 "cargo_mascota": float(vehiculo.cargo_mascota) if vehiculo.cargo_mascota is not None else None,
                 "acepta_menores_2_anos": vehiculo.acepta_menores_2_anos,

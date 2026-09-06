@@ -143,11 +143,20 @@ const Dashboard = () => {
   const [rutaSeguimiento, setRutaSeguimiento] = useState(null);
   // HU26 — la búsqueda de conductores es automática (por origen del viaje, con
   // radio ampliable), ya no la elige el pasajero.
-  // HU55 — comodidades que el pasajero puede exigir del vehículo al publicar el viaje
-  const [comodidadesFiltro, setComodidadesFiltro] = useState({
-    tiene_ac: false, tiene_wifi: false, tiene_bano: false, tiene_musica: false,
-    tiene_maletero_amplio: false, tiene_sillas_bebe: false, acepta_mascotas: false,
-  });
+  // HU55.1 — Económico (cualquier buseta) o Estándar (exige comodidades
+  // específicas — solo ofertan conductores cuyo vehículo las cumple TODAS).
+  const [tipoServicio, setTipoServicio] = useState('ECONOMICO');
+  const COMODIDADES_VACIAS = {
+    tiene_ac: false, tiene_wifi: false, tiene_bano: false,
+    tiene_maletero_amplio: false, tiene_sillas_bebe: false,
+    tiene_sillas_reclinables: false, tiene_cargador_usb: false,
+    tiene_tv: false, tiene_buen_audio: false, acepta_mascotas: false,
+  };
+  const [comodidadesFiltro, setComodidadesFiltro] = useState(COMODIDADES_VACIAS);
+  // HU55.1 — chequeo previo a publicar: si Estándar no tiene NINGÚN conductor
+  // registrado que cumpla lo pedido, se avisa antes de publicar al vacío.
+  const [verificandoComodidades, setVerificandoComodidades] = useState(false);
+  const [avisoSinConductores, setAvisoSinConductores] = useState(false);
   const [infoRuta, setInfoRuta] = useState(null);
 
   // Equivalente al viejo <AjustarCamara> de Leaflet: cuando hay origen y destino, encuadra ambos;
@@ -535,6 +544,54 @@ const Dashboard = () => {
     setInfoRuta(null);
     setDatosMapa(prev => ({ ...prev, destino: null, ruta: [] }));
     setBusqueda(prev => ({ ...prev, destino: '' }));
+    setTipoServicio('ECONOMICO');
+    setComodidadesFiltro(COMODIDADES_VACIAS);
+    setAvisoSinConductores(false);
+  };
+
+  // HU55.1 — se llama al presionar "Confirmar y Publicar Viaje": si el
+  // pasajero pidió Estándar con al menos una comodidad marcada, primero
+  // verifica que exista al menos un conductor registrado que la cumpla, para
+  // no dejarlo esperando ofertas que nunca van a llegar.
+  const comodidadesAlgunaMarcada = () =>
+    Object.entries(comodidadesFiltro).some(([, marcada]) => marcada);
+
+  const intentarPublicar = async () => {
+    if (tipoServicio !== 'ESTANDAR' || !comodidadesAlgunaMarcada()) {
+      crearViaje();
+      return;
+    }
+    setVerificandoComodidades(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/verificar-comodidades`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({
+          requiere_ac: comodidadesFiltro.tiene_ac,
+          requiere_wifi: comodidadesFiltro.tiene_wifi,
+          requiere_bano: comodidadesFiltro.tiene_bano,
+          requiere_maletero_amplio: comodidadesFiltro.tiene_maletero_amplio,
+          requiere_sillas_bebe: comodidadesFiltro.tiene_sillas_bebe,
+          requiere_sillas_reclinables: comodidadesFiltro.tiene_sillas_reclinables,
+          requiere_cargador_usb: comodidadesFiltro.tiene_cargador_usb,
+          requiere_tv: comodidadesFiltro.tiene_tv,
+          requiere_buen_audio: comodidadesFiltro.tiene_buen_audio,
+          requiere_acepta_mascotas: comodidadesFiltro.acepta_mascotas,
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.conductores_que_cumplen === 0) {
+          setAvisoSinConductores(true);
+          return;
+        }
+      }
+    } catch {
+      // si la verificación falla no bloqueamos al pasajero por eso — se intenta publicar igual
+    } finally {
+      setVerificandoComodidades(false);
+    }
+    crearViaje();
   };
 
   const crearViaje = async () => {
@@ -567,14 +624,21 @@ const Dashboard = () => {
         }
       }
 
-      // HU55 — comodidades que el pasajero exige del vehículo (filtro de búsqueda)
-      payload.requiere_ac = comodidadesFiltro.tiene_ac;
-      payload.requiere_wifi = comodidadesFiltro.tiene_wifi;
-      payload.requiere_bano = comodidadesFiltro.tiene_bano;
-      payload.requiere_musica = comodidadesFiltro.tiene_musica;
-      payload.requiere_maletero_amplio = comodidadesFiltro.tiene_maletero_amplio;
-      payload.requiere_sillas_bebe = comodidadesFiltro.tiene_sillas_bebe;
-      payload.requiere_acepta_mascotas = comodidadesFiltro.acepta_mascotas;
+      // HU55.1 — Económico no manda ninguna comodidad exigida (cualquier buseta
+      // puede ofertar); Estándar manda las que el pasajero marcó.
+      payload.tipo_servicio = tipoServicio;
+      if (tipoServicio === 'ESTANDAR') {
+        payload.requiere_ac = comodidadesFiltro.tiene_ac;
+        payload.requiere_wifi = comodidadesFiltro.tiene_wifi;
+        payload.requiere_bano = comodidadesFiltro.tiene_bano;
+        payload.requiere_maletero_amplio = comodidadesFiltro.tiene_maletero_amplio;
+        payload.requiere_sillas_bebe = comodidadesFiltro.tiene_sillas_bebe;
+        payload.requiere_sillas_reclinables = comodidadesFiltro.tiene_sillas_reclinables;
+        payload.requiere_cargador_usb = comodidadesFiltro.tiene_cargador_usb;
+        payload.requiere_tv = comodidadesFiltro.tiene_tv;
+        payload.requiere_buen_audio = comodidadesFiltro.tiene_buen_audio;
+        payload.requiere_acepta_mascotas = comodidadesFiltro.acepta_mascotas;
+      }
 
       const res = await fetch(`${API_BASE_URL}/api/service-requests/`, {
         method: 'POST',
@@ -596,7 +660,9 @@ const Dashboard = () => {
 
       setInfoRuta(null);
       setDatosMapa({ origen: null, destino: null, ruta: [] });
-      setComodidadesFiltro({ tiene_ac: false, tiene_wifi: false, tiene_bano: false, tiene_musica: false, tiene_maletero_amplio: false, tiene_sillas_bebe: false, acepta_mascotas: false });
+      setComodidadesFiltro(COMODIDADES_VACIAS);
+      setTipoServicio('ECONOMICO');
+      setAvisoSinConductores(false);
       setBusqueda({ origen: '', destino: '', departure_time: '', return_time: '' });
       if (!sinConductoresConectados) {
         toast.success('¡Viaje publicado exitosamente! Los conductores podrán hacerte ofertas.');
@@ -1609,41 +1675,85 @@ const Dashboard = () => {
                   Buscamos automáticamente a los conductores disponibles más cercanos a tu origen.
                 </p>
 
-                {/* HU55 — Filtro de comodidades del vehículo */}
-                <div style={{ textAlign: 'left', margin: '0 0 14px', padding: '10px 12px', background: 'var(--t-niebla)', border: '1px solid var(--t-linea)', borderRadius: '10px' }}>
-                  <p style={{ margin: '0 0 8px', fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    ¿Necesitas alguna comodidad? (opcional)
-                  </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                    {[
-                      ['tiene_ac', 'Aire acondicionado'],
-                      ['tiene_wifi', 'WiFi'],
-                      ['tiene_bano', 'Baño'],
-                      ['tiene_musica', 'Música'],
-                      ['tiene_maletero_amplio', 'Maletero amplio'],
-                      ['tiene_sillas_bebe', 'Sillas para bebé'],
-                      ['acepta_mascotas', 'Acepta mascotas'],
-                    ].map(([campo, etiqueta]) => (
-                      <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--t-tinta)', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={!!comodidadesFiltro[campo]}
-                          onChange={e => setComodidadesFiltro({ ...comodidadesFiltro, [campo]: e.target.checked })} />
-                        {etiqueta}
-                      </label>
-                    ))}
-                  </div>
-                  <p style={{ margin: '8px 0 0', fontSize: '11.5px', color: 'var(--t-piedra-clara)' }}>
-                    Solo se te notificarán ofertas de conductores cuyo vehículo cumpla lo que marques aquí.
-                  </p>
+                {/* HU55.1 — Económico / Estándar */}
+                <div style={{ display: 'flex', gap: '8px', margin: '0 0 6px' }}>
+                  {[['ECONOMICO', 'Económico'], ['ESTANDAR', 'Estándar']].map(([valor, etiqueta]) => (
+                    <button key={valor} type="button"
+                      onClick={() => { setTipoServicio(valor); setAvisoSinConductores(false); }}
+                      style={{
+                        flex: 1, padding: '9px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px',
+                        border: tipoServicio === valor ? `2px solid ${BRAND_GREEN}` : '1px solid var(--t-linea)',
+                        background: tipoServicio === valor ? 'rgba(22,163,74,0.08)' : 'var(--t-papel)',
+                        color: 'var(--t-tinta)',
+                      }}>
+                      {etiqueta}
+                    </button>
+                  ))}
                 </div>
+                <p style={{ margin: '0 0 12px', fontSize: '11.5px', color: 'var(--t-piedra-clara)', textAlign: 'left' }}>
+                  {tipoServicio === 'ECONOMICO'
+                    ? 'Cualquier buseta disponible puede ofertarte, sin filtrar por comodidades.'
+                    : 'Elige lo que necesitas — solo te llegarán ofertas de conductores cuyo vehículo lo tenga TODO.'}
+                </p>
+
+                {tipoServicio === 'ESTANDAR' && (
+                  <div style={{ textAlign: 'left', margin: '0 0 14px', padding: '10px 12px', background: 'var(--t-niebla)', border: '1px solid var(--t-linea)', borderRadius: '10px' }}>
+                    <p style={{ margin: '0 0 8px', fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Comodidades que exiges
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                      {[
+                        ['tiene_ac', 'Aire acondicionado'],
+                        ['tiene_wifi', 'WiFi'],
+                        ['tiene_bano', 'Baño'],
+                        ['tiene_maletero_amplio', 'Maletero amplio'],
+                        ['tiene_sillas_bebe', 'Sillas para bebé'],
+                        ['tiene_sillas_reclinables', 'Sillas reclinables'],
+                        ['tiene_cargador_usb', 'Cargador USB'],
+                        ['tiene_tv', 'Televisor'],
+                        ['tiene_buen_audio', 'Buen audio'],
+                        ['acepta_mascotas', 'Acepta mascotas'],
+                      ].map(([campo, etiqueta]) => (
+                        <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--t-tinta)', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={!!comodidadesFiltro[campo]}
+                            onChange={e => {
+                              setComodidadesFiltro({ ...comodidadesFiltro, [campo]: e.target.checked });
+                              setAvisoSinConductores(false);
+                            }} />
+                          {etiqueta}
+                        </label>
+                      ))}
+                    </div>
+                    <p style={{ margin: '8px 0 0', fontSize: '11.5px', color: 'var(--t-piedra-clara)' }}>
+                      Solo se te notificarán ofertas de conductores cuyo vehículo cumpla TODO lo que marques aquí.
+                    </p>
+                    {avisoSinConductores && (
+                      <div style={{ marginTop: '10px', padding: '8px 10px', background: '#fff7ed', border: '1px solid #f59e0b', borderRadius: '8px' }}>
+                        <p style={{ margin: 0, fontSize: '12px', color: '#92400e' }}>
+                          <IconAlerta size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />
+                          Ahora mismo ningún conductor registrado tiene esa combinación. Puedes publicarlo igual (puede que no te llegue ninguna oferta) o desmarcar alguna comodidad.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button onClick={cancelarRutaTrazada} disabled={enviandoSolicitud} type="button"
                     style={{ flex: 1, background: 'var(--t-papel)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', padding: '12px 16px', borderRadius: '8px', cursor: enviandoSolicitud ? 'not-allowed' : 'pointer', fontWeight: '600', fontSize: '14px' }}>
                     Cancelar
                   </button>
-                  <button onClick={crearViaje} disabled={enviandoSolicitud}
-                    style={{ flex: 2, background: enviandoSolicitud ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: enviandoSolicitud ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
-                    {enviandoSolicitud ? 'Procesando...' : 'Confirmar y Publicar Viaje'}
+                  <button
+                    onClick={avisoSinConductores ? crearViaje : intentarPublicar}
+                    disabled={enviandoSolicitud || verificandoComodidades}
+                    style={{ flex: 2, background: (enviandoSolicitud || verificandoComodidades) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: (enviandoSolicitud || verificandoComodidades) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                    {enviandoSolicitud
+                      ? 'Procesando...'
+                      : verificandoComodidades
+                        ? 'Verificando disponibilidad...'
+                        : avisoSinConductores
+                          ? 'Publicar de todas formas'
+                          : 'Confirmar y Publicar Viaje'}
                   </button>
                 </div>
               </motion.div>
@@ -2078,6 +2188,10 @@ const Dashboard = () => {
                                 [oferta.comodidades.tiene_musica, 'Música'],
                                 [oferta.comodidades.tiene_maletero_amplio, 'Maletero amplio'],
                                 [oferta.comodidades.tiene_sillas_bebe, 'Sillas para bebé'],
+                                [oferta.comodidades.tiene_sillas_reclinables, 'Sillas reclinables'],
+                                [oferta.comodidades.tiene_cargador_usb, 'Cargador USB'],
+                                [oferta.comodidades.tiene_tv, 'Televisor'],
+                                [oferta.comodidades.tiene_buen_audio, 'Buen audio'],
                                 [oferta.comodidades.acepta_mascotas, 'Acepta mascotas'],
                               ].filter(([activo]) => activo).map(([, etiqueta]) => (
                                 <span key={etiqueta} style={{ background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', borderRadius: '100px', padding: '3px 9px', fontSize: '12px', fontWeight: '600' }}>
