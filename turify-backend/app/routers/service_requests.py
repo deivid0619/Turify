@@ -1,4 +1,5 @@
 import io
+import json
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -39,7 +40,21 @@ def verificar_comodidades_disponibles(
     for campo_tiene in campos_tiene:
         query = query.filter(getattr(models.Vehicle, campo_tiene) == True)  # noqa: E712
 
-    return {"conductores_que_cumplen": query.count()}
+    total = query.count()
+
+    # Se deja registro de cada chequeo (qué combinación se pidió y cuántos
+    # conductores la cumplían en ese momento) — insumo para más adelante
+    # entrenar/ajustar con datos reales qué combinaciones de comodidades pedir
+    # o sugerir, y para detectar qué tan seguido la oferta se queda corta.
+    registrar_log(
+        db,
+        action="CHECK_COMODIDADES",
+        user_id=current_user.user_id,
+        entity="ServiceRequest",
+        detail=json.dumps({"comodidades_pedidas": campos_tiene, "conductores_que_cumplen": total}, ensure_ascii=False)
+    )
+
+    return {"conductores_que_cumplen": total}
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -133,13 +148,23 @@ def create_service_request(
         db.refresh(new_request)
 
         # Log de creación de viaje
+        comodidades_pedidas_trip = [
+            campo_tiene
+            for campo_requiere, campo_tiene, _ in COMODIDADES_FILTRABLES
+            if getattr(new_request, campo_requiere, False)
+        ]
         registrar_log(
             db,
             action="CREATE_TRIP",
             user_id=current_user.user_id,
             entity="ServiceRequest",
             entity_id=new_request.request_id,
-            detail=f"Viaje creado: {request_data.origin} → {request_data.destination}"
+            detail=json.dumps({
+                "origen": request_data.origin,
+                "destino": request_data.destination,
+                "tipo_servicio": new_request.tipo_servicio,
+                "comodidades_pedidas": comodidades_pedidas_trip,
+            }, ensure_ascii=False)
         )
 
         # HU26 — Notificar (push, vía Supabase Realtime + tabla Notification) a los
@@ -485,6 +510,14 @@ async def create_driver_offer(
     if service_request.tipo_servicio == "ESTANDAR":
         match = _match_comodidades(db, current_user, service_request)
         if not match["cumple_todas"]:
+            registrar_log(
+                db,
+                action="OFFER_BLOCKED_COMODIDADES",
+                user_id=current_user.user_id,
+                entity="ServiceRequest",
+                entity_id=request_id,
+                detail=json.dumps({"le_faltaban": match["faltantes"]}, ensure_ascii=False)
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
