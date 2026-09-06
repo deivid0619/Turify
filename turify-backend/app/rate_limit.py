@@ -33,6 +33,11 @@ async def manejar_limite_excedido(request: Request, exc: RateLimitExceeded) -> J
         mensaje = "Demasiados intentos. Espera unos minutos antes de volver a intentarlo."
 
     respuesta = JSONResponse(status_code=429, content={"detail": mensaje})
+    # Content-Length/Content-Type los calcula bien JSONResponse para su propio
+    # cuerpo; copiar los de respuesta_base (calculados para el texto plano
+    # original, de otro tamaño) rompe la respuesta a nivel de protocolo HTTP.
+    excluidos = {"content-length", "content-type"}
     for nombre, valor in respuesta_base.headers.items():
-        respuesta.headers[nombre] = valor
+        if nombre.lower() not in excluidos:
+            respuesta.headers[nombre] = valor
     return respuesta
