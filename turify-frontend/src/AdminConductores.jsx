@@ -55,64 +55,46 @@ const BadgeEstado = ({ estado }) => {
   );
 };
 
-const esPDF = (url) => url?.toLowerCase().includes('.pdf');
+// HU seguridad (OWASP A10) — trae el documento a través del backend, que
+// valida el host de file_url antes de descargarlo, en vez de que el propio
+// navegador del admin cargue directo la URL guardada en base de datos.
+const useDocumentoSeguro = (documentId, token) => {
+  const [estado, setEstado] = useState({ cargando: true, error: false, blobUrl: null, tipo: null });
 
-// Convierte PDF de Cloudinary a imagen JPG de la primera página
-// Funciona cambiando la extensión y asegurando image/upload
-const getPDFcomoImagen = (url) => {
-  if (!url) return url;
-  // Asegurar que sea image/upload
-  let u = url;
-  if (u.includes('/raw/upload/')) {
-    u = u.replace('/raw/upload/', '/image/upload/');
-  }
-  // Cambiar extensión .pdf a .jpg
-  if (u.toLowerCase().endsWith('.pdf')) {
-    u = u.slice(0, -4) + '.jpg';
-  }
-  return u;
-};
+  useEffect(() => {
+    let cancelado = false;
+    let urlCreada = null;
+    setEstado({ cargando: true, error: false, blobUrl: null, tipo: null });
 
-const getUrlPreview = (url) => {
-  if (!url) return url;
-  if (url.includes('/raw/upload/') && esPDF(url)) {
-    return url.replace('/raw/upload/', '/image/upload/');
-  }
-  return url;
-};
+    if (!documentId || !token) return undefined;
 
-const VisorPDF = ({ url, documentId, token }) => {
-  const [error, setError] = useState(false);
-  const urlImagen = getPDFcomoImagen(url);
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/documents/${documentId}/file`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        });
+        if (!res.ok) throw new Error('No se pudo cargar el documento.');
+        const blob = await res.blob();
+        urlCreada = URL.createObjectURL(blob);
+        if (!cancelado) setEstado({ cargando: false, error: false, blobUrl: urlCreada, tipo: blob.type });
+      } catch {
+        if (!cancelado) setEstado({ cargando: false, error: true, blobUrl: null, tipo: null });
+      }
+    })();
 
-  if (error) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '12px', color: T.piedra, fontFamily: T.ui }}>
-      <IconDocumento size={34} />
-      <p style={{ margin: 0, fontSize: '15px' }}>No se pudo mostrar la vista previa.</p>
-      <a href={url} target="_blank" rel="noopener noreferrer" className="t-foco"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', color: T.cieloTexto, fontSize: '14px', fontWeight: 600 }}>
-        <IconDescargar size={14} />Descargar el documento
-      </a>
-    </div>
-  );
+    return () => {
+      cancelado = true;
+      if (urlCreada) URL.revokeObjectURL(urlCreada);
+    };
+  }, [documentId, token]);
 
-  return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', boxSizing: 'border-box', backgroundColor: T.niebla2, overflow: 'auto' }}>
-      <img
-        src={urlImagen}
-        alt="Vista previa del documento"
-        style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', boxShadow: '0 4px 20px rgba(0,0,0,0.28)', borderRadius: T.rDato }}
-        onError={() => setError(true)}
-      />
-    </div>
-  );
+  return estado;
 };
 
 
 const ModalDocumento = ({ doc, onCerrar, token }) => {
-  const urlOriginal = doc.file_url;
-  const pdf = esPDF(urlOriginal);
-  const urlPreview = getUrlPreview(urlOriginal);
+  const { cargando, error, blobUrl, tipo } = useDocumentoSeguro(doc.document_id, token);
+  const pdf = tipo === 'application/pdf';
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.ui }}>
@@ -133,10 +115,12 @@ const ModalDocumento = ({ doc, onCerrar, token }) => {
             </span>
           </div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexShrink: 0 }}>
-            <a href={urlOriginal} target="_blank" rel="noopener noreferrer" className="t-foco"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: SOBRE_MONTE.fondo, border: `1px solid ${SOBRE_MONTE.linea}`, color: claro(0.9), padding: '7px 14px', borderRadius: T.rControl, fontSize: '13px', fontWeight: 600, textDecoration: 'none' }}>
-              <IconDescargar size={14} />Descargar
-            </a>
+            {blobUrl && (
+              <a href={blobUrl} download={ETIQUETA_DOCUMENTO[doc.document_type] || doc.document_type} className="t-foco"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: SOBRE_MONTE.fondo, border: `1px solid ${SOBRE_MONTE.linea}`, color: claro(0.9), padding: '7px 14px', borderRadius: T.rControl, fontSize: '13px', fontWeight: 600, textDecoration: 'none' }}>
+                <IconDescargar size={14} />Descargar
+              </a>
+            )}
             <button onClick={onCerrar} title="Cerrar" aria-label="Cerrar" className="t-foco"
               style={{ background: SOBRE_MONTE.fondo, border: `1px solid ${SOBRE_MONTE.linea}`, color: claro(0.9), width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <IconEquis size={15} />
@@ -146,11 +130,20 @@ const ModalDocumento = ({ doc, onCerrar, token }) => {
 
         {/* Contenido */}
         <div style={{ flex: 1, overflow: 'hidden' }}>
-          {pdf ? (
-            <VisorPDF url={urlPreview} documentId={doc.document_id} token={token} />
+          {cargando ? (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.piedra, fontFamily: T.ui, fontSize: '14px' }}>
+              Cargando documento…
+            </div>
+          ) : error ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '12px', color: T.piedra, fontFamily: T.ui }}>
+              <IconDocumento size={34} />
+              <p style={{ margin: 0, fontSize: '15px' }}>No se pudo cargar el documento.</p>
+            </div>
+          ) : pdf ? (
+            <iframe src={blobUrl} title="Documento" style={{ width: '100%', height: '100%', border: 'none', backgroundColor: T.niebla2 }} />
           ) : (
             <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', boxSizing: 'border-box', backgroundColor: T.niebla2 }}>
-              <img src={urlOriginal} alt="Documento" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }} />
+              <img src={blobUrl} alt="Documento" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }} />
             </div>
           )}
         </div>
