@@ -112,6 +112,7 @@ const Registro = ({ irALogin }) => {
 
   const estiloEtiqueta = { display: 'block', fontSize: '11.5px', fontWeight: 500, color: T.piedra, marginBottom: '6px' };
   const estiloErrorCampo = { fontSize: '11px', color: T.alertaTexto, marginTop: '4px', display: 'block' };
+  const estiloAyudaCampo = { fontSize: '11px', color: T.piedraClara, marginTop: '4px', display: 'block' };
 
   const ojo = (visible, alternar) => (
     <button type="button" className="t-foco" tabIndex={-1} onClick={alternar}
@@ -228,7 +229,9 @@ const Registro = ({ irALogin }) => {
                   <input type="text" name="full_name" placeholder="Juan Pérez" value={formData.full_name}
                     onChange={handleChange} onFocus={() => setCampoActivo('full_name')} onBlur={() => setCampoActivo(null)}
                     style={estiloCampo('full_name', errores.full_name)} disabled={isLoading} />
-                  {errores.full_name && <span style={estiloErrorCampo}>{errores.full_name}</span>}
+                  {errores.full_name
+                    ? <span style={estiloErrorCampo}>{errores.full_name}</span>
+                    : <span style={estiloAyudaCampo}>Solo letras y espacios, sin números.</span>}
                 </div>
 
                 <div>
