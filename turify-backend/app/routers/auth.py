@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
@@ -41,7 +41,10 @@ def register_passenger(user: schemas.UserCreate, request: Request, db: Session =
 
 @router.post("/login", response_model=schemas.TokenResponse)
 @limiter.limit("5/15 minutes")
-def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(request: Request, response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    # `response` no se usa directo: slowapi lo necesita en el propio endpoint
+    # (con ese nombre exacto) para poder inyectarle los headers X-RateLimit-*
+    # y Retry-After cuando headers_enabled=True.
     ip = request.client.host if request.client else None
     user = db.query(models.User).filter(models.User.email == form_data.username).first()
 
