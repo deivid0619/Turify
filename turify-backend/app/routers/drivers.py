@@ -13,6 +13,7 @@ from supabase import create_client, Client
 from app.database import get_db
 from app.security import get_current_user
 from app import models, schemas
+from app.audit import registrar_log
 
 load_dotenv()
 
@@ -66,15 +67,64 @@ def rango_tarifa_km(categoria: str):
     return [1500, 3000]
 
 
-def validar_archivo(file: UploadFile) -> str:
-    """Valida tipo MIME y devuelve la extensión. Lanza HTTPException si no es válido."""
-    content_type = file.content_type or ""
-    if content_type not in TIPOS_PERMITIDOS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Tipo de archivo no permitido: {content_type}. Solo se aceptan PDF, JPG, PNG y WEBP."
+def _detectar_tipo_real(cabecera: bytes) -> str:
+    """
+    Identifica el tipo real de un archivo por sus primeros bytes (magic
+    numbers) — NUNCA por el Content-Type que declara el cliente (se puede
+    falsificar con cualquier herramienta) ni por la extensión del nombre
+    del archivo. Devuelve el MIME type real, o None si no coincide con
+    ninguno de los formatos permitidos.
+    """
+    if cabecera.startswith(b"%PDF-"):
+        return "application/pdf"
+    if cabecera.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if cabecera.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if len(cabecera) >= 12 and cabecera[:4] == b"RIFF" and cabecera[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+async def _leer_y_validar_archivo(
+    file: UploadFile,
+    db: Session = None,
+    current_user: models.User = None,
+) -> tuple[bytes, str]:
+    """
+    Lee el archivo (con un límite de bytes para no cargar en memoria algo
+    mucho más grande que lo permitido) y valida su tipo real y su tamaño.
+    Deja un registro en AuditLog cuando se rechaza un archivo. Devuelve
+    (contenido, extension) si es válido; lanza HTTPException si no.
+    """
+    limite_bytes = TAMANO_MAXIMO_MB * 1024 * 1024
+    contenido = await file.read(limite_bytes + 1)
+
+    def _rechazar(motivo: str, detalle: str):
+        registrar_log(
+            db,
+            action="UPLOAD_RECHAZADO",
+            user_id=current_user.user_id if current_user else None,
+            entity="Upload",
+            detail=detalle,
+        ) if db is not None else None
+        raise HTTPException(status_code=400, detail=motivo)
+
+    if len(contenido) > limite_bytes:
+        _rechazar(
+            f"El archivo supera el límite de {TAMANO_MAXIMO_MB}MB.",
+            f"nombre={file.filename!r} content_type_declarado={file.content_type!r} motivo=excede_tamano_maximo",
         )
-    return TIPOS_PERMITIDOS[content_type]
+
+    tipo_real = _detectar_tipo_real(contenido[:16])
+    if tipo_real is None or tipo_real not in TIPOS_PERMITIDOS:
+        _rechazar(
+            "Tipo de archivo no permitido. Solo se aceptan PDF, JPG, PNG y WEBP.",
+            f"nombre={file.filename!r} content_type_declarado={file.content_type!r} "
+            f"tipo_real_detectado={tipo_real!r} motivo=tipo_no_permitido",
+        )
+
+    return contenido, TIPOS_PERMITIDOS[tipo_real]
 
 
 async def upload_to_supabase(
@@ -82,21 +132,16 @@ async def upload_to_supabase(
     file: UploadFile,
     bucket: str,
     path: str,
+    db: Session = None,
+    current_user: models.User = None,
 ) -> str:
     """
-    Sube un archivo a Supabase Storage y devuelve la URL firmada (expira en 15 min).
-    Para acceso permanente del admin se usa signed URL con TTL largo.
+    Sube un archivo a Supabase Storage y devuelve la URL firmada.
+    El tipo y tamaño se validan por el contenido real del archivo, no por
+    lo que declara el cliente (ver _leer_y_validar_archivo).
     """
-    ext = validar_archivo(file)
-
-    # Leer contenido y validar tamaño
-    contenido = await file.read()
-    tamano_mb = len(contenido) / (1024 * 1024)
-    if tamano_mb > TAMANO_MAXIMO_MB:
-        raise HTTPException(
-            status_code=400,
-            detail=f"El archivo supera el límite de {TAMANO_MAXIMO_MB}MB ({tamano_mb:.1f}MB)."
-        )
+    contenido, ext = await _leer_y_validar_archivo(file, db=db, current_user=current_user)
+    tipo_real = _detectar_tipo_real(contenido[:16])
 
     file_path = f"{path}/{uuid.uuid4()}.{ext}"
 
@@ -104,7 +149,7 @@ async def upload_to_supabase(
         supabase.storage.from_(bucket).upload(
             path=file_path,
             file=contenido,
-            file_options={"content-type": file.content_type}
+            file_options={"content-type": tipo_real},
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error subiendo archivo a Supabase: {str(e)}")
@@ -172,7 +217,8 @@ async def register_driver_info(
         user_db.age = age
         user_db.affiliated_company = affiliated_company
         user_db.profile_photo_url = await upload_to_supabase(
-            supabase, profile_photo, "turify-fotos", f"{base_path}/profile"
+            supabase, profile_photo, "turify-fotos", f"{base_path}/profile",
+            db=db, current_user=current_user,
         )
 
         # B. Vehículo — solo si no tiene uno ya
@@ -182,7 +228,8 @@ async def register_driver_info(
 
         if not vehiculo_existente:
             vehicle_photo_url = await upload_to_supabase(
-                supabase, vehicle_photo, "turify-fotos", f"{base_path}/vehicle"
+                supabase, vehicle_photo, "turify-fotos", f"{base_path}/vehicle",
+                db=db, current_user=current_user,
             )
             new_vehicle = models.Vehicle(
                 owner_id=current_user.user_id,
@@ -224,7 +271,8 @@ async def register_driver_info(
                 continue  # Ya existe y no fue rechazado, no tocar
 
             secure_url = await upload_to_supabase(
-                supabase, file_obj, "turify-documentos", f"{base_path}/{nombre_clave}"
+                supabase, file_obj, "turify-documentos", f"{base_path}/{nombre_clave}",
+                db=db, current_user=current_user,
             )
 
             if doc_previo:
@@ -288,7 +336,10 @@ async def upload_runt(
 
     supabase = get_supabase()
     base_path = f"drivers/{current_user.user_id}"
-    secure_url = await upload_to_supabase(supabase, doc_runt, "turify-documentos", f"{base_path}/runt")
+    secure_url = await upload_to_supabase(
+        supabase, doc_runt, "turify-documentos", f"{base_path}/runt",
+        db=db, current_user=current_user,
+    )
 
     runt_previo = db.query(models.Document).filter(
         models.Document.user_id == current_user.user_id,
