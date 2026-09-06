@@ -228,6 +228,7 @@ const Dashboard = () => {
   const [tema, alternarTema] = useTema();
   const [confirmandoCancelarId, setConfirmandoCancelarId] = useState(null);
   const [cancelandoId, setCancelandoId] = useState(null);
+  const [republicandoId, setRepublicandoId] = useState(null);
   const [rechazandoOfertaId, setRechazandoOfertaId] = useState(null);
   const [actualizandoViajes, setActualizandoViajes] = useState(false);
 
@@ -920,6 +921,10 @@ const Dashboard = () => {
           estado: ofertas.length > 0 ? 'Oferta recibida' : 'Buscando conductor',
           fechaCreacion: new Date(v.created_at || Date.now()).toLocaleDateString(),
           created_at: v.created_at,
+          // HU55.1 — para el aviso de "sin ofertas" en Estándar y para poder
+          // republicar el mismo viaje como Económico con un clic.
+          tipo_servicio: v.tipo_servicio || 'ECONOMICO',
+          _datosOriginales: v,
           ofertas
         };
       }));
@@ -1009,6 +1014,60 @@ const Dashboard = () => {
     } finally {
       setCancelandoId(null);
       setConfirmandoCancelarId(null);
+    }
+  };
+
+  // HU55.1 — si un viaje Estándar lleva MINUTOS_AVISO_SIN_OFERTAS sin ninguna
+  // oferta, seguramente el filtro de comodidades dejó muy poca (o ninguna)
+  // buseta que pueda ofertar. En vez de dejar al pasajero esperando
+  // indefinidamente, se le ofrece republicar el mismo viaje como Económico
+  // (sin exigir comodidades) con un solo clic: cancela la solicitud Estándar
+  // y crea una nueva idéntica salvo por el tipo de servicio.
+  const republicarComoEconomico = async (viaje) => {
+    const d = viaje._datosOriginales;
+    if (!d) return;
+    setRepublicandoId(viaje.id);
+    try {
+      const resCancel = await fetch(`${API_BASE_URL}/api/service-requests/${viaje.id}/cancel`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (!resCancel.ok) {
+        const err = await resCancel.json().catch(() => ({}));
+        throw new Error(err.detail || 'No se pudo cancelar la búsqueda Estándar.');
+      }
+
+      const payload = {
+        origin: d.origin,
+        destination: d.destination,
+        departure_time: d.departure_time,
+        return_time: d.return_time || null,
+        trip_type: d.trip_type,
+        adults_count: d.adults_count,
+        children_count: d.children_count,
+        has_pets: d.has_pets,
+        origin_lat: d.origin_lat,
+        origin_lng: d.origin_lng,
+        destination_lat: d.destination_lat,
+        destination_lng: d.destination_lng,
+        tipo_servicio: 'ECONOMICO',
+      };
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'No se pudo republicar el viaje.');
+      }
+
+      toast.success('Viaje republicado como Económico — ahora cualquier buseta puede ofertarte.');
+      await cargarMisViajes();
+    } catch (error) {
+      toast.error(`Error: ${error.message}`);
+    } finally {
+      setRepublicandoId(null);
     }
   };
 
@@ -1901,7 +1960,19 @@ const Dashboard = () => {
                       <span>{viaje.seats_needed}</span>
                     </div>
 
-                    {avisoSinOfertas && (
+                    {avisoSinOfertas && viaje.tipo_servicio === 'ESTANDAR' && (
+                      <div onClick={e => e.stopPropagation()} style={{ marginTop: '8px', padding: '8px 10px', background: 'var(--t-chiva-suave)', border: '1px solid var(--t-chiva-linea)', borderRadius: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '5px', fontSize: '12px', color: 'var(--t-chiva-texto)', marginBottom: '6px' }}>
+                          <IconAlerta size={12} style={{ flexShrink: 0, marginTop: '1px' }} />
+                          <span>Llevas {MINUTOS_AVISO_SIN_OFERTAS} min sin ofertas — puede que muy pocas busetas tengan las comodidades que pediste.</span>
+                        </div>
+                        <button onClick={() => republicarComoEconomico(viaje)} disabled={republicandoId === viaje.id}
+                          style={{ width: '100%', background: republicandoId === viaje.id ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '7px', padding: '7px', fontSize: '12px', fontWeight: '700', cursor: republicandoId === viaje.id ? 'not-allowed' : 'pointer' }}>
+                          {republicandoId === viaje.id ? 'Republicando…' : 'Publicar como Económico'}
+                        </button>
+                      </div>
+                    )}
+                    {avisoSinOfertas && viaje.tipo_servicio !== 'ESTANDAR' && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '8px', fontSize: '12px', color: 'var(--t-chiva-texto)' }}>
                         <IconAlerta size={12} style={{ flexShrink: 0 }} />
                         <span>Seguimos buscando conductores en tu zona.</span>
