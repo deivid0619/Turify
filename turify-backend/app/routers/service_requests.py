@@ -185,19 +185,22 @@ def create_service_request(
                 models.User.current_lng.isnot(None),
             ).all()
 
-            # HU55 — las comodidades ya NO excluyen a nadie de la notificación inicial
-            # (filtro flexible): un conductor que cumple 2 de 3 comodidades pedidas
-            # igual se entera del viaje y puede ofertar — el pasajero ve, al revisar
-            # las ofertas, cuáles comodidades cumple cada uno y cuáles le faltan, y
-            # decide con esa información. El filtro solo se usa para PRIORIZAR el
-            # orden en que se notifica dentro de cada radio (primero los que más
-            # coinciden), no para dejar a nadie fuera.
+            # HU55.1 — en ECONOMICO las comodidades no excluyen a nadie de la
+            # notificación inicial (solo se usan para ordenar, primero los que más
+            # coinciden). En ESTANDAR sí excluyen: no tendría sentido notificarle a
+            # un conductor un viaje que después, al abrir el radar, no va a poder
+            # ni ver ni ofertar porque no cumple todas las comodidades exigidas.
             conductores_a_notificar = []
             for radio in RADIOS_NOTIFICACION_KM:
                 candidatos_en_radio = [
                     c for c in conductores_online
                     if _distancia_km(new_request.search_lat, new_request.search_lng, c.current_lat, c.current_lng) <= radio
                 ]
+                if new_request.tipo_servicio == "ESTANDAR":
+                    candidatos_en_radio = [
+                        c for c in candidatos_en_radio
+                        if _match_comodidades(db, c, new_request)["cumple_todas"]
+                    ]
                 if candidatos_en_radio:
                     conductores_a_notificar = sorted(
                         candidatos_en_radio,
