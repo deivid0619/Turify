@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from passlib.context import CryptContext # <--- Agregada
 from datetime import datetime, timedelta # <--- Agregada (para el tiempo de vida del token)
 from typing import Optional # <--- Agregada
@@ -77,6 +78,16 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     
     if user is None:
         raise credentials_exception
-        
+
+    # HU seguridad (OWASP A01) - le avisamos a Postgres quien es el usuario
+    # actual para que las politicas RLS puedan filtrar por el. db.info queda
+    # guardado en la sesion para que se reaplique solo en cada transaccion
+    # nueva (ver app/database.py); ademas lo aplicamos ya mismo para la
+    # transaccion en curso.
+    db.info['rls_user_id'] = user.user_id
+    db.info['rls_role'] = user.role
+    db.execute(text("SET LOCAL app.current_user_id = :v"), {"v": str(user.user_id)})
+    db.execute(text("SET LOCAL app.current_role = :v"), {"v": user.role})
+
     # 4. Devolvemos el usuario validado
     return user
