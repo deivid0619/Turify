@@ -52,3 +52,10 @@ app.include_router(auth.router)
 app.include_router(drivers.router)
 app.include_router(service_requests.router)
 app.include_router(admin.router)
+
+# Endpoint de salud liviano, sin autenticacion ni logica de negocio -- lo usan
+# las plataformas de despliegue (Render, Railway, etc.) para saber si el
+# contenedor esta arriba y respondiendo.
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
