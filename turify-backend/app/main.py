@@ -5,6 +5,10 @@ from app.database import engine, Base, SessionLocal
 from app.audit import registrar_log
 from app.security_headers import SecurityHeadersMiddleware
 from app.error_handlers import registrar_manejadores_de_errores, ES_PRODUCCION
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from app.rate_limit import limiter
 
 # Crea las tablas automáticamente (incluye AuditLog)
 Base.metadata.create_all(bind=engine)
@@ -19,6 +23,14 @@ app = FastAPI(
 )
 
 registrar_manejadores_de_errores(app)
+
+# HU seguridad (OWASP A07) — rate limiting global por IP. El limite fijo de
+# /users/login (5 intentos / 15 min) se agrega directamente en ese endpoint;
+# este limite general es una defensa adicional contra abuso/DoS en el resto
+# de la API.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # HU31 — Cabeceras de seguridad HTTP (X-Frame-Options, X-Content-Type-Options,
 # Content-Security-Policy, Strict-Transport-Security).

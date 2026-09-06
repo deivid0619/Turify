@@ -6,6 +6,7 @@ from app import models, schemas, security
 from fastapi.security import OAuth2PasswordRequestForm
 from app.security import get_current_user, get_password_hash, verify_password, create_access_token
 from app.audit import registrar_log
+from app.rate_limit import limiter
 
 router = APIRouter(prefix="/users", tags=["Authentication"])
 
@@ -39,6 +40,7 @@ def register_passenger(user: schemas.UserCreate, request: Request, db: Session =
     return new_user
 
 @router.post("/login", response_model=schemas.TokenResponse)
+@limiter.limit("5/15 minutes")
 def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     ip = request.client.host if request.client else None
     user = db.query(models.User).filter(models.User.email == form_data.username).first()
