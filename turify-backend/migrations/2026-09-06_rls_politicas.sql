@@ -84,6 +84,78 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO tu
 -- "postgres", como ya venías haciendo con los archivos de migrations/.
 
 
+-- ── 1.5 Funciones auxiliares (evitan la recursión entre políticas) ──────────
+-- Postgres detecta y rechaza ("infinite recursion detected in policy") una
+-- política que, para decidir si mostrar una fila, necesita consultar OTRA
+-- tabla cuya propia política RLS vuelve a consultar la primera (por ejemplo:
+-- la política de User consulta DriverOffer/ServiceRequest, y la de
+-- ServiceRequest consulta DriverOffer, que a su vez consulta ServiceRequest).
+--
+-- La forma estándar de resolverlo es mover esas comprobaciones a funciones
+-- SECURITY DEFINER: se ejecutan con los permisos de quien las creó (acá,
+-- "postgres", que se salta el RLS), así la consulta de adentro no vuelve a
+-- disparar ninguna política y el ciclo nunca se arma.
+CREATE OR REPLACE FUNCTION rls_conectados_por_oferta_aceptada(p_user_a int, p_user_b int)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM "DriverOffer" do_
+    JOIN "ServiceRequest" sr_ ON sr_.request_id = do_.request_id
+    WHERE do_.status = 'ACCEPTED'
+      AND p_user_a IN (sr_.passenger_id, do_.driver_id)
+      AND p_user_b IN (sr_.passenger_id, do_.driver_id)
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION rls_conductor_tiene_oferta(p_driver_id int, p_request_id int)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM "DriverOffer"
+    WHERE request_id = p_request_id AND driver_id = p_driver_id
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION rls_conductor_oferta_aceptada(p_driver_id int, p_request_id int)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM "DriverOffer"
+    WHERE request_id = p_request_id AND driver_id = p_driver_id AND status = 'ACCEPTED'
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION rls_es_dueno_del_viaje(p_passenger_id int, p_request_id int)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM "ServiceRequest"
+    WHERE request_id = p_request_id AND passenger_id = p_passenger_id
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION rls_conectados_por_oferta_aceptada(int, int) TO turify_app;
+GRANT EXECUTE ON FUNCTION rls_conductor_tiene_oferta(int, int) TO turify_app;
+GRANT EXECUTE ON FUNCTION rls_conductor_oferta_aceptada(int, int) TO turify_app;
+GRANT EXECUTE ON FUNCTION rls_es_dueno_del_viaje(int, int) TO turify_app;
+
+
 -- ── 2. Habilitar RLS en las 5 tablas del alcance de esta HU ─────────────────
 ALTER TABLE "User"           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "ServiceRequest" ENABLE ROW LEVEL SECURITY;
@@ -112,12 +184,9 @@ CREATE POLICY user_select ON "User"
     OR user_id = current_setting('app.current_user_id', true)::int
     OR current_setting('app.current_role', true) = 'ADMIN'
     OR role = 'DRIVER'
-    OR EXISTS (
-      SELECT 1 FROM "DriverOffer" do2
-      JOIN "ServiceRequest" sr2 ON sr2.request_id = do2.request_id
-      WHERE do2.status = 'ACCEPTED'
-        AND current_setting('app.current_user_id', true)::int IN (sr2.passenger_id, do2.driver_id)
-        AND "User".user_id IN (sr2.passenger_id, do2.driver_id)
+    OR rls_conectados_por_oferta_aceptada(
+      current_setting('app.current_user_id', true)::int,
+      "User".user_id
     )
   );
 
@@ -156,10 +225,9 @@ CREATE POLICY servicerequest_select ON "ServiceRequest"
       current_setting('app.current_role', true) = 'DRIVER'
       AND (
         status = 'PENDING'
-        OR EXISTS (
-          SELECT 1 FROM "DriverOffer" do3
-          WHERE do3.request_id = "ServiceRequest".request_id
-            AND do3.driver_id = current_setting('app.current_user_id', true)::int
+        OR rls_conductor_tiene_oferta(
+          current_setting('app.current_user_id', true)::int,
+          "ServiceRequest".request_id
         )
       )
     )
@@ -178,11 +246,9 @@ CREATE POLICY servicerequest_update ON "ServiceRequest"
   USING (
     passenger_id = current_setting('app.current_user_id', true)::int
     OR current_setting('app.current_role', true) = 'ADMIN'
-    OR EXISTS (
-      SELECT 1 FROM "DriverOffer" do4
-      WHERE do4.request_id = "ServiceRequest".request_id
-        AND do4.driver_id = current_setting('app.current_user_id', true)::int
-        AND do4.status = 'ACCEPTED'
+    OR rls_conductor_oferta_aceptada(
+      current_setting('app.current_user_id', true)::int,
+      "ServiceRequest".request_id
     )
   );
 
@@ -196,10 +262,9 @@ CREATE POLICY driveroffer_select ON "DriverOffer"
   USING (
     driver_id = current_setting('app.current_user_id', true)::int
     OR current_setting('app.current_role', true) = 'ADMIN'
-    OR EXISTS (
-      SELECT 1 FROM "ServiceRequest" sr4
-      WHERE sr4.request_id = "DriverOffer".request_id
-        AND sr4.passenger_id = current_setting('app.current_user_id', true)::int
+    OR rls_es_dueno_del_viaje(
+      current_setting('app.current_user_id', true)::int,
+      "DriverOffer".request_id
     )
   );
 
@@ -216,10 +281,9 @@ CREATE POLICY driveroffer_update ON "DriverOffer"
   USING (
     driver_id = current_setting('app.current_user_id', true)::int
     OR current_setting('app.current_role', true) = 'ADMIN'
-    OR EXISTS (
-      SELECT 1 FROM "ServiceRequest" sr5
-      WHERE sr5.request_id = "DriverOffer".request_id
-        AND sr5.passenger_id = current_setting('app.current_user_id', true)::int
+    OR rls_es_dueno_del_viaje(
+      current_setting('app.current_user_id', true)::int,
+      "DriverOffer".request_id
     )
   );
 

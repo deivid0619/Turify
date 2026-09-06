@@ -31,7 +31,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      SQLALCHEMY_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/turify_db
+      SQLALCHEMY_DATABASE_URL: postgresql://turify_app:Turify2026@db:5432/turify_db
       ENV: ${ENV:-development}
       SECRET_KEY: ${SECRET_KEY}
       SUPABASE_URL: ${SUPABASE_URL}
