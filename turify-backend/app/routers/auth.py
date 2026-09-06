@@ -40,7 +40,7 @@ def register_passenger(user: schemas.UserCreate, request: Request, db: Session =
     return new_user
 
 @router.post("/login", response_model=schemas.TokenResponse)
-@limiter.limit("5/15 minutes")
+@limiter.limit("5/5 minutes")
 def login(request: Request, response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     # `response` no se usa directo: slowapi lo necesita en el propio endpoint
     # (con ese nombre exacto) para poder inyectarle los headers X-RateLimit-*

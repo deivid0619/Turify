@@ -24,7 +24,7 @@ app = FastAPI(
 registrar_manejadores_de_errores(app)
 
 # HU seguridad (OWASP A07) — rate limiting global por IP. El limite fijo de
-# /users/login (5 intentos / 15 min) se agrega directamente en ese endpoint;
+# /users/login (5 intentos / 5 min) se agrega directamente en ese endpoint;
 # este limite general es una defensa adicional contra abuso/DoS en el resto
 # de la API.
 app.state.limiter = limiter
