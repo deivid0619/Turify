@@ -1,5 +1,7 @@
+import os
 import httpx
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
@@ -15,6 +17,20 @@ from app.audit import registrar_log
 load_dotenv()
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
+
+# HU (OWASP A10) — únicos hosts a los que este endpoint tiene permitido
+# hacer una petición saliente (Server-Side Request Forgery). file_url
+# siempre debería apuntar al propio proyecto de Supabase Storage, pero
+# validamos explícitamente en vez de confiar ciegamente en el dato
+# guardado en base de datos.
+_SUPABASE_HOST = urlparse(os.getenv("SUPABASE_URL", "")).netloc
+
+def _validar_url_confiable(url: str) -> None:
+    partes = urlparse(url)
+    if partes.scheme != "https" or not partes.netloc:
+        raise HTTPException(status_code=400, detail="URL de documento inválida.")
+    if not _SUPABASE_HOST or partes.netloc != _SUPABASE_HOST:
+        raise HTTPException(status_code=400, detail="El documento no proviene de un origen permitido.")
 
 # --- Schemas locales ---
 class DocumentVerifyRequest(BaseModel):
@@ -165,10 +181,15 @@ async def proxy_documento(
 
     url_original = documento.file_url
 
+    # HU (OWASP A10) — se valida el host antes de hacer la petición saliente,
+    # así una fila de Document con una file_url manipulada no puede usarse
+    # para hacer que el backend consulte una URL arbitraria (SSRF).
+    _validar_url_confiable(url_original)
+
     # Descargar el archivo (Document.file_url ya es una URL firmada de Supabase Storage,
     # no necesita firmarse aparte como pasaba con Cloudinary) y reenviarlo al frontend
     try:
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
             respuesta = await client.get(url_original)
 
             if respuesta.status_code != 200:
