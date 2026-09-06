@@ -80,21 +80,34 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
   // resolver el reCAPTCHA antes de dejar reintentar.
   const [requiereCaptcha, setRequiereCaptcha] = useState(false);
   const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaError, setCaptchaError] = useState(false);
   const captchaRef = useRef(null);
   const captchaWidgetId = useRef(null);
 
   useEffect(() => {
     if (!requiereCaptcha || captchaWidgetId.current !== null) return;
+    const sitekey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+    if (!sitekey) {
+      // Config faltante o incorrecta: mostramos un aviso en vez de dejar que
+      // grecaptcha truene toda la pantalla (lanza una excepcion no atrapada
+      // si falta el sitekey).
+      setCaptchaError(true);
+      return;
+    }
     let cancelado = false;
     const intentarRenderizar = () => {
       if (cancelado) return;
       if (window.grecaptcha && window.grecaptcha.render && captchaRef.current) {
-        captchaWidgetId.current = window.grecaptcha.render(captchaRef.current, {
-          sitekey: import.meta.env.VITE_RECAPTCHA_SITE_KEY,
-          callback: (token) => setCaptchaToken(token),
-          'expired-callback': () => setCaptchaToken(''),
-          'error-callback': () => setCaptchaToken(''),
-        });
+        try {
+          captchaWidgetId.current = window.grecaptcha.render(captchaRef.current, {
+            sitekey,
+            callback: (token) => setCaptchaToken(token),
+            'expired-callback': () => setCaptchaToken(''),
+            'error-callback': () => setCaptchaToken(''),
+          });
+        } catch {
+          setCaptchaError(true);
+        }
       } else {
         setTimeout(intentarRenderizar, 200);
       }
@@ -294,7 +307,15 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
                   </div>
 
                   {requiereCaptcha && (
-                    <div style={{ marginBottom: '16px' }} ref={captchaRef} />
+                    captchaError ? (
+                      <div style={{
+                        fontSize: '12.5px', color: T.alertaTexto, marginBottom: '16px',
+                      }}>
+                        No se pudo cargar la verificación de seguridad. Recargá la página e intentá de nuevo.
+                      </div>
+                    ) : (
+                      <div style={{ marginBottom: '16px' }} ref={captchaRef} />
+                    )
                   )}
 
                   {errorBackend && (
