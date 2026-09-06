@@ -87,7 +87,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     db.info['rls_user_id'] = user.user_id
     db.info['rls_role'] = user.role
     db.execute(text("SET LOCAL app.current_user_id = :v"), {"v": str(user.user_id)})
-    db.execute(text("SET LOCAL app.current_role = :v"), {"v": user.role})
+    db.execute(text("SET LOCAL app.current_user_role = :v"), {"v": user.role})
 
     # 4. Devolvemos el usuario validado
     return user

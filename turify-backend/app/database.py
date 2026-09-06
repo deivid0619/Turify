@@ -33,7 +33,7 @@ def _aplicar_contexto_rls(session, transaction, connection):
     if user_id is not None:
         connection.execute(text("SET LOCAL app.current_user_id = :v"), {"v": str(user_id)})
     if role is not None:
-        connection.execute(text("SET LOCAL app.current_role = :v"), {"v": role})
+        connection.execute(text("SET LOCAL app.current_user_role = :v"), {"v": role})
 
 
 def get_db():

@@ -180,7 +180,7 @@ RETURNS text
 LANGUAGE sql
 STABLE
 AS $$
-  SELECT NULLIF(current_setting('app.current_role', true), '');
+  SELECT NULLIF(current_setting('app.current_user_role', true), '');
 $$;
 
 GRANT EXECUTE ON FUNCTION app_current_user_id() TO turify_app;
