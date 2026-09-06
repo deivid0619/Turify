@@ -4,7 +4,7 @@ from io import BytesIO
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List
@@ -164,6 +164,7 @@ async def upload_to_supabase(
 
 @router.post("/register-details")
 async def register_driver_info(
+    request: Request,
     age: int = Form(...),
     affiliated_company: int = Form(...),
     plate: str = Form(...),
@@ -291,6 +292,19 @@ async def register_driver_info(
                 ))
 
         db.commit()
+
+        # HU seguridad (OWASP A09) — evento crítico: conductor envió sus
+        # documentos obligatorios de registro.
+        registrar_log(
+            db,
+            action="REGISTER_DRIVER",
+            user_id=current_user.user_id,
+            entity="User",
+            entity_id=current_user.user_id,
+            detail="Conductor envió sus documentos de registro (5 documentos obligatorios).",
+            ip_address=request.client.host if request.client else None,
+        )
+
         return {
             "status": "success",
             "message": "Documentos enviados exitosamente. El administrador los revisará pronto."
@@ -311,6 +325,7 @@ async def register_driver_info(
 # "conductor verificado" (HU38) cuando el admin lo aprueba.
 @router.post("/upload-runt")
 async def upload_runt(
+    request: Request,
     years_experience: int = Form(...),
     license_categories: str = Form(None),
     doc_runt: UploadFile = File(...),
@@ -366,6 +381,17 @@ async def upload_runt(
         ))
 
     db.commit()
+
+    # HU seguridad (OWASP A09) — evento de subida de documento (RUNT opcional).
+    registrar_log(
+        db,
+        action="UPLOAD_RUNT",
+        user_id=current_user.user_id,
+        entity="Document",
+        detail=f"Conductor declaró {years_experience} años de experiencia (RUNT).",
+        ip_address=request.client.host if request.client else None,
+    )
+
     return {
         "status": "success",
         "message": "RUNT enviado correctamente. El administrador revisará tu experiencia pronto."

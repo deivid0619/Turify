@@ -19,6 +19,13 @@ RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY")
 UMBRAL_INTENTOS_CAPTCHA = 2
 VENTANA_CAPTCHA_MINUTOS = 5
 
+# HU seguridad (OWASP A09) - a esta misma cantidad de fallos coincide el tope
+# duro de intentos de slowapi (5/5 minutos): al llegar aca la IP ya se va a
+# quedar sin intentos, asi que es la señal para dejar una alerta bien visible
+# en la bitacora del admin (en vez de una LOGIN_FAILED mas, facil de pasar
+# por alto entre el resto).
+UMBRAL_ALERTA_FUERZA_BRUTA = 5
+
 
 def _contar_fallos_recientes(db: Session, ip: str | None) -> int:
     if not ip:
@@ -103,9 +110,24 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
             detail=f"Login fallido para: {form_data.username}",
             ip_address=ip
         )
+
+        intentos_totales = intentos_previos + 1
+
+        # HU seguridad (OWASP A09) - alerta automatica cuando una IP acumula
+        # muchos fallos seguidos (posible fuerza bruta).
+        if intentos_totales >= UMBRAL_ALERTA_FUERZA_BRUTA:
+            registrar_log(
+                db,
+                action="ALERTA_FUERZA_BRUTA",
+                user_id=user.user_id if user else None,
+                entity="User",
+                detail=f"IP {ip} acumuló {intentos_totales} logins fallidos en los últimos {VENTANA_CAPTCHA_MINUTOS} minutos (correo probado: {form_data.username}).",
+                ip_address=ip,
+            )
+
         # Si este fallo hace que se cruce el umbral, avisamos desde ya para
         # que el siguiente intento muestre el captcha.
-        requiere_captcha_despues = (intentos_previos + 1) >= UMBRAL_INTENTOS_CAPTCHA
+        requiere_captcha_despues = intentos_totales >= UMBRAL_INTENTOS_CAPTCHA
         headers = {"X-Captcha-Required": "true"} if requiere_captcha_despues else {}
         raise HTTPException(status_code=400, detail="Email o contraseña incorrectos", headers=headers)
 

@@ -8,7 +8,7 @@ import {
   T, EstilosBase, Chip, Rotulo, LogoWordmark, BotonTema, useTema,
   IconReloj, IconPersona, IconAuto, IconClipboard, IconPrecio,
   IconCandado, IconProhibido, IconMapa, IconChincheta, IconBandeja,
-  IconLupa, IconRecargar, IconFlechaIzq,
+  IconLupa, IconRecargar, IconFlechaIzq, IconAlerta, IconEscudo,
 } from './diseno';
 
 // Texto sobre el verde monte — el monte es oscuro en los dos temas.
@@ -27,23 +27,32 @@ const TONOS = {
 };
 
 const CONFIG_ACCION = {
+  // HU seguridad (OWASP A09) — primero la alerta, para que salte a la vista
+  // apenas se entra al panel de auditoría.
+  ALERTA_FUERZA_BRUTA: { tono: 'alerta', Ico: IconAlerta,     label: 'Alerta: fuerza bruta' },
   LOGIN:             { tono: 'verde',  Ico: IconCandado,    label: 'Ingreso' },
   LOGIN_FAILED:      { tono: 'alerta', Ico: IconProhibido,  label: 'Ingreso fallido' },
   REGISTER:          { tono: 'cielo',  Ico: IconPersona,    label: 'Registro' },
   CREATE_TRIP:       { tono: 'chiva',  Ico: IconMapa,       label: 'Viaje creado' },
   CREATE_OFFER:      { tono: 'chiva',  Ico: IconPrecio,     label: 'Oferta enviada' },
+  ACCEPT_OFFER:      { tono: 'verde',  Ico: IconPrecio,     label: 'Oferta aceptada' },
+  REJECT_OFFER:      { tono: 'alerta', Ico: IconPrecio,     label: 'Oferta rechazada' },
   VERIFY_DOCUMENT:   { tono: 'verde',  Ico: IconClipboard,  label: 'Documento verificado' },
   REGISTER_DRIVER:   { tono: 'cielo',  Ico: IconAuto,       label: 'Registro de conductor' },
+  UPLOAD_RUNT:       { tono: 'cielo',  Ico: IconClipboard,  label: 'RUNT enviado' },
+  ROLE_CHANGE:       { tono: 'chiva',  Ico: IconEscudo,     label: 'Cambio de rol' },
 };
 
 const FILTROS = [
   { value: '', label: 'Todos' },
+  { value: 'ALERTA_FUERZA_BRUTA', label: 'Alertas' },
   { value: 'LOGIN', label: 'Ingresos' },
   { value: 'LOGIN_FAILED', label: 'Ingresos fallidos' },
   { value: 'REGISTER', label: 'Registros' },
   { value: 'CREATE_TRIP', label: 'Viajes' },
   { value: 'CREATE_OFFER', label: 'Ofertas' },
   { value: 'VERIFY_DOCUMENT', label: 'Verificaciones' },
+  { value: 'ROLE_CHANGE', label: 'Cambios de rol' },
 ];
 
 // Fila de la bitácora: los datos oficiales van en monoespaciada.

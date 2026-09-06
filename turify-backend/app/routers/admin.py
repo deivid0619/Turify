@@ -3,7 +3,7 @@ import httpx
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from typing import List
@@ -92,6 +92,7 @@ def get_pending_drivers(
 def verify_document(
     document_id: int,
     payload: DocumentVerifyRequest,
+    request: Request,
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_admin_user)
 ):
@@ -137,6 +138,17 @@ def verify_document(
                 conductor.status = 'ACTIVE'
                 db.commit()
 
+                # HU seguridad (OWASP A09) — evento crítico: cambio de rol.
+                registrar_log(
+                    db,
+                    action="ROLE_CHANGE",
+                    user_id=admin.user_id,
+                    entity="User",
+                    entity_id=conductor.user_id,
+                    detail=f"Usuario #{conductor.user_id} pasó a rol DRIVER (documentos aprobados por admin #{admin.user_id}).",
+                    ip_address=request.client.host if request.client else None,
+                )
+
     # Log de verificación de documento
     registrar_log(
         db,
@@ -144,7 +156,8 @@ def verify_document(
         user_id=admin.user_id,
         entity="Document",
         entity_id=documento.document_id,
-        detail=f"Documento {documento.document_type} {payload.verification_status.lower()} para usuario #{documento.user_id}"
+        detail=f"Documento {documento.document_type} {payload.verification_status.lower()} para usuario #{documento.user_id}",
+        ip_address=request.client.host if request.client else None,
     )
 
     return {

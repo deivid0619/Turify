@@ -1,6 +1,6 @@
 import io
 import json
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -59,7 +59,8 @@ def verificar_comodidades_disponibles(
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_service_request(
-    request_data: schemas.ServiceRequestCreate, 
+    request_data: schemas.ServiceRequestCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user)
 ):
@@ -164,7 +165,8 @@ def create_service_request(
                 "destino": request_data.destination,
                 "tipo_servicio": new_request.tipo_servicio,
                 "comodidades_pedidas": comodidades_pedidas_trip,
-            }, ensure_ascii=False)
+            }, ensure_ascii=False),
+            ip_address=request.client.host if request.client else None,
         )
 
         # HU26 — Notificar (push, vía Supabase Realtime + tabla Notification) a los
@@ -460,6 +462,7 @@ def get_demand_zones(
 async def create_driver_offer(
     request_id: int,
     payload: schemas.OfferCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
@@ -550,7 +553,8 @@ async def create_driver_offer(
             user_id=current_user.user_id,
             entity="DriverOffer",
             entity_id=new_offer.offer_id,
-            detail=f"Oferta de ${new_offer.offered_price} para solicitud #{request_id}"
+            detail=f"Oferta de ${new_offer.offered_price} para solicitud #{request_id}",
+            ip_address=request.client.host if request.client else None,
         )
 
         return {
@@ -1064,6 +1068,7 @@ def counter_offer(
 @router.patch("/offers/{offer_id}/accept")
 def accept_offer(
     offer_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user)
 ):
@@ -1106,7 +1111,8 @@ def accept_offer(
         user_id=current_user.user_id,
         entity="DriverOffer",
         entity_id=oferta.offer_id,
-        detail=f"Oferta #{offer_id} aceptada. Viaje #{oferta.request_id} asignado al conductor #{oferta.driver_id}"
+        detail=f"Oferta #{offer_id} aceptada. Viaje #{oferta.request_id} asignado al conductor #{oferta.driver_id}",
+        ip_address=request.client.host if request.client else None,
     )
 
     # Notificar al conductor que su oferta fue aceptada
@@ -1151,6 +1157,7 @@ def accept_offer(
 @router.patch("/offers/{offer_id}/reject")
 def reject_offer(
     offer_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user)
 ):
@@ -1180,7 +1187,8 @@ def reject_offer(
         user_id=current_user.user_id,
         entity="DriverOffer",
         entity_id=oferta.offer_id,
-        detail=f"Pasajero rechazó la oferta #{offer_id} del viaje #{oferta.request_id}"
+        detail=f"Pasajero rechazó la oferta #{offer_id} del viaje #{oferta.request_id}",
+        ip_address=request.client.host if request.client else None,
     )
 
     crear_notificacion(

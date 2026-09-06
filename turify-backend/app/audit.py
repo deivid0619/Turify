@@ -21,7 +21,10 @@ def registrar_log(
     - CREATE_TRIP        : Pasajero crea solicitud de viaje
     - CREATE_OFFER       : Conductor envía oferta
     - VERIFY_DOCUMENT    : Admin aprueba o rechaza documento
-    - REGISTER_DRIVER    : Conductor envía documentos
+    - REGISTER_DRIVER    : Conductor envía sus documentos de registro
+    - UPLOAD_RUNT        : Conductor envía el RUNT (opcional, post-registro)
+    - ROLE_CHANGE        : Cambio de rol de un usuario (ej. PASSENGER -> DRIVER)
+    - ALERTA_FUERZA_BRUTA: Una IP acumuló muchos logins fallidos seguidos
     """
     try:
         log = models.AuditLog(
