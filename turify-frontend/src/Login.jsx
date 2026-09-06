@@ -75,7 +75,36 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [campoActivo, setCampoActivo] = useState(null);
 
-  const isFormValid = formData.email.includes('@') && formData.password.length > 0;
+  // HU seguridad (OWASP A07) — el backend avisa (header X-Captcha-Required)
+  // cuando esta IP acumuló varios intentos fallidos; a partir de ahí exigimos
+  // resolver el reCAPTCHA antes de dejar reintentar.
+  const [requiereCaptcha, setRequiereCaptcha] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const captchaRef = useRef(null);
+  const captchaWidgetId = useRef(null);
+
+  useEffect(() => {
+    if (!requiereCaptcha || captchaWidgetId.current !== null) return;
+    let cancelado = false;
+    const intentarRenderizar = () => {
+      if (cancelado) return;
+      if (window.grecaptcha && window.grecaptcha.render && captchaRef.current) {
+        captchaWidgetId.current = window.grecaptcha.render(captchaRef.current, {
+          sitekey: import.meta.env.VITE_RECAPTCHA_SITE_KEY,
+          callback: (token) => setCaptchaToken(token),
+          'expired-callback': () => setCaptchaToken(''),
+          'error-callback': () => setCaptchaToken(''),
+        });
+      } else {
+        setTimeout(intentarRenderizar, 200);
+      }
+    };
+    intentarRenderizar();
+    return () => { cancelado = true; };
+  }, [requiereCaptcha]);
+
+  const isFormValid = formData.email.includes('@') && formData.password.length > 0
+    && (!requiereCaptcha || Boolean(captchaToken));
   const copy = COPY_POR_VISTA[vista];
 
   const handleChange = (e) => {
@@ -91,12 +120,22 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
     const urlEncodedData = new URLSearchParams();
     urlEncodedData.append('username', formData.email);
     urlEncodedData.append('password', formData.password);
+    if (captchaToken) urlEncodedData.append('captcha_token', captchaToken);
     try {
       const response = await fetch(`${API_BASE_URL}/users/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'ngrok-skip-browser-warning': 'true' },
         body: urlEncodedData
       });
+
+      // El token de reCAPTCHA es de un solo uso: haya salido bien o mal el
+      // intento, si se mostró el widget hay que resetearlo para el próximo.
+      if (captchaWidgetId.current !== null && window.grecaptcha) {
+        window.grecaptcha.reset(captchaWidgetId.current);
+      }
+      setCaptchaToken('');
+      if (response.headers.get('x-captcha-required') === 'true') setRequiereCaptcha(true);
+
       if (response.ok) {
         const data = await response.json();
         localStorage.setItem('token', data.access_token);
@@ -253,6 +292,10 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
                       </button>
                     </div>
                   </div>
+
+                  {requiereCaptcha && (
+                    <div style={{ marginBottom: '16px' }} ref={captchaRef} />
+                  )}
 
                   {errorBackend && (
                     <div style={{

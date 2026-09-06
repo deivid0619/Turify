@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
+import os
+import httpx
+from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
@@ -9,6 +12,36 @@ from app.audit import registrar_log
 from app.rate_limit import limiter
 
 router = APIRouter(prefix="/users", tags=["Authentication"])
+
+# HU seguridad (OWASP A07) - reCAPTCHA v2 en el login, solo despues de que
+# una IP acumula intentos fallidos recientes (no en cada login normal).
+RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY")
+UMBRAL_INTENTOS_CAPTCHA = 2
+VENTANA_CAPTCHA_MINUTOS = 5
+
+
+def _contar_fallos_recientes(db: Session, ip: str | None) -> int:
+    if not ip:
+        return 0
+    desde = datetime.now(timezone.utc) - timedelta(minutes=VENTANA_CAPTCHA_MINUTOS)
+    return db.query(models.AuditLog).filter(
+        models.AuditLog.action == "LOGIN_FAILED",
+        models.AuditLog.ip_address == ip,
+        models.AuditLog.created_at >= desde,
+    ).count()
+
+
+def _verificar_captcha(token: str | None, ip: str | None) -> bool:
+    if not token or not RECAPTCHA_SECRET_KEY:
+        return False
+    try:
+        datos = {"secret": RECAPTCHA_SECRET_KEY, "response": token}
+        if ip:
+            datos["remoteip"] = ip
+        resultado = httpx.post("https://www.google.com/recaptcha/api/siteverify", data=datos, timeout=10)
+        return bool(resultado.json().get("success"))
+    except Exception:
+        return False
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register_passenger(user: schemas.UserCreate, request: Request, db: Session = Depends(get_db)):
@@ -41,11 +74,24 @@ def register_passenger(user: schemas.UserCreate, request: Request, db: Session =
 
 @router.post("/login", response_model=schemas.TokenResponse)
 @limiter.limit("5/5 minutes")
-def login(request: Request, response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(request: Request, response: Response, form_data: OAuth2PasswordRequestForm = Depends(),
+          captcha_token: str | None = Form(None), db: Session = Depends(get_db)):
     # `response` no se usa directo: slowapi lo necesita en el propio endpoint
     # (con ese nombre exacto) para poder inyectarle los headers X-RateLimit-*
     # y Retry-After cuando headers_enabled=True.
     ip = request.client.host if request.client else None
+
+    # HU seguridad (OWASP A07) - a partir de UMBRAL_INTENTOS_CAPTCHA fallos
+    # recientes de esa IP, exigimos un reCAPTCHA valido antes de siquiera
+    # revisar la contraseña.
+    intentos_previos = _contar_fallos_recientes(db, ip)
+    if intentos_previos >= UMBRAL_INTENTOS_CAPTCHA and not _verificar_captcha(captcha_token, ip):
+        raise HTTPException(
+            status_code=400,
+            detail="Verifica que no eres un robot para continuar.",
+            headers={"X-Captcha-Required": "true"},
+        )
+
     user = db.query(models.User).filter(models.User.email == form_data.username).first()
 
     if not user or not security.verify_password(form_data.password, user.password_hash):
@@ -57,7 +103,11 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
             detail=f"Login fallido para: {form_data.username}",
             ip_address=ip
         )
-        raise HTTPException(status_code=400, detail="Email o contraseña incorrectos")
+        # Si este fallo hace que se cruce el umbral, avisamos desde ya para
+        # que el siguiente intento muestre el captcha.
+        requiere_captcha_despues = (intentos_previos + 1) >= UMBRAL_INTENTOS_CAPTCHA
+        headers = {"X-Captcha-Required": "true"} if requiere_captcha_despues else {}
+        raise HTTPException(status_code=400, detail="Email o contraseña incorrectos", headers=headers)
 
     access_token = security.create_access_token(data={"sub": str(user.user_id)})
 

@@ -41,6 +41,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # HU seguridad (OWASP A07) - por defecto el navegador oculta los headers
+    # de respuesta que no esten en esta lista; sin esto, el frontend nunca
+    # veria X-Captcha-Required aunque el backend si lo mande.
+    expose_headers=["X-Captcha-Required"],
 )
 
 # Routers
