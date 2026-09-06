@@ -11,6 +11,25 @@ import AdminConductores from './AdminConductores';
 import AdminLogs from './AdminLogs';
 import PerfilConductorPagina from './PerfilConductorPagina';
 
+// Clave para recordar la intención (pasajero/conductor) del lado del navegador.
+// El state de React Router (location.state) no sobrevive a un F5 ni a que la
+// persona cierre la pestaña y vuelva más tarde a loguearse — localStorage sí.
+// Se borra apenas se usa una vez (ver onLoginSuccess), no queda pegada para
+// siempre.
+const CLAVE_INTENT = 'turify_intent';
+
+const guardarIntent = (valor) => {
+  try { localStorage.setItem(CLAVE_INTENT, valor || ''); } catch { /* modo privado, etc. */ }
+};
+
+const leerIntent = () => {
+  try { return localStorage.getItem(CLAVE_INTENT) || undefined; } catch { return undefined; }
+};
+
+const borrarIntent = () => {
+  try { localStorage.removeItem(CLAVE_INTENT); } catch { /* noop */ }
+};
+
 const LoginConNavegacion = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -18,13 +37,20 @@ const LoginConNavegacion = () => {
   // Si volviste acá después de registrarte desde la pestaña "Conducir", lo
   // recordamos para (a) seguir mostrando esa pestaña y (b) mandarte directo
   // al formulario de conductor en vez del dashboard genérico al loguearte.
-  const intent = location.state?.intent;
+  // location.state cubre la navegación normal dentro de la SPA; si se perdió
+  // (recargaste la página, cerraste y volviste más tarde) se recupera de
+  // localStorage.
+  const intent = location.state?.intent ?? leerIntent();
   return (
     <Login
       vistaInicial={intent === 'conductor' ? 'conducir' : undefined}
-      irARegistro={(nuevoIntent) => navigate('/registro', { state: { intent: nuevoIntent } })}
+      irARegistro={(nuevoIntent) => {
+        guardarIntent(nuevoIntent);
+        navigate('/registro', { state: { intent: nuevoIntent } });
+      }}
       onLoginSuccess={(token) => {
         iniciarSesion(token);
+        borrarIntent();
         navigate(intent === 'conductor' ? '/registro-conductor' : '/dashboard');
       }}
     />
@@ -68,4 +94,4 @@ function App() {
   );
 }
 
-export default App;
+export default App;
