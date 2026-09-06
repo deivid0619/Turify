@@ -65,8 +65,10 @@ const TableroEnVivo = () => {
   );
 };
 
-const Login = ({ irARegistro, onLoginSuccess }) => {
-  const [vista, setVista] = useState('viajar'); // 'viajar' | 'conducir' | 'quienes'
+const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
+  // Si venís de elegir "Conducir" antes de registrarte, al volver a esta
+  // pantalla (a loguearte) seguimos mostrando esa pestaña, no la genérica.
+  const [vista, setVista] = useState(vistaInicial || 'viajar'); // 'viajar' | 'conducir' | 'quienes'
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [errorBackend, setErrorBackend] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -277,7 +279,7 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
                   <span style={{ flex: 1, height: '1px', background: T.linea }} />
                 </div>
 
-                <Boton type="button" variante="fantasma" ancho onClick={irARegistro}>
+                <Boton type="button" variante="fantasma" ancho onClick={() => irARegistro('pasajero')}>
                   Crear cuenta
                 </Boton>
               </div>
@@ -305,7 +307,7 @@ const Login = ({ irARegistro, onLoginSuccess }) => {
                   </li>
                 </ul>
 
-                <Boton type="button" ancho onClick={irARegistro}>Crear cuenta y empezar</Boton>
+                <Boton type="button" ancho onClick={() => irARegistro('conductor')}>Crear cuenta y empezar</Boton>
                 <p style={{ textAlign: 'center', fontSize: '13px', color: T.piedra, margin: '18px 0 0' }}>
                   ¿Ya tenés cuenta? <button type="button" className="login-enlace t-foco" onClick={() => setVista('viajar')}>Entrá acá</button>
                 </p>

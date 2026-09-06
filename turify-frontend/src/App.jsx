@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useContext } from 'react';
 import { AuthContext } from './AuthContext';
 import { AuthProvider } from './AuthProvider';
@@ -13,13 +13,19 @@ import PerfilConductorPagina from './PerfilConductorPagina';
 
 const LoginConNavegacion = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { iniciarSesion } = useContext(AuthContext);
+  // Si volviste acá después de registrarte desde la pestaña "Conducir", lo
+  // recordamos para (a) seguir mostrando esa pestaña y (b) mandarte directo
+  // al formulario de conductor en vez del dashboard genérico al loguearte.
+  const intent = location.state?.intent;
   return (
     <Login
-      irARegistro={() => navigate('/registro')}
+      vistaInicial={intent === 'conductor' ? 'conducir' : undefined}
+      irARegistro={(nuevoIntent) => navigate('/registro', { state: { intent: nuevoIntent } })}
       onLoginSuccess={(token) => {
         iniciarSesion(token);
-        navigate('/dashboard');
+        navigate(intent === 'conductor' ? '/registro-conductor' : '/dashboard');
       }}
     />
   );
@@ -27,7 +33,9 @@ const LoginConNavegacion = () => {
 
 const RegistroConNavegacion = () => {
   const navigate = useNavigate();
-  return <Registro irALogin={() => navigate('/login')} />;
+  const location = useLocation();
+  const intent = location.state?.intent;
+  return <Registro irALogin={() => navigate('/login', { state: { intent } })} />;
 };
 
 function App() {
@@ -60,4 +68,4 @@ function App() {
   );
 }
 
-export default App;
+export default App;
