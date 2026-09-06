@@ -1770,7 +1770,7 @@ const Dashboard = () => {
                         ['tiene_sillas_reclinables', 'Sillas reclinables'],
                         ['tiene_cargador_usb', 'Cargador USB'],
                         ['tiene_tv', 'Televisor'],
-                        ['tiene_buen_audio', 'Buen audio'],
+                        ['tiene_buen_audio', 'Sonido de alta fidelidad'],
                         ['acepta_mascotas', 'Acepta mascotas'],
                       ].map(([campo, etiqueta]) => (
                         <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--t-tinta)', cursor: 'pointer' }}>
@@ -2256,13 +2256,13 @@ const Dashboard = () => {
                                 [oferta.comodidades.tiene_ac, 'Aire acondicionado'],
                                 [oferta.comodidades.tiene_wifi, 'WiFi'],
                                 [oferta.comodidades.tiene_bano, 'Baño'],
-                                [oferta.comodidades.tiene_musica, 'Música'],
+                                [oferta.comodidades.tiene_musica, 'Bluetooth'],
                                 [oferta.comodidades.tiene_maletero_amplio, 'Maletero amplio'],
                                 [oferta.comodidades.tiene_sillas_bebe, 'Sillas para bebé'],
                                 [oferta.comodidades.tiene_sillas_reclinables, 'Sillas reclinables'],
                                 [oferta.comodidades.tiene_cargador_usb, 'Cargador USB'],
                                 [oferta.comodidades.tiene_tv, 'Televisor'],
-                                [oferta.comodidades.tiene_buen_audio, 'Buen audio'],
+                                [oferta.comodidades.tiene_buen_audio, 'Sonido de alta fidelidad'],
                                 [oferta.comodidades.acepta_mascotas, 'Acepta mascotas'],
                               ].filter(([activo]) => activo).map(([, etiqueta]) => (
                                 <span key={etiqueta} style={{ background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: '1px solid var(--t-linea)', borderRadius: '100px', padding: '3px 9px', fontSize: '12px', fontWeight: '600' }}>

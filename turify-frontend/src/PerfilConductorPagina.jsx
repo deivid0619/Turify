@@ -17,13 +17,13 @@ const ETIQUETAS_COMODIDAD = [
   ['tiene_ac', 'Aire acondicionado'],
   ['tiene_wifi', 'WiFi'],
   ['tiene_bano', 'Baño'],
-  ['tiene_musica', 'Música'],
+  ['tiene_musica', 'Bluetooth'],
   ['tiene_maletero_amplio', 'Maletero amplio'],
   ['tiene_sillas_bebe', 'Sillas para bebé'],
   ['tiene_sillas_reclinables', 'Sillas reclinables'],
   ['tiene_cargador_usb', 'Cargador USB'],
   ['tiene_tv', 'Televisor'],
-  ['tiene_buen_audio', 'Buen audio'],
+  ['tiene_buen_audio', 'Sonido de alta fidelidad'],
   ['acepta_mascotas', 'Acepta mascotas'],
 ];
 

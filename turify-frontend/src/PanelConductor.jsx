@@ -1340,13 +1340,13 @@ const PanelConductor = ({ onVerRuta }) => {
                     ['tiene_ac', 'Aire acondicionado'],
                     ['tiene_wifi', 'WiFi'],
                     ['tiene_bano', 'Baño'],
-                    ['tiene_musica', 'Música'],
+                    ['tiene_musica', 'Bluetooth'],
                     ['tiene_maletero_amplio', 'Maletero amplio'],
                     ['tiene_sillas_bebe', 'Sillas para bebé'],
                     ['tiene_sillas_reclinables', 'Sillas reclinables'],
                     ['tiene_cargador_usb', 'Cargador USB'],
                     ['tiene_tv', 'Televisor'],
-                    ['tiene_buen_audio', 'Buen audio'],
+                    ['tiene_buen_audio', 'Sonido de alta fidelidad'],
                   ].map(([campo, etiqueta]) => (
                     <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px', color: 'var(--t-tinta)', border: '1px solid var(--t-linea)', borderRadius: '8px', padding: '8px 10px', cursor: 'pointer' }}>
                       <input type="checkbox" checked={!!formVehiculo[campo]}
