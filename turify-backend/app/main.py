@@ -5,10 +5,9 @@ from app.database import engine, Base, SessionLocal
 from app.audit import registrar_log
 from app.security_headers import SecurityHeadersMiddleware
 from app.error_handlers import registrar_manejadores_de_errores, ES_PRODUCCION
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from app.rate_limit import limiter
+from app.rate_limit import limiter, manejar_limite_excedido
 
 # Crea las tablas automáticamente (incluye AuditLog)
 Base.metadata.create_all(bind=engine)
@@ -29,7 +28,7 @@ registrar_manejadores_de_errores(app)
 # este limite general es una defensa adicional contra abuso/DoS en el resto
 # de la API.
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, manejar_limite_excedido)
 app.add_middleware(SlowAPIMiddleware)
 
 # HU31 — Cabeceras de seguridad HTTP (X-Frame-Options, X-Content-Type-Options,
