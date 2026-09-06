@@ -156,6 +156,37 @@ GRANT EXECUTE ON FUNCTION rls_conductor_oferta_aceptada(int, int) TO turify_app;
 GRANT EXECUTE ON FUNCTION rls_es_dueno_del_viaje(int, int) TO turify_app;
 
 
+-- ── 1.6 Funciones de contexto NULL-safe (evitan castear "" a integer) ──────
+-- Postgres, la primera vez que se usa un parámetro de sesión "custom" (como
+-- app.current_user_id) con SET LOCAL, deja creado un "placeholder" para ese
+-- parámetro a nivel de la conexión física. Cuando esa transacción termina,
+-- el parámetro NO vuelve a quedar realmente "sin definir": queda con texto
+-- vacío (""), no NULL. Como get_current_user() necesita primero LEER al
+-- usuario (para saber quién es) ANTES de poder hacer el SET LOCAL de esa
+-- misma petición, esa primera consulta puede toparse con "" en vez de NULL
+-- en conexiones ya reutilizadas del pool -- y castear "" a integer explota
+-- ("invalid input syntax for type integer"). Estas funciones normalizan ""
+-- a NULL antes de castear, para todos los usos de abajo.
+CREATE OR REPLACE FUNCTION app_current_user_id()
+RETURNS int
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT NULLIF(current_setting('app.current_user_id', true), '')::int;
+$$;
+
+CREATE OR REPLACE FUNCTION app_current_role()
+RETURNS text
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT NULLIF(current_setting('app.current_role', true), '');
+$$;
+
+GRANT EXECUTE ON FUNCTION app_current_user_id() TO turify_app;
+GRANT EXECUTE ON FUNCTION app_current_role() TO turify_app;
+
+
 -- ── 2. Habilitar RLS en las 5 tablas del alcance de esta HU ─────────────────
 ALTER TABLE "User"           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "ServiceRequest" ENABLE ROW LEVEL SECURITY;
@@ -180,12 +211,12 @@ DROP POLICY IF EXISTS user_select ON "User";
 CREATE POLICY user_select ON "User"
   FOR SELECT
   USING (
-    current_setting('app.current_user_id', true) IS NULL
-    OR user_id = current_setting('app.current_user_id', true)::int
-    OR current_setting('app.current_role', true) = 'ADMIN'
+    app_current_user_id() IS NULL
+    OR user_id = app_current_user_id()
+    OR app_current_role() = 'ADMIN'
     OR role = 'DRIVER'
     OR rls_conectados_por_oferta_aceptada(
-      current_setting('app.current_user_id', true)::int,
+      app_current_user_id(),
       "User".user_id
     )
   );
@@ -202,12 +233,12 @@ DROP POLICY IF EXISTS user_update ON "User";
 CREATE POLICY user_update ON "User"
   FOR UPDATE
   USING (
-    user_id = current_setting('app.current_user_id', true)::int
-    OR current_setting('app.current_role', true) = 'ADMIN'
+    user_id = app_current_user_id()
+    OR app_current_role() = 'ADMIN'
   )
   WITH CHECK (
-    user_id = current_setting('app.current_user_id', true)::int
-    OR current_setting('app.current_role', true) = 'ADMIN'
+    user_id = app_current_user_id()
+    OR app_current_role() = 'ADMIN'
   );
 
 
@@ -219,14 +250,14 @@ DROP POLICY IF EXISTS servicerequest_select ON "ServiceRequest";
 CREATE POLICY servicerequest_select ON "ServiceRequest"
   FOR SELECT
   USING (
-    passenger_id = current_setting('app.current_user_id', true)::int
-    OR current_setting('app.current_role', true) = 'ADMIN'
+    passenger_id = app_current_user_id()
+    OR app_current_role() = 'ADMIN'
     OR (
-      current_setting('app.current_role', true) = 'DRIVER'
+      app_current_role() = 'DRIVER'
       AND (
         status = 'PENDING'
         OR rls_conductor_tiene_oferta(
-          current_setting('app.current_user_id', true)::int,
+          app_current_user_id(),
           "ServiceRequest".request_id
         )
       )
@@ -236,7 +267,7 @@ CREATE POLICY servicerequest_select ON "ServiceRequest"
 DROP POLICY IF EXISTS servicerequest_insert ON "ServiceRequest";
 CREATE POLICY servicerequest_insert ON "ServiceRequest"
   FOR INSERT
-  WITH CHECK (passenger_id = current_setting('app.current_user_id', true)::int);
+  WITH CHECK (passenger_id = app_current_user_id());
 
 -- El pasajero cancela su viaje; el conductor con oferta ACCEPTED lo pasa a
 -- IN_PROGRESS/COMPLETED; admin puede intervenir.
@@ -244,10 +275,10 @@ DROP POLICY IF EXISTS servicerequest_update ON "ServiceRequest";
 CREATE POLICY servicerequest_update ON "ServiceRequest"
   FOR UPDATE
   USING (
-    passenger_id = current_setting('app.current_user_id', true)::int
-    OR current_setting('app.current_role', true) = 'ADMIN'
+    passenger_id = app_current_user_id()
+    OR app_current_role() = 'ADMIN'
     OR rls_conductor_oferta_aceptada(
-      current_setting('app.current_user_id', true)::int,
+      app_current_user_id(),
       "ServiceRequest".request_id
     )
   );
@@ -260,10 +291,10 @@ DROP POLICY IF EXISTS driveroffer_select ON "DriverOffer";
 CREATE POLICY driveroffer_select ON "DriverOffer"
   FOR SELECT
   USING (
-    driver_id = current_setting('app.current_user_id', true)::int
-    OR current_setting('app.current_role', true) = 'ADMIN'
+    driver_id = app_current_user_id()
+    OR app_current_role() = 'ADMIN'
     OR rls_es_dueno_del_viaje(
-      current_setting('app.current_user_id', true)::int,
+      app_current_user_id(),
       "DriverOffer".request_id
     )
   );
@@ -271,7 +302,7 @@ CREATE POLICY driveroffer_select ON "DriverOffer"
 DROP POLICY IF EXISTS driveroffer_insert ON "DriverOffer";
 CREATE POLICY driveroffer_insert ON "DriverOffer"
   FOR INSERT
-  WITH CHECK (driver_id = current_setting('app.current_user_id', true)::int);
+  WITH CHECK (driver_id = app_current_user_id());
 
 -- El conductor actualiza su oferta (contraoferta); el pasajero acepta,
 -- rechaza o contraofrece la suya; admin puede intervenir.
@@ -279,10 +310,10 @@ DROP POLICY IF EXISTS driveroffer_update ON "DriverOffer";
 CREATE POLICY driveroffer_update ON "DriverOffer"
   FOR UPDATE
   USING (
-    driver_id = current_setting('app.current_user_id', true)::int
-    OR current_setting('app.current_role', true) = 'ADMIN'
+    driver_id = app_current_user_id()
+    OR app_current_role() = 'ADMIN'
     OR rls_es_dueno_del_viaje(
-      current_setting('app.current_user_id', true)::int,
+      app_current_user_id(),
       "DriverOffer".request_id
     )
   );
@@ -294,21 +325,21 @@ DROP POLICY IF EXISTS document_select ON "Document";
 CREATE POLICY document_select ON "Document"
   FOR SELECT
   USING (
-    user_id = current_setting('app.current_user_id', true)::int
-    OR current_setting('app.current_role', true) = 'ADMIN'
+    user_id = app_current_user_id()
+    OR app_current_role() = 'ADMIN'
   );
 
 DROP POLICY IF EXISTS document_insert ON "Document";
 CREATE POLICY document_insert ON "Document"
   FOR INSERT
-  WITH CHECK (user_id = current_setting('app.current_user_id', true)::int);
+  WITH CHECK (user_id = app_current_user_id());
 
 DROP POLICY IF EXISTS document_update ON "Document";
 CREATE POLICY document_update ON "Document"
   FOR UPDATE
   USING (
-    user_id = current_setting('app.current_user_id', true)::int
-    OR current_setting('app.current_role', true) = 'ADMIN'
+    user_id = app_current_user_id()
+    OR app_current_role() = 'ADMIN'
   );
 
 
@@ -321,8 +352,8 @@ DROP POLICY IF EXISTS notification_select ON "Notification";
 CREATE POLICY notification_select ON "Notification"
   FOR SELECT
   USING (
-    user_id = current_setting('app.current_user_id', true)::int
-    OR current_setting('app.current_role', true) = 'ADMIN'
+    user_id = app_current_user_id()
+    OR app_current_role() = 'ADMIN'
   );
 
 DROP POLICY IF EXISTS notification_insert ON "Notification";
@@ -333,4 +364,4 @@ CREATE POLICY notification_insert ON "Notification"
 DROP POLICY IF EXISTS notification_update ON "Notification";
 CREATE POLICY notification_update ON "Notification"
   FOR UPDATE
-  USING (user_id = current_setting('app.current_user_id', true)::int);
+  USING (user_id = app_current_user_id());
