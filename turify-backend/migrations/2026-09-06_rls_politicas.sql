@@ -365,3 +365,39 @@ DROP POLICY IF EXISTS notification_update ON "Notification";
 CREATE POLICY notification_update ON "Notification"
   FOR UPDATE
   USING (user_id = app_current_user_id());
+
+
+-- ── 8. Tabla Vehicle (agregada tras encontrar el bug en produccion) ─────────
+-- No estaba en el alcance original de esta HU, pero al activar turify_app en
+-- Supabase, Postgres tira "new row violates row-level security policy for
+-- table Vehicle" -- Vehicle ya tenia RLS activado (probablemente por defecto
+-- del editor de tablas de Supabase) pero sin ninguna politica, lo que
+-- bloquea TODO por defecto, incluso insertar tu propio vehiculo.
+--
+-- Los datos de un vehiculo (placa, capacidad, comodidades, foto) no son
+-- sensibles como un documento o un dato personal -- son necesarios para que
+-- cualquier pasajero pueda ver el perfil publico de un conductor y para que
+-- el backend arme coincidencias de comodidades entre conductores y viajes,
+-- asi que el SELECT queda abierto a cualquiera (autenticado o no), igual que
+-- los perfiles de rol DRIVER en la tabla User.
+ALTER TABLE "Vehicle" ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS vehicle_select ON "Vehicle";
+CREATE POLICY vehicle_select ON "Vehicle"
+  FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS vehicle_insert ON "Vehicle";
+CREATE POLICY vehicle_insert ON "Vehicle"
+  FOR INSERT
+  WITH CHECK (owner_id = app_current_user_id());
+
+-- El dueno actualiza su propio vehiculo (ej. tarifas personalizadas,
+-- comodidades); admin puede intervenir.
+DROP POLICY IF EXISTS vehicle_update ON "Vehicle";
+CREATE POLICY vehicle_update ON "Vehicle"
+  FOR UPDATE
+  USING (
+    owner_id = app_current_user_id()
+    OR app_current_role() = 'ADMIN'
+  );
