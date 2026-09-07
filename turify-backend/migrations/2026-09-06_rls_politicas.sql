@@ -401,3 +401,113 @@ CREATE POLICY vehicle_update ON "Vehicle"
     owner_id = app_current_user_id()
     OR app_current_role() = 'ADMIN'
   );
+
+
+-- ── 9. Tablas restantes -- encontradas con RLS activado sin politicas ──────
+-- Al revisar production con `SELECT tablename, rowsecurity FROM pg_tables`
+-- aparecio que Supabase tenia TODAS las tablas de la app con RLS activado
+-- (no solo las 6 de arriba) pero sin ninguna politica -- probablemente un
+-- comportamiento por defecto del propio Supabase al crear las tablas. Sin
+-- politicas, cualquier INSERT/SELECT con turify_app queda bloqueado por
+-- defecto. Se agregan las que faltaban, revisando antes en el codigo quien
+-- necesita acceder a cada una.
+
+-- AffiliatedCompany: catalogo de empresas afiliadas (nombre, NIT, logo) --
+-- dato no sensible, se lee para mostrar el nombre de la empresa en perfiles.
+-- No hay endpoint que la modifique desde la API; se deja el INSERT/UPDATE
+-- solo para ADMIN por si se administra a mano.
+ALTER TABLE "AffiliatedCompany" ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS affiliatedcompany_select ON "AffiliatedCompany";
+CREATE POLICY affiliatedcompany_select ON "AffiliatedCompany"
+  FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS affiliatedcompany_insert ON "AffiliatedCompany";
+CREATE POLICY affiliatedcompany_insert ON "AffiliatedCompany"
+  FOR INSERT
+  WITH CHECK (app_current_role() = 'ADMIN');
+
+DROP POLICY IF EXISTS affiliatedcompany_update ON "AffiliatedCompany";
+CREATE POLICY affiliatedcompany_update ON "AffiliatedCompany"
+  FOR UPDATE
+  USING (app_current_role() = 'ADMIN');
+
+-- AuditLog: la bitacora de seguridad (OWASP A09). Solo ADMIN puede leerla o
+-- borrarla (el script de retencion la usa); el INSERT queda abierto porque
+-- `registrar_log` se llama tanto para usuarios autenticados como para
+-- eventos SIN sesion (ej. un login fallido, antes de saber quien es).
+ALTER TABLE "AuditLog" ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS auditlog_select ON "AuditLog";
+CREATE POLICY auditlog_select ON "AuditLog"
+  FOR SELECT
+  USING (app_current_role() = 'ADMIN');
+
+DROP POLICY IF EXISTS auditlog_insert ON "AuditLog";
+CREATE POLICY auditlog_insert ON "AuditLog"
+  FOR INSERT
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS auditlog_delete ON "AuditLog";
+CREATE POLICY auditlog_delete ON "AuditLog"
+  FOR DELETE
+  USING (app_current_role() = 'ADMIN');
+
+-- TripPassenger: ocupantes del viaje (FUEC) -- datos personales (nombre,
+-- documento). Solo el pasajero dueno del viaje, el conductor con oferta
+-- ACCEPTED en ese viaje, o ADMIN pueden verlos; solo el pasajero dueno los
+-- crea o borra (el endpoint borra y vuelve a crear en cada actualizacion).
+ALTER TABLE "TripPassenger" ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS trippassenger_select ON "TripPassenger";
+CREATE POLICY trippassenger_select ON "TripPassenger"
+  FOR SELECT
+  USING (
+    rls_es_dueno_del_viaje(app_current_user_id(), "TripPassenger".request_id)
+    OR rls_conductor_oferta_aceptada(app_current_user_id(), "TripPassenger".request_id)
+    OR app_current_role() = 'ADMIN'
+  );
+
+DROP POLICY IF EXISTS trippassenger_insert ON "TripPassenger";
+CREATE POLICY trippassenger_insert ON "TripPassenger"
+  FOR INSERT
+  WITH CHECK (rls_es_dueno_del_viaje(app_current_user_id(), "TripPassenger".request_id));
+
+DROP POLICY IF EXISTS trippassenger_delete ON "TripPassenger";
+CREATE POLICY trippassenger_delete ON "TripPassenger"
+  FOR DELETE
+  USING (rls_es_dueno_del_viaje(app_current_user_id(), "TripPassenger".request_id));
+
+-- Rating: calificaciones bidireccionales -- son reputacion publica (se usan
+-- para mostrar el promedio de CUALQUIER usuario), por eso el SELECT queda
+-- abierto. Solo el propio calificador puede insertar su calificacion.
+ALTER TABLE "Rating" ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS rating_select ON "Rating";
+CREATE POLICY rating_select ON "Rating"
+  FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS rating_insert ON "Rating";
+CREATE POLICY rating_insert ON "Rating"
+  FOR INSERT
+  WITH CHECK (rater_id = app_current_user_id());
+
+-- TripStop y PriceHistory: ninguna de las dos tiene todavia un endpoint que
+-- las use (TripStop es para paradas intermedias, PriceHistory es para la
+-- futura Epica 12 de precio sugerido por IA) -- se dejan restringidas solo
+-- a ADMIN como placeholder seguro, para revisar cuando se implementen.
+ALTER TABLE "TripStop" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tripstop_admin_only ON "TripStop";
+CREATE POLICY tripstop_admin_only ON "TripStop"
+  FOR ALL
+  USING (app_current_role() = 'ADMIN')
+  WITH CHECK (app_current_role() = 'ADMIN');
+
+ALTER TABLE "PriceHistory" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS pricehistory_admin_only ON "PriceHistory";
+CREATE POLICY pricehistory_admin_only ON "PriceHistory"
+  FOR ALL
+  USING (app_current_role() = 'ADMIN')
+  WITH CHECK (app_current_role() = 'ADMIN');
