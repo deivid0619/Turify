@@ -143,7 +143,7 @@ const Dashboard = () => {
   const [rutaSeguimiento, setRutaSeguimiento] = useState(null);
   // HU26 — la búsqueda de conductores es automática (por origen del viaje, con
   // radio ampliable), ya no la elige el pasajero.
-  // HU55.1 — Económico (cualquier buseta) o Estándar (exige comodidades
+  // HU55.1 — Estándar (cualquier buseta) o Premium (exige comodidades
   // específicas — solo ofertan conductores cuyo vehículo las cumple TODAS).
   const [tipoServicio, setTipoServicio] = useState('ECONOMICO');
   const COMODIDADES_VACIAS = {
@@ -153,7 +153,7 @@ const Dashboard = () => {
     tiene_tv: false, tiene_buen_audio: false, acepta_mascotas: false,
   };
   const [comodidadesFiltro, setComodidadesFiltro] = useState(COMODIDADES_VACIAS);
-  // HU55.1 — chequeo previo a publicar: si Estándar no tiene NINGÚN conductor
+  // HU55.1 — chequeo previo a publicar: si Premium no tiene NINGÚN conductor
   // registrado que cumpla lo pedido, se avisa antes de publicar al vacío.
   const [verificandoComodidades, setVerificandoComodidades] = useState(false);
   const [avisoSinConductores, setAvisoSinConductores] = useState(false);
@@ -551,7 +551,7 @@ const Dashboard = () => {
   };
 
   // HU55.1 — se llama al presionar "Confirmar y Publicar Viaje": si el
-  // pasajero pidió Estándar con al menos una comodidad marcada, primero
+  // pasajero pidió Premium con al menos una comodidad marcada, primero
   // verifica que exista al menos un conductor registrado que la cumpla, para
   // no dejarlo esperando ofertas que nunca van a llegar.
   const comodidadesAlgunaMarcada = () =>
@@ -625,8 +625,8 @@ const Dashboard = () => {
         }
       }
 
-      // HU55.1 — Económico no manda ninguna comodidad exigida (cualquier buseta
-      // puede ofertar); Estándar manda las que el pasajero marcó.
+      // HU55.1 — Estándar no manda ninguna comodidad exigida (cualquier buseta
+      // puede ofertar); Premium manda las que el pasajero marcó.
       payload.tipo_servicio = tipoServicio;
       if (tipoServicio === 'ESTANDAR') {
         payload.requiere_ac = comodidadesFiltro.tiene_ac;
@@ -921,8 +921,8 @@ const Dashboard = () => {
           estado: ofertas.length > 0 ? 'Oferta recibida' : 'Buscando conductor',
           fechaCreacion: new Date(v.created_at || Date.now()).toLocaleDateString(),
           created_at: v.created_at,
-          // HU55.1 — para el aviso de "sin ofertas" en Estándar y para poder
-          // republicar el mismo viaje como Económico con un clic.
+          // HU55.1 — para el aviso de "sin ofertas" en Premium y para poder
+          // republicar el mismo viaje como Estándar con un clic.
           tipo_servicio: v.tipo_servicio || 'ECONOMICO',
           _datosOriginales: v,
           ofertas
@@ -1017,13 +1017,13 @@ const Dashboard = () => {
     }
   };
 
-  // HU55.1 — si un viaje Estándar lleva MINUTOS_AVISO_SIN_OFERTAS sin ninguna
+  // HU55.1 — si un viaje Premium lleva MINUTOS_AVISO_SIN_OFERTAS sin ninguna
   // oferta, seguramente el filtro de comodidades dejó muy poca (o ninguna)
   // buseta que pueda ofertar. En vez de dejar al pasajero esperando
-  // indefinidamente, se le ofrece republicar el mismo viaje como Económico
-  // (sin exigir comodidades) con un solo clic: cancela la solicitud Estándar
+  // indefinidamente, se le ofrece republicar el mismo viaje como Estándar
+  // (sin exigir comodidades) con un solo clic: cancela la solicitud Premium
   // y crea una nueva idéntica salvo por el tipo de servicio.
-  const republicarComoEconomico = async (viaje) => {
+  const republicarComoEstandar = async (viaje) => {
     const d = viaje._datosOriginales;
     if (!d) return;
     setRepublicandoId(viaje.id);
@@ -1034,7 +1034,7 @@ const Dashboard = () => {
       });
       if (!resCancel.ok) {
         const err = await resCancel.json().catch(() => ({}));
-        throw new Error(err.detail || 'No se pudo cancelar la búsqueda Estándar.');
+        throw new Error(err.detail || 'No se pudo cancelar la búsqueda Premium.');
       }
 
       const payload = {
@@ -1062,7 +1062,7 @@ const Dashboard = () => {
         throw new Error(err.detail || 'No se pudo republicar el viaje.');
       }
 
-      toast.success('Viaje republicado como Económico — ahora cualquier buseta puede ofertarte.');
+      toast.success('Viaje republicado como Estándar — ahora cualquier buseta puede ofertarte.');
       await cargarMisViajes();
     } catch (error) {
       toast.error(`Error: ${error.message}`);
@@ -1734,9 +1734,9 @@ const Dashboard = () => {
                   Buscamos automáticamente a los conductores disponibles más cercanos a tu origen.
                 </p>
 
-                {/* HU55.1 — Económico / Estándar */}
+                {/* HU55.1 — Estándar / Premium */}
                 <div style={{ display: 'flex', gap: '8px', margin: '0 0 6px' }}>
-                  {[['ECONOMICO', 'Económico'], ['ESTANDAR', 'Estándar']].map(([valor, etiqueta]) => (
+                  {[['ECONOMICO', 'Estándar'], ['ESTANDAR', 'Premium']].map(([valor, etiqueta]) => (
                     <button key={valor} type="button"
                       onClick={() => { setTipoServicio(valor); setAvisoSinConductores(false); }}
                       style={{
@@ -1966,9 +1966,9 @@ const Dashboard = () => {
                           <IconAlerta size={12} style={{ flexShrink: 0, marginTop: '1px' }} />
                           <span>Llevas {MINUTOS_AVISO_SIN_OFERTAS} min sin ofertas — puede que muy pocas busetas tengan las comodidades que pediste.</span>
                         </div>
-                        <button onClick={() => republicarComoEconomico(viaje)} disabled={republicandoId === viaje.id}
+                        <button onClick={() => republicarComoEstandar(viaje)} disabled={republicandoId === viaje.id}
                           style={{ width: '100%', background: republicandoId === viaje.id ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '7px', padding: '7px', fontSize: '12px', fontWeight: '700', cursor: republicandoId === viaje.id ? 'not-allowed' : 'pointer' }}>
-                          {republicandoId === viaje.id ? 'Republicando…' : 'Publicar como Económico'}
+                          {republicandoId === viaje.id ? 'Republicando…' : 'Publicar como Estándar'}
                         </button>
                       </div>
                     )}

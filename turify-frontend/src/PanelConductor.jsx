@@ -947,7 +947,7 @@ const PanelConductor = ({ onVerRuta }) => {
                       <span style={{ display: 'flex', gap: '6px', marginLeft: '8px', flexShrink: 0 }}>
                         {sol.tipo_servicio === 'ESTANDAR' && (
                           <span style={{ fontSize: '11px', background: 'var(--t-musgo)', color: 'var(--t-musgo-texto)', padding: '3px 8px', borderRadius: '20px', fontWeight: '700', whiteSpace: 'nowrap' }}>
-                            ★ Estándar
+                            ★ Premium
                           </span>
                         )}
                         <span style={{ fontSize: '11px', background: 'var(--t-chiva-suave)', color: 'var(--t-chiva-texto)', padding: '3px 8px', borderRadius: '20px', fontWeight: '700', whiteSpace: 'nowrap' }}>
@@ -961,7 +961,7 @@ const PanelConductor = ({ onVerRuta }) => {
                     </div>
                     {/* HU55.1 — filtro exclusivo: si esta tarjeta te aparece en el radar es
                         porque tu vehículo ya cumple TODO lo que pidió el pasajero (si es
-                        Estándar). Solo se informa cuánto pidió, no puede faltarte nada. */}
+                        Premium). Solo se informa cuánto pidió, no puede faltarte nada. */}
                     {sol.comodidades_exigidas > 0 && (
                       <div style={{ marginTop: '6px', fontSize: '12px', fontWeight: '600', color: BRAND_GREEN }}>
                         Cumplís las {sol.comodidades_exigidas} comodidad(es) que pidió el pasajero
