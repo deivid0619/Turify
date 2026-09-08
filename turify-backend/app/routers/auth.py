@@ -50,7 +50,7 @@ def _verificar_captcha(token: str | None, ip: str | None) -> bool:
     except Exception:
         return False
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
+@router.post("/register", status_code=status.HTTP_201_CREATED, response_model=schemas.UserResponse)
 def register_passenger(user: schemas.UserCreate, request: Request, db: Session = Depends(get_db)):
     existing_user = db.query(models.User).filter(models.User.email == user.email).first()
     if existing_user:

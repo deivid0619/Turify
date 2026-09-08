@@ -1,0 +1,6 @@
+# Dependencias extra para correr los tests (SCRUM-193 / HU45) y el pipeline
+# de CI (SCRUM-192 / HU44). No se instalan en la imagen Docker de producción
+# — solo se usan en el workflow de GitHub Actions y localmente al testear.
+-r requirements.txt
+pytest==8.3.4
+pytest-cov==6.0.0

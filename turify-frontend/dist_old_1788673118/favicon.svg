@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
+  <!-- Marca compacta Turify: los dos puntos y el tramo que los une. -->
+  <rect width="40" height="40" rx="11" fill="#131A16"/>
+  <path d="M12.5 27.5 27.5 12.5" stroke="#EAF2EC" stroke-width="2" stroke-linecap="round" opacity=".55"/>
+  <circle cx="12.5" cy="27.5" r="5" fill="#16A34A"/>
+  <circle cx="27.5" cy="12.5" r="5" fill="#E9A13B"/>
+</svg>
