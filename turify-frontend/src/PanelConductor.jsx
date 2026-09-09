@@ -640,7 +640,7 @@ const PanelConductor = ({ onVerRuta }) => {
   };
 
   const estadoConfig = (estado) => {
-    const m = { ESPERANDO: { bg: 'var(--t-chiva-suave)', color: 'var(--t-chiva-texto)', Ico: IconReloj, label: 'Esperando respuesta del pasajero' }, CONTRAOFERTA: { bg: 'var(--t-cielo-suave)', color: 'var(--t-cielo-texto)', Ico: IconIntercambio, label: 'Contraoferta recibida' }, RECHAZADO: { bg: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', Ico: IconEquis, Ico: IconEquis, label: 'Rechazado' }, ACEPTADO: { bg: 'var(--t-musgo)', color: 'var(--t-musgo-texto)', Ico: IconVisto, label: 'Aceptado' } };
+    const m = { ESPERANDO: { bg: 'var(--t-chiva-suave)', color: 'var(--t-chiva-texto)', Ico: IconReloj, label: 'Esperando respuesta del pasajero' }, CONTRAOFERTA: { bg: 'var(--t-cielo-suave)', color: 'var(--t-cielo-texto)', Ico: IconIntercambio, label: 'Contraoferta recibida' }, RECHAZADO: { bg: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', Ico: IconEquis, label: 'Rechazado' }, ACEPTADO: { bg: 'var(--t-musgo)', color: 'var(--t-musgo-texto)', Ico: IconVisto, label: 'Aceptado' } };
     return m[estado] || { bg: T.niebla2, color: T.piedra, Ico: IconReloj, label: estado };
   };
 

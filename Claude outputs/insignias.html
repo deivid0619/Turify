@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Insignia del marcador — variaciones</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --monte:#0E2A1E; --ruta:#16A34A; --ruta-hover:#128A3E;
+    --musgo:#E6F1E8; --musgo-linea:#C9E3D0; --niebla:#F1F2ED; --niebla-2:#EDEEE8; --papel:#FFFFFF;
+    --chiva:#E9A13B; --chiva-suave:#FBF1DE; --chiva-linea:#EBD5A9; --chiva-texto:#8A5A12;
+    --tinta:#131A16; --piedra:#6B7A72; --piedra-clara:#9AA79F; --linea:#E2E4DC;
+    --display:'Syne',system-ui,sans-serif; --ui:'DM Sans',system-ui,sans-serif; --dato:'IBM Plex Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--niebla);color:var(--tinta);font-family:var(--ui);}
+
+  .hero{background:var(--monte); color:var(--musgo); padding:48px 24px 52px;}
+  .hero-inner{max-width:900px; margin:0 auto;}
+  .eyebrow{
+    font-family:var(--dato); font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--chiva); margin:0 0 14px;
+  }
+  h1{
+    font-family:var(--display); font-weight:800; font-size:clamp(26px,3.6vw,36px);
+    line-height:1.1; margin:0 0 16px; max-width:22ch;
+  }
+  .hero p{font-size:15px; line-height:1.6; color:#C9DBCF; max-width:62ch; margin:0;}
+
+  main{max-width:1100px; margin:0 auto; padding:44px 24px 64px;}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:20px;}
+
+  .card{
+    background:var(--papel); border:1px solid var(--linea); border-radius:18px;
+    padding:18px 18px 16px; display:flex; flex-direction:column;
+  }
+  .card.recomendada{border-color:var(--chiva-linea); background:var(--chiva-suave);}
+
+  .card-top{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px;}
+  .card-name{font-family:var(--display); font-weight:700; font-size:17px; margin:0;}
+  .card-num{font-family:var(--dato); font-size:11px; color:var(--piedra-clara);}
+  .card.recomendada .card-num{color:var(--chiva-texto); font-weight:600;}
+
+  .tile{
+    position:relative; height:130px; border-radius:13px; overflow:hidden; display:flex;
+    align-items:center; justify-content:center;
+    background:linear-gradient(155deg, var(--niebla-2) 0%, var(--musgo) 100%);
+  }
+  .tile svg.calles{position:absolute; inset:0; width:100%; height:100%;}
+  .tile svg.marcador{position:relative; filter:drop-shadow(0 6px 8px rgba(14,42,30,.28));}
+
+  .rationale{font-size:13px; line-height:1.55; color:var(--piedra); margin:14px 0 0;}
+
+  .sizes-row{display:flex; align-items:center; gap:14px; margin-top:14px; padding-top:12px; border-top:1px dashed var(--linea);}
+  .size-item{display:flex; flex-direction:column; align-items:center; gap:4px;}
+  .size-item .px{font-family:var(--dato); font-size:10px; color:var(--piedra-clara);}
+
+  .nota{
+    margin-top:36px; padding:16px 18px; border-radius:14px; background:var(--musgo);
+    border:1px solid var(--musgo-linea); font-size:13px; line-height:1.6; color:var(--tinta);
+  }
+  .nota b{color:var(--monte);}
+
+  footer{background:var(--monte); padding:30px 24px 40px;}
+  .cta{max-width:900px; margin:0 auto; color:#fff;}
+  .cta p{font-size:14px; line-height:1.6; color:#C9DBCF; margin:8px 0 0; max-width:70ch;}
+  .tag{
+    display:inline-block; font-family:var(--dato); font-size:11px; text-transform:uppercase;
+    letter-spacing:.08em; color:var(--chiva); background:rgba(233,161,59,.14);
+    border:1px solid rgba(233,161,59,.35); border-radius:999px; padding:4px 10px;
+  }
+  code{background:rgba(255,255,255,.1); padding:2px 6px; border-radius:5px; font-size:12.5px;}
+</style>
+</head>
+<body>
+
+  <div class="hero">
+    <div class="hero-inner">
+      <p class="eyebrow">Insignia del marcador — 5 variaciones</p>
+      <h1>Nos quedamos con la insignia. Ahora, qué forma y qué tratamiento.</h1>
+      <p>Mismo ícono adentro (la Chiva de línea), mismo tamaño de marcador — lo que cambia es el contenedor: la forma, si es sólido o solo contorno, y si tiene alguna seña de "esto se está moviendo".</p>
+    </div>
+  </div>
+
+  <main>
+    <div class="grid">
+
+      <div class="card">
+        <div class="card-top"><h3 class="card-name">Círculo sólido</h3><span class="card-num">01</span></div>
+        <div class="tile">
+          <svg class="calles" viewBox="0 0 220 148" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 100 H220" stroke="rgba(255,255,255,.55)" stroke-width="10" />
+            <path d="M110 0 V148" stroke="rgba(255,255,255,.55)" stroke-width="10" />
+            <path d="M0 28 H220" stroke="rgba(255,255,255,.3)" stroke-width="5" />
+          </svg>
+          <svg class="marcador" width="56" height="56" viewBox="0 0 60 60" fill="none" aria-hidden="true">
+            <circle cx="30" cy="30" r="26" fill="var(--ruta)" stroke="#fff" stroke-width="3" />
+            <g transform="translate(15,15) scale(1.25)">
+              <path d="M7.5 6v2M16.5 6v2M6.5 6h11" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M3.5 16V11.5C3.5 9.6 5 8 7 8h10c2 0 3.5 1.6 3.5 3.5V16" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M3.5 12h17" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              <circle cx="7" cy="16" r="1.5" fill="#fff" />
+              <circle cx="17" cy="16" r="1.5" fill="#fff" />
+            </g>
+          </svg>
+        </div>
+        <p class="rationale">La que ya viste — círculo lleno, aro blanco, ícono blanco adentro. La opción segura y muy legible.</p>
+        <div class="sizes-row">
+          <div class="size-item"><svg width="18" height="18" viewBox="0 0 60 60" fill="none"><circle cx="30" cy="30" r="26" fill="var(--ruta)" stroke="#fff" stroke-width="4" /><g transform="translate(15,15) scale(1.25)"><path d="M7.5 6v2M16.5 6v2M6.5 6h11" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 16V11.5C3.5 9.6 5 8 7 8h10c2 0 3.5 1.6 3.5 3.5V16" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 12h17" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><circle cx="7" cy="16" r="2" fill="#fff" /><circle cx="17" cy="16" r="2" fill="#fff" /></g></svg><span class="px">18px</span></div>
+          <div class="size-item"><svg width="26" height="26" viewBox="0 0 60 60" fill="none"><circle cx="30" cy="30" r="26" fill="var(--ruta)" stroke="#fff" stroke-width="3" /><g transform="translate(15,15) scale(1.25)"><path d="M7.5 6v2M16.5 6v2M6.5 6h11" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 16V11.5C3.5 9.6 5 8 7 8h10c2 0 3.5 1.6 3.5 3.5V16" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 12h17" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" /><circle cx="7" cy="16" r="1.7" fill="#fff" /><circle cx="17" cy="16" r="1.7" fill="#fff" /></g></svg><span class="px">26px</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top"><h3 class="card-name">Anillo</h3><span class="card-num">02</span></div>
+        <div class="tile">
+          <svg class="calles" viewBox="0 0 220 148" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 100 H220" stroke="rgba(255,255,255,.55)" stroke-width="10" />
+            <path d="M110 0 V148" stroke="rgba(255,255,255,.55)" stroke-width="10" />
+            <path d="M0 28 H220" stroke="rgba(255,255,255,.3)" stroke-width="5" />
+          </svg>
+          <svg class="marcador" width="56" height="56" viewBox="0 0 60 60" fill="none" aria-hidden="true">
+            <circle cx="30" cy="30" r="25" fill="#fff" stroke="var(--ruta)" stroke-width="5" />
+            <g transform="translate(15,15) scale(1.25)">
+              <path d="M7.5 6v2M16.5 6v2M6.5 6h11" stroke="var(--ruta)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M3.5 16V11.5C3.5 9.6 5 8 7 8h10c2 0 3.5 1.6 3.5 3.5V16" stroke="var(--ruta)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M3.5 12h17" stroke="var(--ruta)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              <circle cx="7" cy="16" r="1.5" fill="var(--ruta)" />
+              <circle cx="17" cy="16" r="1.5" fill="var(--ruta)" />
+            </g>
+          </svg>
+        </div>
+        <p class="rationale">Fondo blanco, borde verde grueso, ícono verde — más liviana visualmente, se pierde menos sobre un mapa ya lleno de calles y etiquetas.</p>
+        <div class="sizes-row">
+          <div class="size-item"><svg width="18" height="18" viewBox="0 0 60 60" fill="none"><circle cx="30" cy="30" r="24" fill="#fff" stroke="var(--ruta)" stroke-width="7" /><g transform="translate(15,15) scale(1.25)"><path d="M7.5 6v2M16.5 6v2M6.5 6h11" stroke="var(--ruta)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 16V11.5C3.5 9.6 5 8 7 8h10c2 0 3.5 1.6 3.5 3.5V16" stroke="var(--ruta)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 12h17" stroke="var(--ruta)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><circle cx="7" cy="16" r="2" fill="var(--ruta)" /><circle cx="17" cy="16" r="2" fill="var(--ruta)" /></g></svg><span class="px">18px</span></div>
+          <div class="size-item"><svg width="26" height="26" viewBox="0 0 60 60" fill="none"><circle cx="30" cy="30" r="25" fill="#fff" stroke="var(--ruta)" stroke-width="5" /><g transform="translate(15,15) scale(1.25)"><path d="M7.5 6v2M16.5 6v2M6.5 6h11" stroke="var(--ruta)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 16V11.5C3.5 9.6 5 8 7 8h10c2 0 3.5 1.6 3.5 3.5V16" stroke="var(--ruta)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 12h17" stroke="var(--ruta)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" /><circle cx="7" cy="16" r="1.7" fill="var(--ruta)" /><circle cx="17" cy="16" r="1.7" fill="var(--ruta)" /></g></svg><span class="px">26px</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top"><h3 class="card-name">Squircle</h3><span class="card-num">03</span></div>
+        <div class="tile">
+          <svg class="calles" viewBox="0 0 220 148" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 100 H220" stroke="rgba(255,255,255,.55)" stroke-width="10" />
+            <path d="M110 0 V148" stroke="rgba(255,255,255,.55)" stroke-width="10" />
+            <path d="M0 28 H220" stroke="rgba(255,255,255,.3)" stroke-width="5" />
+          </svg>
+          <svg class="marcador" width="56" height="56" viewBox="0 0 60 60" fill="none" aria-hidden="true">
+            <rect x="5" y="5" width="50" height="50" rx="17" fill="var(--ruta)" stroke="#fff" stroke-width="3" />
+            <g transform="translate(15,15) scale(1.25)">
+              <path d="M7.5 6v2M16.5 6v2M6.5 6h11" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M3.5 16V11.5C3.5 9.6 5 8 7 8h10c2 0 3.5 1.6 3.5 3.5V16" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M3.5 12h17" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              <circle cx="7" cy="16" r="1.5" fill="#fff" />
+              <circle cx="17" cy="16" r="1.5" fill="#fff" />
+            </g>
+          </svg>
+        </div>
+        <p class="rationale">Cuadrado con esquinas bien redondeadas, no círculo — combina con el lenguaje de las tarjetas y botones que ya usa el resto de la app, en vez de introducir una forma nueva.</p>
+        <div class="sizes-row">
+          <div class="size-item"><svg width="18" height="18" viewBox="0 0 60 60" fill="none"><rect x="4" y="4" width="52" height="52" rx="18" fill="var(--ruta)" stroke="#fff" stroke-width="4" /><g transform="translate(15,15) scale(1.25)"><path d="M7.5 6v2M16.5 6v2M6.5 6h11" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 16V11.5C3.5 9.6 5 8 7 8h10c2 0 3.5 1.6 3.5 3.5V16" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 12h17" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><circle cx="7" cy="16" r="2" fill="#fff" /><circle cx="17" cy="16" r="2" fill="#fff" /></g></svg><span class="px">18px</span></div>
+          <div class="size-item"><svg width="26" height="26" viewBox="0 0 60 60" fill="none"><rect x="5" y="5" width="50" height="50" rx="17" fill="var(--ruta)" stroke="#fff" stroke-width="3" /><g transform="translate(15,15) scale(1.25)"><path d="M7.5 6v2M16.5 6v2M6.5 6h11" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 16V11.5C3.5 9.6 5 8 7 8h10c2 0 3.5 1.6 3.5 3.5V16" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 12h17" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" /><circle cx="7" cy="16" r="1.7" fill="#fff" /><circle cx="17" cy="16" r="1.7" fill="#fff" /></g></svg><span class="px">26px</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top"><h3 class="card-name">Halo (en movimiento)</h3><span class="card-num">04</span></div>
+        <div class="tile">
+          <svg class="calles" viewBox="0 0 220 148" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 100 H220" stroke="rgba(255,255,255,.55)" stroke-width="10" />
+            <path d="M110 0 V148" stroke="rgba(255,255,255,.55)" stroke-width="10" />
+            <path d="M0 28 H220" stroke="rgba(255,255,255,.3)" stroke-width="5" />
+          </svg>
+          <svg class="marcador" width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <circle cx="32" cy="32" r="30" fill="none" stroke="var(--ruta)" stroke-width="2" opacity=".3" />
+            <circle cx="32" cy="32" r="24" fill="var(--ruta)" stroke="#fff" stroke-width="3" />
+            <g transform="translate(19,19) scale(1.15)">
+              <path d="M7.5 6v2M16.5 6v2M6.5 6h11" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M3.5 16V11.5C3.5 9.6 5 8 7 8h10c2 0 3.5 1.6 3.5 3.5V16" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M3.5 12h17" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              <circle cx="7" cy="16" r="1.5" fill="#fff" />
+              <circle cx="17" cy="16" r="1.5" fill="#fff" />
+            </g>
+          </svg>
+        </div>
+        <p class="rationale">Un halo tenue alrededor, como el punto de "tu ubicación" de Google Maps — comunica sin texto que esto se está moviendo en vivo, no es un lugar fijo.</p>
+        <div class="sizes-row">
+          <div class="size-item"><svg width="20" height="20" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="29" fill="none" stroke="var(--ruta)" stroke-width="3" opacity=".3" /><circle cx="32" cy="32" r="23" fill="var(--ruta)" stroke="#fff" stroke-width="4" /><g transform="translate(19,19) scale(1.15)"><path d="M7.5 6v2M16.5 6v2M6.5 6h11" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 16V11.5C3.5 9.6 5 8 7 8h10c2 0 3.5 1.6 3.5 3.5V16" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 12h17" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><circle cx="7" cy="16" r="2" fill="#fff" /><circle cx="17" cy="16" r="2" fill="#fff" /></g></svg><span class="px">20px</span></div>
+          <div class="size-item"><svg width="30" height="30" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" fill="none" stroke="var(--ruta)" stroke-width="2" opacity=".3" /><circle cx="32" cy="32" r="24" fill="var(--ruta)" stroke="#fff" stroke-width="3" /><g transform="translate(19,19) scale(1.15)"><path d="M7.5 6v2M16.5 6v2M6.5 6h11" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 16V11.5C3.5 9.6 5 8 7 8h10c2 0 3.5 1.6 3.5 3.5V16" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 12h17" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" /><circle cx="7" cy="16" r="1.7" fill="#fff" /><circle cx="17" cy="16" r="1.7" fill="#fff" /></g></svg><span class="px">30px</span></div>
+        </div>
+      </div>
+
+      <div class="card recomendada">
+        <div class="card-top"><h3 class="card-name">Chip (como tus pestañas)</h3><span class="card-num">05 · recomendada</span></div>
+        <div class="tile">
+          <svg class="calles" viewBox="0 0 220 148" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 100 H220" stroke="rgba(255,255,255,.55)" stroke-width="10" />
+            <path d="M110 0 V148" stroke="rgba(255,255,255,.55)" stroke-width="10" />
+            <path d="M0 28 H220" stroke="rgba(255,255,255,.3)" stroke-width="5" />
+          </svg>
+          <svg class="marcador" width="72" height="46" viewBox="0 0 80 50" fill="none" aria-hidden="true">
+            <rect x="4" y="7" width="72" height="36" rx="18" fill="var(--ruta)" stroke="#fff" stroke-width="3" />
+            <g transform="translate(21,12) scale(1.15)">
+              <path d="M7.5 6v2M16.5 6v2M6.5 6h11" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M3.5 16V11.5C3.5 9.6 5 8 7 8h10c2 0 3.5 1.6 3.5 3.5V16" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M3.5 12h17" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              <circle cx="7" cy="16" r="1.5" fill="#fff" />
+              <circle cx="17" cy="16" r="1.5" fill="#fff" />
+            </g>
+            <circle cx="60" cy="25" r="3" fill="var(--chiva)" />
+          </svg>
+        </div>
+        <p class="rationale">La misma píldora que ya usás para "Vehículo" y "En camino" en el panel del conductor — con un punto naranja de "en vivo" adentro. No inventa una forma nueva: reutiliza el componente que la app ya tiene.</p>
+        <div class="sizes-row">
+          <div class="size-item"><svg width="30" height="19" viewBox="0 0 80 50" fill="none"><rect x="3" y="6" width="74" height="38" rx="19" fill="var(--ruta)" stroke="#fff" stroke-width="4" /><g transform="translate(21,12) scale(1.15)"><path d="M7.5 6v2M16.5 6v2M6.5 6h11" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 16V11.5C3.5 9.6 5 8 7 8h10c2 0 3.5 1.6 3.5 3.5V16" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 12h17" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /><circle cx="7" cy="16" r="2" fill="#fff" /><circle cx="17" cy="16" r="2" fill="#fff" /></g><circle cx="60" cy="25" r="4" fill="var(--chiva)" /></svg><span class="px">30px</span></div>
+          <div class="size-item"><svg width="44" height="28" viewBox="0 0 80 50" fill="none"><rect x="4" y="7" width="72" height="36" rx="18" fill="var(--ruta)" stroke="#fff" stroke-width="3" /><g transform="translate(21,12) scale(1.15)"><path d="M7.5 6v2M16.5 6v2M6.5 6h11" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 16V11.5C3.5 9.6 5 8 7 8h10c2 0 3.5 1.6 3.5 3.5V16" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.5 12h17" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" /><circle cx="7" cy="16" r="1.7" fill="#fff" /><circle cx="17" cy="16" r="1.7" fill="#fff" /></g><circle cx="60" cy="25" r="3" fill="var(--chiva)" /></svg><span class="px">44px</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="nota">
+      <b>Cómo elegir entre las cinco:</b> si querés máxima legibilidad sobre cualquier fondo de mapa, es <b>Círculo sólido</b> o <b>Squircle</b>. Si el mapa ya se ve cargado y preferís algo más liviano, <b>Anillo</b>. Si te importa comunicar "esto se mueve" sin agregar texto, <b>Halo</b>. Y si querés que el marcador se sienta parte del mismo sistema que ya construiste (pestañas, insignias de estado), <b>Chip</b> es la única que reutiliza una forma que la app ya tiene en otro lado.
+    </div>
+  </main>
+
+  <footer>
+    <div class="cta">
+      <span class="tag">Siguiente paso</span>
+      <p>Decime cuál de las 5 — o pedime una mezcla, como el Chip (05) pero con el color naranja chiva de fondo en vez de verde. Con tu elección te dejo el código final para <code>iconBusConductor</code> y <code>BusBuscando</code> en <code>Dashboard.jsx</code>.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

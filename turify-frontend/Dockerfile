@@ -1,21 +1,19 @@
-# ── Frontend Turify — React/Vite ─────────────────────────────────────────────
-FROM node:20-alpine AS builder
+# ── Frontend Turify — sirve el build de Vite ya generado ────────────────────
+# NOTA: este Dockerfile YA NO compila el proyecto adentro del contenedor.
+# En esta máquina, correr Vite dentro de Docker/WSL2 crashea con SIGBUS
+# (probado con varias versiones de Vite, caché limpio y WSL2 reiniciado —
+# el mismo build funciona bien corrido directo en Windows). Por eso el
+# flujo pasó a ser: compilar en el host, después construir la imagen.
+#
+# Antes de "docker compose build frontend", corré en esta carpeta:
+#   npm install
+#   npm run build
+# Eso genera la carpeta dist/ que este Dockerfile copia tal cual.
 
-WORKDIR /app
-
-# Instalar dependencias
-COPY package*.json ./
-RUN npm ci
-
-# Copiar código y construir
-COPY . .
-RUN npm run build
-
-# ── Servidor de producción con Nginx ─────────────────────────────────────────
 FROM nginx:alpine
 
-# Copiar build de Vite
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copiar el build de Vite ya generado en el host.
+COPY dist /usr/share/nginx/html
 
 # Configuración de Nginx para React Router
 COPY nginx.conf /etc/nginx/conf.d/default.conf

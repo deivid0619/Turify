@@ -158,7 +158,7 @@ export const Icono = ({ children, size = 16, color = 'currentColor', grosor = 1.
 export const IconReloj      = (p) => <Icono {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.2 2" /></Icono>;
 export const IconVisto      = (p) => <Icono {...p}><circle cx="12" cy="12" r="9" /><path d="M8 12.5l2.5 2.5L16 9.5" /></Icono>;
 export const IconBandera    = (p) => <Icono {...p}><path d="M6 21V4" /><path d="M6 4h12l-3 4 3 4H6" /></Icono>;
-export const IconAuto       = (p) => <Icono {...p}><path d="M4 16v-3.2a1.4 1.4 0 0 1 .12-.57L5.9 8.4A2 2 0 0 1 7.75 7h8.5a2 2 0 0 1 1.85 1.4l1.78 3.83c.11.24.12.4.12.57V16" /><path d="M4 16h16v2a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H7v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2Z" /><circle cx="7.5" cy="16" r="1.4" /><circle cx="16.5" cy="16" r="1.4" /></Icono>;
+export const IconAuto       = (p) => <Icono {...p}><path d="M3.5 16V9.8a1.8 1.8 0 0 1 1.8-1.8h13.4a1.8 1.8 0 0 1 1.8 1.8V16" /><path d="M2.5 16h19" /><path d="M9 8v5M15 8v5" /><circle cx="7" cy="16" r="1.5" /><circle cx="17" cy="16" r="1.5" /></Icono>;
 export const IconCalendario = (p) => <Icono {...p}><rect x="3.5" y="5" width="17" height="15" rx="2.5" /><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5" /></Icono>;
 export const IconPersonas   = (p) => <Icono {...p}><circle cx="9" cy="8.5" r="2.6" /><path d="M4 19c0-3 2.2-5 5-5s5 2 5 5" /><path d="M15.5 6.5a2.4 2.4 0 1 1 0 4.8" /><path d="M17 14.3c1.9.5 3 2.1 3 4.7" /></Icono>;
 export const IconPersona    = (p) => <Icono {...p}><circle cx="12" cy="8.2" r="3.2" /><path d="M5 20c0-3.6 3.1-6.2 7-6.2s7 2.6 7 6.2" /></Icono>;

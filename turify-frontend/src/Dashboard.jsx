@@ -39,44 +39,36 @@ const IconTrazo = Icono;
 // Animación de "buscando conductor": un minibús estilo chiva que avanza sobre una
 // vía punteada mientras el pasajero espera ofertas. Respeta prefers-reduced-motion.
 const BusBuscando = ({ texto = 'Buscando conductor…', size = 96 }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '8px 0' }}>
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', padding: '8px 0' }}>
     <style>{`
-      @keyframes turify-bus-bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-2.5px) } }
-      @keyframes turify-bus-wheel { from { transform: rotate(0) } to { transform: rotate(360deg) } }
-      @keyframes turify-bus-road { from { background-position: 0 0 } to { background-position: -28px 0 } }
-      .turify-bus-svg { animation: turify-bus-bob .7s ease-in-out infinite; transform-origin: center; }
-      .turify-bus-wheel { animation: turify-bus-wheel .9s linear infinite; transform-origin: center; transform-box: fill-box; }
-      .turify-bus-road {
-        width: 120px; height: 6px; border-radius: 3px;
-        background-image: repeating-linear-gradient(90deg, var(--t-linea) 0 14px, transparent 14px 28px);
-        background-size: 28px 6px; animation: turify-bus-road .5s linear infinite;
-      }
+      @keyframes turify-chip-bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
+      @keyframes turify-chip-halo { 0%,100% { transform: scale(1); opacity: .45 } 50% { transform: scale(1.18); opacity: 0 } }
+      @keyframes turify-chip-dot { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+      .turify-chip-wrap { animation: turify-chip-bob .8s ease-in-out infinite; transform-origin: center; }
+      .turify-chip-halo { animation: turify-chip-halo 1.3s ease-out infinite; transform-origin: center; }
+      .turify-chip-dot { animation: turify-chip-dot 1s ease-in-out infinite; }
       @media (prefers-reduced-motion: reduce) {
-        .turify-bus-svg, .turify-bus-wheel, .turify-bus-road { animation: none !important; }
+        .turify-chip-wrap, .turify-chip-halo, .turify-chip-dot { animation: none !important; }
       }
     `}</style>
-    <svg className="turify-bus-svg" width={size} height={size * 0.62} viewBox="0 0 100 62" fill="none" aria-hidden="true">
-      {/* carrocería */}
-      <rect x="8" y="12" width="78" height="34" rx="7" fill="var(--t-ruta)" />
-      <rect x="8" y="12" width="78" height="10" rx="7" fill="var(--t-chiva)" />
-      {/* ventanas */}
-      <rect x="15" y="25" width="13" height="11" rx="2.5" fill="#EAF2EC" />
-      <rect x="33" y="25" width="13" height="11" rx="2.5" fill="#EAF2EC" />
-      <rect x="51" y="25" width="13" height="11" rx="2.5" fill="#EAF2EC" />
-      {/* trompa / parabrisas */}
-      <path d="M86 20 h6 a4 4 0 0 1 4 4 v18 a4 4 0 0 1 -4 4 h-6 z" fill="var(--t-ruta)" />
-      <rect x="86" y="25" width="8" height="11" rx="2" fill="#EAF2EC" />
-      {/* faro */}
-      <circle cx="94.5" cy="41" r="1.8" fill="var(--t-chiva)" />
-      {/* ruedas */}
-      <g>
-        <circle cx="28" cy="47" r="7.5" fill="#0E2A1E" />
-        <circle className="turify-bus-wheel" cx="28" cy="47" r="3.2" fill="#EAF2EC" />
-        <circle cx="66" cy="47" r="7.5" fill="#0E2A1E" />
-        <circle className="turify-bus-wheel" cx="66" cy="47" r="3.2" fill="#EAF2EC" />
-      </g>
-    </svg>
-    <div className="turify-bus-road" />
+    <div className="turify-chip-wrap" style={{ position: 'relative', width: size * 0.72, height: size * 0.45 }}>
+      <div className="turify-chip-halo" style={{
+        position: 'absolute', inset: '-6px', borderRadius: '999px',
+        border: '2px solid var(--t-ruta)',
+      }} />
+      <div style={{
+        position: 'relative', width: '100%', height: '100%', borderRadius: '999px',
+        background: 'var(--t-ruta)', border: '3px solid var(--t-papel)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: '0 6px 14px rgba(14,42,30,.28)',
+      }}>
+        <IconAuto size={size * 0.22} color="var(--t-papel)" grosor={1.9} />
+        <span className="turify-chip-dot" style={{
+          position: 'absolute', top: '18%', right: '10%', width: '8px', height: '8px',
+          borderRadius: '50%', background: 'var(--t-chiva)',
+        }} />
+      </div>
+    </div>
     {texto && <div style={{ color: 'var(--t-piedra)', fontSize: '14.5px', fontWeight: 500 }}>{texto}</div>}
   </div>
 );
@@ -1317,19 +1309,16 @@ const Dashboard = () => {
   // de "buscando conductor" (BusBuscando), pero fijo, como pin sobre el mapa.
   const iconBusConductor = (mapsLoaded && window.google) ? {
     url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
-      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 62">` +
-      `<rect x="8" y="12" width="78" height="34" rx="7" fill="${FIJO.ruta}"/>` +
-      `<rect x="8" y="12" width="78" height="10" rx="7" fill="${FIJO.chiva}"/>` +
-      `<rect x="15" y="25" width="13" height="11" rx="2.5" fill="#EAF2EC"/>` +
-      `<rect x="33" y="25" width="13" height="11" rx="2.5" fill="#EAF2EC"/>` +
-      `<rect x="51" y="25" width="13" height="11" rx="2.5" fill="#EAF2EC"/>` +
-      `<path d="M86 20 h6 a4 4 0 0 1 4 4 v18 a4 4 0 0 1 -4 4 h-6 z" fill="${FIJO.ruta}"/>` +
-      `<rect x="86" y="25" width="8" height="11" rx="2" fill="#EAF2EC"/>` +
-      `<circle cx="94.5" cy="41" r="1.8" fill="${FIJO.chiva}"/>` +
-      `<circle cx="28" cy="47" r="7.5" fill="${FIJO.monte}"/>` +
-      `<circle cx="28" cy="47" r="3.2" fill="#EAF2EC"/>` +
-      `<circle cx="66" cy="47" r="7.5" fill="${FIJO.monte}"/>` +
-      `<circle cx="66" cy="47" r="3.2" fill="#EAF2EC"/>` +
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 50">` +
+      `<rect x="4" y="7" width="72" height="36" rx="18" fill="${FIJO.ruta}" stroke="#fff" stroke-width="3"/>` +
+      `<g transform="translate(21,12) scale(1.15)">` +
+      `<path d="M3.5 16V9.8a1.8 1.8 0 0 1 1.8-1.8h13.4a1.8 1.8 0 0 1 1.8 1.8V16" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>` +
+      `<path d="M2.5 16h19" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>` +
+      `<path d="M9 8v5M15 8v5" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>` +
+      `<circle cx="7" cy="16" r="1.5" fill="#fff"/>` +
+      `<circle cx="17" cy="16" r="1.5" fill="#fff"/>` +
+      `</g>` +
+      `<circle cx="60" cy="25" r="3" fill="${FIJO.chiva}"/>` +
       `</svg>`
     ),
     scaledSize: new window.google.maps.Size(40, 25),
