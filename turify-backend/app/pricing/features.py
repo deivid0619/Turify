@@ -33,6 +33,11 @@ class PricingInput:
     # Menores de 2 años no cuentan como pasajero (HU29) — se reciben aparte
     # únicamente para no perder el dato, no afectan capacidad ni precio.
     num_infantes: int = 0
+    # Ya NO cambia el cálculo (ver `construir_features`: el vehículo siempre
+    # se cobra ida+vuelta, lo haya pedido el pasajero o no — el conductor
+    # tiene que volver igual). Se conserva el campo por si más adelante se
+    # agrega la excepción de "el conductor ya tiene otro pasajero de
+    # regreso y no cobra el tramo vacío" (decisión pendiente, no HU29).
     ida_y_vuelta: bool = False
     tolls_cost: float = 0.0
     tiempo_espera_horas: float = 0.0
@@ -76,7 +81,14 @@ def construir_features(datos: PricingInput) -> dict:
         else k.RECARGO_VIA_DESTAPADA
     )
 
-    distancia_total_km = datos.distancia_km + datos.km_paradas_intermedias
+    # El conductor tiene que volver igual, así el pasajero solo haya pedido
+    # "solo ida" y no vuelva con él — por eso SIEMPRE se cobra el recorrido
+    # completo (ida + regreso del vehículo), sin importar `ida_y_vuelta`.
+    # Validado contra cotizaciones reales de transporte especial en
+    # Antioquia (ver SCRUM-172): sin este factor, un viaje intermunicipal
+    # salía a la mitad de lo que cobra el mercado.
+    distancia_ida_km = datos.distancia_km + datos.km_paradas_intermedias
+    distancia_total_km = distancia_ida_km * 2
 
     # HU60 — viajes de varios días: los primeros `km_incluidos_por_dia * num_dias`
     # van dentro de la tarifa diaria, el resto se cobra como km extra.
@@ -93,10 +105,13 @@ def construir_features(datos: PricingInput) -> dict:
     num_comodidades = sum(1 for v in datos.comodidades.values() if v)
     recargo_comodidades = min(k.MAXIMO_RECARGO_COMODIDADES, num_comodidades * k.RECARGO_POR_COMODIDAD)
 
-    tolls_total = datos.tolls_cost * (2 if datos.ida_y_vuelta else 1)
+    # Mismo criterio que la distancia: los peajes de la ruta se pagan otra
+    # vez en el regreso, así el pasajero no haya pedido ida y vuelta.
+    tolls_total = datos.tolls_cost * 2
 
     return {
         "distancia_km": datos.distancia_km,
+        "distancia_ida_km": distancia_ida_km,
         "distancia_total_km": distancia_total_km,
         "categoria_vehiculo": datos.categoria_vehiculo,
         "num_pasajeros": datos.num_pasajeros,

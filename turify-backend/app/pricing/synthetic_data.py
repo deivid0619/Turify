@@ -54,7 +54,6 @@ def generar_dataset_sintetico(semilla: int = 42) -> pd.DataFrame:
             tolls_cost = float(rng.choice([0, 0, 8000, 15000, 25000]))
             tiempo_espera_horas = float(rng.choice([0, 0, 0, 0.5, 1, 2]))
             num_dias = int(rng.choice([1, 1, 1, 1, 2, 3]))
-            ida_y_vuelta = bool(rng.choice([True, False]))
 
             momento = rng.choice(["diurno", "diurno", "diurno", "nocturno", "temporada_alta"])
             if momento == "nocturno":
@@ -76,7 +75,6 @@ def generar_dataset_sintetico(semilla: int = 42) -> pd.DataFrame:
                 num_adultos=int(rng.integers(1, 6)),
                 num_ninos=int(rng.integers(0, 3)),
                 fecha_salida=fecha,
-                ida_y_vuelta=ida_y_vuelta,
                 tolls_cost=tolls_cost,
                 tiempo_espera_horas=tiempo_espera_horas,
                 num_dias=num_dias,
@@ -90,10 +88,15 @@ def generar_dataset_sintetico(semilla: int = 42) -> pd.DataFrame:
             )
             f = construir_features(entrada)
 
+            # OJO: se guarda `distancia_total_km`/`tolls_total` (ida + regreso
+            # del vehículo), NO los valores de entrada de una sola vía — son
+            # los que realmente determinaron `precio_con_ruido` más abajo. Si
+            # acá se guardara la distancia de una sola vía, el modelo
+            # aprendería que el km "vale la mitad" de lo que en realidad vale.
             filas.append({
                 "vehicle_category": categoria,
-                "distance_km": distancia_km,
-                "tolls_cost": tolls_cost,
+                "distance_km": f["distancia_total_km"],
+                "tolls_cost": f["tolls_total"],
                 "wait_time_hours": tiempo_espera_horas,
                 "num_days": num_dias,
                 "is_peak_hour": f["es_nocturno"],

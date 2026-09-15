@@ -1572,10 +1572,15 @@ def complete_trip(
                 db,
                 request_id=viaje.request_id,
                 vehicle_category=calcular_categoria(vehiculo.capacidad_real or vehiculo.capacity),
-                distance_km=float(viaje.distance_km),
+                # OJO: se guarda la distancia/peajes TOTALES (ida + regreso del
+                # vehículo), no los de una sola vía — es lo que el motor de
+                # precio (app/pricing/features.py) usa desde sep-2026 para
+                # calcular, así que es lo que tiene que coincidir con
+                # final_price para que el modelo de ML entrene bien.
+                distance_km=float(viaje.distance_km) * 2,
                 suggested_price=float(viaje.suggested_price) if viaje.suggested_price is not None else float(oferta_aceptada.offered_price),
                 final_price=float(oferta_aceptada.offered_price),
-                tolls_cost=float(viaje.tolls_cost or 0),
+                tolls_cost=float(viaje.tolls_cost or 0) * 2,
                 wait_time_hours=0,
                 num_days=1,
                 is_peak_hour=bool(viaje.is_peak_hour),

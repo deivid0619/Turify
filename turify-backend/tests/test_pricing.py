@@ -89,9 +89,12 @@ def _entrada_base(**overrides) -> PricingInput:
     return PricingInput(**datos)
 
 
-def test_precio_base_es_distancia_por_tarifa_de_categoria():
+def test_precio_base_es_distancia_ida_y_regreso_por_tarifa_de_categoria():
+    """El conductor tiene que volver, así el viaje sea solo de ida — el
+    precio se calcula sobre el doble de la distancia de la ruta (ver
+    features.py::construir_features)."""
     resultado = calcular_precio_reglas(_entrada_base())
-    esperado = 100 * tarifa_base_km("SEDAN")
+    esperado = 100 * 2 * tarifa_base_km("SEDAN")
     assert resultado.precio_sugerido == pytest.approx(esperado)
     assert resultado.fuente == "REGLAS"
 
@@ -113,29 +116,35 @@ def test_ninos_menores_de_2_anos_no_cuentan_como_pasajero():
 def test_recargo_nocturno_20_por_ciento():
     nocturno = _entrada_base(fecha_salida=datetime(2026, 6, 9, 22, tzinfo=timezone.utc))
     resultado = calcular_precio_reglas(nocturno)
-    base = 100 * tarifa_base_km("SEDAN")
+    base = 100 * 2 * tarifa_base_km("SEDAN")
     assert resultado.precio_sugerido == pytest.approx(base * (1 + k.RECARGO_NOCTURNO))
     assert resultado.es_nocturno is True
 
 
 def test_recargo_via_destapada_15_por_ciento():
     resultado = calcular_precio_reglas(_entrada_base(tipo_via="DESTAPADA"))
-    base = 100 * tarifa_base_km("SEDAN")
+    base = 100 * 2 * tarifa_base_km("SEDAN")
     assert resultado.precio_sugerido == pytest.approx(base * (1 + k.RECARGO_VIA_DESTAPADA))
 
 
 def test_recargo_temporada_alta():
     navidad = _entrada_base(fecha_salida=datetime(2026, 12, 25, 10, tzinfo=timezone.utc))
     resultado = calcular_precio_reglas(navidad)
-    base = 100 * tarifa_base_km("SEDAN")
+    base = 100 * 2 * tarifa_base_km("SEDAN")
     assert resultado.precio_sugerido == pytest.approx(base * (1 + k.RECARGO_TEMPORADA_ALTA))
     assert resultado.es_temporada_alta is True
 
 
-def test_peajes_se_duplican_en_ida_y_vuelta():
+def test_peajes_siempre_se_cobran_ida_y_regreso():
+    """El conductor paga el peaje otra vez al volver, así el pasajero haya
+    pedido 'solo ida' — por eso ahora `ida_y_vuelta` ya no cambia nada del
+    precio (ver features.py): ambos casos cobran el doble del peaje."""
     solo_ida = calcular_precio_reglas(_entrada_base(tolls_cost=10_000, ida_y_vuelta=False))
     ida_y_vuelta = calcular_precio_reglas(_entrada_base(tolls_cost=10_000, ida_y_vuelta=True))
-    assert ida_y_vuelta.precio_sugerido - solo_ida.precio_sugerido == pytest.approx(10_000)
+    sin_peaje = calcular_precio_reglas(_entrada_base(tolls_cost=0))
+
+    assert solo_ida.precio_sugerido == pytest.approx(ida_y_vuelta.precio_sugerido)
+    assert solo_ida.precio_sugerido - sin_peaje.precio_sugerido == pytest.approx(20_000)
 
 
 def test_tiempo_de_espera_se_cobra_por_hora():
@@ -148,9 +157,10 @@ def test_viaje_de_varios_dias_usa_tarifa_diaria_mas_km_extra():
     resultado = calcular_precio_reglas(_entrada_base(
         distancia_km=700, categoria_vehiculo="VAN", num_dias=3,
     ))
+    distancia_total = 700 * 2  # ida + regreso del vehículo
     tarifa_dia = tarifa_base_km("VAN") * 150
     km_incluidos = k.KM_INCLUIDOS_POR_DIA_DEFECTO * 3
-    esperado = tarifa_dia * 3 + (700 - km_incluidos) * tarifa_base_km("VAN")
+    esperado = tarifa_dia * 3 + (distancia_total - km_incluidos) * tarifa_base_km("VAN")
     assert resultado.precio_sugerido == pytest.approx(esperado)
 
 

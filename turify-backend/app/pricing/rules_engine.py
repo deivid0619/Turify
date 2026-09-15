@@ -13,7 +13,8 @@ Implementa uno a uno los criterios de aceptación de la HU29:
   * Recargo por vía difícil (mixta/destapada).
   * Tiempo de espera cobrado por hora.
   * Viajes de varios días: tarifa_dia + km extra.
-  * Peajes incluidos (ya duplicados si es ida y vuelta, ver `features.py`).
+  * Peajes y distancia siempre incluyen el regreso del vehículo, así el
+    pasajero haya pedido solo ida (ver `features.py`).
 """
 from __future__ import annotations
 
@@ -31,7 +32,8 @@ def calcular_precio_reglas(datos: PricingInput) -> ResultadoPrecio:
     if datos.num_dias <= 1:
         base_distancia = f["km_facturables_normal"] * f["tarifa_km_base"]
         desglose.append(ComponentePrecio(
-            f"Distancia ({f['distancia_total_km']:.1f} km x ${f['tarifa_km_base']:.0f}/km)",
+            f"Distancia: {f['distancia_ida_km']:.1f} km de ida + regreso del vehículo "
+            f"({f['distancia_total_km']:.1f} km x ${f['tarifa_km_base']:.0f}/km)",
             base_distancia,
         ))
     else:
@@ -61,8 +63,7 @@ def calcular_precio_reglas(datos: PricingInput) -> ResultadoPrecio:
 
     # ── Peajes ───────────────────────────────────────────────────────────────
     if f["tolls_total"] > 0:
-        etiqueta = "Peajes (ida y vuelta)" if datos.ida_y_vuelta else "Peajes"
-        desglose.append(ComponentePrecio(etiqueta, f["tolls_total"]))
+        desglose.append(ComponentePrecio("Peajes (ida y regreso del vehículo)", f["tolls_total"]))
         subtotal += f["tolls_total"]
 
     # ── Recargos porcentuales sobre el subtotal ─────────────────────────────
@@ -119,8 +120,9 @@ def _explicacion(datos: PricingInput, f: dict, precio_total: float) -> str:
     influenciaron el precio")."""
     nombre_categoria = datos.categoria_vehiculo.replace("_", " ").title()
     partes = [
-        f"Precio calculado para un vehículo tipo {nombre_categoria} "
-        f"({f['distancia_total_km']:.1f} km)."
+        f"Precio calculado para un vehículo tipo {nombre_categoria}: "
+        f"{f['distancia_ida_km']:.1f} km de ida, {f['distancia_total_km']:.1f} km en total "
+        f"(el conductor tiene que volver, así el viaje sea solo de ida)."
     ]
     factores = []
     if f["es_nocturno"]:
