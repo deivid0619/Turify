@@ -15,6 +15,7 @@ from app.audit import registrar_log
 from app.pricing.vehicle_categories import calcular_categoria, sugerir_categoria_para_pasajeros
 from app.pricing.features import PricingInput
 from app.pricing.service import obtener_precio_sugerido, registrar_resultado_viaje
+from app.pricing.peajes_antioquia import calcular_peajes_de_ruta
 
 router = APIRouter(prefix="/api/service-requests", tags=["Service Requests"])
 
@@ -59,6 +60,19 @@ def verificar_comodidades_disponibles(
     )
 
     return {"conductores_que_cumplen": total}
+
+
+# HU27 — peajes automáticos por ruta. El frontend ya trazó la ruta con
+# Google Directions y tiene el polyline decodificado; se lo manda a esto una
+# sola vez (justo después de trazar, junto con la heurística de tipo de vía)
+# para saber qué peajes conocidos toca — ver app/pricing/peajes_antioquia.py.
+@router.post("/calcular-peajes", response_model=schemas.CalcularPeajesResponse)
+def calcular_peajes_endpoint(
+    payload: schemas.CalcularPeajesRequest,
+    current_user: models.User = Depends(security.get_current_user),
+):
+    resultado = calcular_peajes_de_ruta([{"lat": p.lat, "lng": p.lng} for p in payload.puntos_ruta])
+    return resultado
 
 
 # HU28 — precio sugerido con desglose, ANTES de publicar el viaje. No crea

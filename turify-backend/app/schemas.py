@@ -245,6 +245,30 @@ class PriceEstimateResponse(BaseModel):
     excede_capacidad_maxima: bool
 
 
+# ── Peajes automáticos (HU27) ────────────────────────────────────────────────
+# El frontend ya traza la ruta con Google Directions y decodifica el
+# polyline (Dashboard.jsx::trazarRutaConCoords) — se manda una sola vez acá
+# para detectar qué peajes conocidos de app/pricing/peajes_antioquia.py toca.
+class PuntoRuta(BaseModel):
+    lat: float = Field(..., ge=-90, le=90)
+    lng: float = Field(..., ge=-180, le=180)
+
+
+class CalcularPeajesRequest(BaseModel):
+    puntos_ruta: list[PuntoRuta] = Field(..., min_length=2, max_length=2000)
+
+
+class PeajeDetectado(BaseModel):
+    nombre: str
+    tarifa: float
+
+
+class CalcularPeajesResponse(BaseModel):
+    tolls_cost: float
+    tolls_count: int
+    peajes: list[PeajeDetectado]
+
+
 class DriverResponse(BaseModel):
     id: int
     full_name: str

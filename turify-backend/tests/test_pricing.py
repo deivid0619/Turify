@@ -9,6 +9,7 @@ Cubre, en orden:
      por persona).
   4. El dataset sintético + el modelo de ML (cold start).
   5. El endpoint HTTP /api/service-requests/price-estimate.
+  6. HU27 — detección de peajes por ruta (peajes_antioquia).
 """
 from datetime import date, datetime, timedelta, timezone
 
@@ -17,6 +18,7 @@ import pytest
 from app.pricing import constants as k
 from app.pricing.features import PricingInput
 from app.pricing.holidays_co import es_temporada_alta
+from app.pricing.peajes_antioquia import PEAJES_ANTIOQUIA, calcular_peajes_de_ruta
 from app.pricing.rules_engine import calcular_precio_reglas
 from app.pricing.vehicle_categories import (
     calcular_categoria,
@@ -353,3 +355,64 @@ def test_crear_viaje_multidia_y_con_espera_sube_el_precio(client, crear_pasajero
     assert multidia_con_espera.json()["num_days"] == 3
     assert float(multidia_con_espera.json()["wait_time_hours"]) == pytest.approx(4)
     assert float(multidia_con_espera.json()["suggested_price"]) > float(normal.json()["suggested_price"])
+
+
+# ── HU27 — peajes por ruta ────────────────────────────────────────────────
+
+def test_calcular_peajes_detecta_un_peaje_conocido():
+    peaje = PEAJES_ANTIOQUIA[0]
+    # La "ruta" pasa exactamente por las coordenadas del peaje — debe detectarlo.
+    ruta = [
+        {"lat": peaje.lat - 0.01, "lng": peaje.lng - 0.01},
+        {"lat": peaje.lat, "lng": peaje.lng},
+        {"lat": peaje.lat + 0.01, "lng": peaje.lng + 0.01},
+    ]
+    resultado = calcular_peajes_de_ruta(ruta)
+    assert resultado["tolls_count"] == 1
+    assert resultado["tolls_cost"] == pytest.approx(peaje.tarifa_categoria_1)
+    assert resultado["peajes"][0]["nombre"] == peaje.nombre
+
+
+def test_calcular_peajes_ruta_lejos_de_todo_no_detecta_nada():
+    # En medio del océano Pacífico — lejos de cualquier peaje de Antioquia.
+    ruta = [{"lat": 0.0, "lng": -140.0}, {"lat": 1.0, "lng": -141.0}]
+    resultado = calcular_peajes_de_ruta(ruta)
+    assert resultado == {"tolls_cost": 0, "tolls_count": 0, "peajes": []}
+
+
+def test_calcular_peajes_suma_varios_peajes_en_la_misma_ruta():
+    p1, p2 = PEAJES_ANTIOQUIA[0], PEAJES_ANTIOQUIA[1]
+    ruta = [
+        {"lat": p1.lat, "lng": p1.lng},
+        {"lat": (p1.lat + p2.lat) / 2, "lng": (p1.lng + p2.lng) / 2},
+        {"lat": p2.lat, "lng": p2.lng},
+    ]
+    resultado = calcular_peajes_de_ruta(ruta)
+    assert resultado["tolls_count"] == 2
+    assert resultado["tolls_cost"] == pytest.approx(p1.tarifa_categoria_1 + p2.tarifa_categoria_1)
+
+
+def test_endpoint_calcular_peajes(client, crear_pasajero, auth_headers):
+    pasajero = crear_pasajero()
+    peaje = PEAJES_ANTIOQUIA[0]
+
+    respuesta = client.post(
+        "/api/service-requests/calcular-peajes",
+        json={"puntos_ruta": [
+            {"lat": peaje.lat, "lng": peaje.lng},
+            {"lat": peaje.lat + 0.05, "lng": peaje.lng + 0.05},
+        ]},
+        headers=auth_headers(pasajero),
+    )
+
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.json()
+    assert cuerpo["tolls_count"] == 1
+    assert cuerpo["tolls_cost"] == pytest.approx(peaje.tarifa_categoria_1)
+
+
+def test_endpoint_calcular_peajes_rechaza_sin_autenticacion(client):
+    respuesta = client.post("/api/service-requests/calcular-peajes", json={
+        "puntos_ruta": [{"lat": 6.25, "lng": -75.56}, {"lat": 6.26, "lng": -75.57}],
+    })
+    assert respuesta.status_code == 401

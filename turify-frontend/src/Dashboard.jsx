@@ -397,13 +397,29 @@ const Dashboard = () => {
   const textoViajeros = `${totalAsientos} viajero${totalAsientos > 1 ? 's' : ''}`
     + (numDias > 1 ? ` · ${numDias} días` : '');
 
+  // HU27 — peajes automáticos: manda el polyline ya decodificado al backend
+  // una sola vez (no en cada tecla), que lo compara contra los peajes
+  // conocidos de Antioquia (app/pricing/peajes_antioquia.py) y devuelve el
+  // costo total. Si falla (red, backend caído), se sigue sin peajes en vez
+  // de bloquear el trazado de la ruta — el pasajero igual puede publicar.
+  const calcularPeajesDeRuta = async (puntosRuta) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/calcular-peajes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ puntos_ruta: puntosRuta }),
+      });
+      if (!res.ok) return { tolls_cost: 0, tolls_count: 0, peajes: [] };
+      return await res.json();
+    } catch {
+      return { tolls_cost: 0, tolls_count: 0, peajes: [] };
+    }
+  };
+
   // Trazar ruta con Google Directions Service (via SDK JS, no REST directo — evita problemas de CORS)
   // Ademas de distancia/tiempo, arma un objeto `datosRutaParaPrecio` con la info que el motor de
-  // precio sugerido va a necesitar (distancia, duracion, si la ruta pasa por peajes segun los pasos
-  // de la ruta, y un texto de resumen de vias). El costo exacto de peajes no lo entrega el Directions
-  // Service clasico — para eso Google tiene la Routes API (REST, computeRoutes con extraComputations:
-  // TOLLS), que habria que llamar desde el backend porque necesita otra API habilitada y facturación
-  // aparte. Por ahora dejamos `tieneEstimacionPeajes: false` como marcador para esa integración futura.
+  // precio sugerido va a necesitar: distancia, duracion, si la ruta pasa por peajes segun los pasos
+  // de la ruta, y los peajes reales detectados contra la base local (HU27, ver calcularPeajesDeRuta).
   const trazarRutaConCoords = (lat1, lon1, lat2, lon2) => {
     if (!mapsLoaded || !window.google) {
       toast.error('El mapa todavía se está cargando, intenta de nuevo en un momento.');
@@ -417,7 +433,7 @@ const Dashboard = () => {
           destination: { lat: lat2, lng: lon2 },
           travelMode: window.google.maps.TravelMode.DRIVING,
         },
-        (result, status) => {
+        async (result, status) => {
           if (status === 'OK' && result?.routes?.[0]) {
             const ruta = result.routes[0];
             const leg = ruta.legs[0];
@@ -429,6 +445,8 @@ const Dashboard = () => {
             // (util como señal para el motor de precio mientras no tengamos la Routes API con peajes)
             const instrucciones = leg.steps.map(s => s.instructions || '').join(' ').toLowerCase();
             const posibleTrocha = /trocha|sin pavimentar|camino rural|unnamed road/.test(instrucciones);
+
+            const peajes = await calcularPeajesDeRuta(pathDecodificado);
 
             setDatosMapa({
               origen: { lat: lat1, lng: lon1 },
@@ -442,7 +460,9 @@ const Dashboard = () => {
                 distancia_metros: leg.distance.value,
                 duracion_segundos: leg.duration.value,
                 posible_trocha: posibleTrocha,
-                tiene_estimacion_peajes: false, // TODO: Routes API (backend) para costo real de peajes
+                tolls_cost: peajes.tolls_cost,
+                tolls_count: peajes.tolls_count,
+                peajes_detectados: peajes.peajes,
               },
             });
             resolve(leg);
@@ -580,6 +600,7 @@ const Dashboard = () => {
           children_count: pasajeros.ninos,
           distance_km: Math.round((datosParaPrecio.distancia_metros / 1000) * 100) / 100,
           tipo_via: datosParaPrecio.posible_trocha ? 'DESTAPADA' : 'PAVIMENTADA',
+          tolls_cost: datosParaPrecio.tolls_cost || 0,
           requiere_ac: comodidadesFiltro.tiene_ac,
           requiere_wifi: comodidadesFiltro.tiene_wifi,
           num_days: numDias,
@@ -670,6 +691,10 @@ const Dashboard = () => {
         if (datosParaPrecio) {
           payload.distance_km = Math.round((datosParaPrecio.distancia_metros / 1000) * 100) / 100;
           payload.tipo_via = datosParaPrecio.posible_trocha ? 'DESTAPADA' : 'PAVIMENTADA';
+          // HU27 — peajes detectados automáticamente contra la base local de
+          // peajes de Antioquia (ver calcularPeajesDeRuta / app/pricing/peajes_antioquia.py).
+          payload.tolls_cost = datosParaPrecio.tolls_cost || 0;
+          payload.tolls_count = datosParaPrecio.tolls_count || 0;
         }
       }
 
@@ -1843,6 +1868,13 @@ const Dashboard = () => {
                         <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: 'var(--t-piedra-clara)' }}>
                           Rango: ${Number(precioSugerido.precio_minimo).toLocaleString('es-CO')} — ${Number(precioSugerido.precio_maximo).toLocaleString('es-CO')} · vehículo tipo {precioSugerido.categoria_vehiculo.replace('_', ' ').toLowerCase()}
                         </p>
+                        {/* HU27 — peajes detectados automáticamente contra la base local
+                            (app/pricing/peajes_antioquia.py), ya incluidos en el precio de arriba. */}
+                        {infoRuta?.datosParaPrecio?.peajes_detectados?.length > 0 && (
+                          <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: 'var(--t-piedra-clara)' }}>
+                            Incluye peaje{infoRuta.datosParaPrecio.peajes_detectados.length > 1 ? 's' : ''}: {infoRuta.datosParaPrecio.peajes_detectados.map(p => p.nombre).join(', ')}
+                          </p>
+                        )}
 
                         {(precioSugerido.es_nocturno || precioSugerido.es_temporada_alta || precioSugerido.excede_capacidad_maxima) && (
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', margin: '8px 0 0' }}>
