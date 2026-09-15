@@ -322,3 +322,34 @@ def test_crear_viaje_sin_distancia_no_calcula_precio(client, crear_pasajero, aut
 
     assert respuesta.status_code == 201
     assert respuesta.json()["suggested_price"] is None
+
+
+def test_crear_viaje_multidia_y_con_espera_sube_el_precio(client, crear_pasajero, auth_headers):
+    """HU60 / HU29 — num_days y wait_time_hours ahora se pueden mandar al
+    publicar el viaje real (antes solo existían en /price-estimate)."""
+    pasajero = crear_pasajero()
+    salida = datetime.now(timezone.utc) + timedelta(days=2)
+
+    def _publicar(**overrides):
+        payload = {
+            "origin": "Medellín, Antioquia",
+            "destination": "Santa Fe de Antioquia, Antioquia",
+            "departure_time": salida.isoformat(),
+            "trip_type": "ONE_WAY",
+            "adults_count": 2,
+            "children_count": 0,
+            "has_pets": False,
+            "distance_km": 60,
+            "tipo_via": "PAVIMENTADA",
+        }
+        payload.update(overrides)
+        return client.post("/api/service-requests/", json=payload, headers=auth_headers(pasajero))
+
+    normal = _publicar()
+    multidia_con_espera = _publicar(num_days=3, wait_time_hours=4)
+
+    assert normal.status_code == 201
+    assert multidia_con_espera.status_code == 201
+    assert multidia_con_espera.json()["num_days"] == 3
+    assert float(multidia_con_espera.json()["wait_time_hours"]) == pytest.approx(4)
+    assert float(multidia_con_espera.json()["suggested_price"]) > float(normal.json()["suggested_price"])

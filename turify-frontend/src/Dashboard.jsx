@@ -129,6 +129,11 @@ const Dashboard = () => {
   const [busqueda, setBusqueda] = useState({ origen: '', destino: '', departure_time: '', return_time: '' });
   const [mostrarPasajeros, setMostrarPasajeros] = useState(false);
   const [pasajeros, setPasajeros] = useState({ adultos: 1, ninos: 0, mascotas: false });
+  // HU60 — viajes de varios días (tarifa_dia + km extra) y tiempo de espera
+  // por hora (HU29): la fórmula de precio ya los sabía calcular, pero hasta
+  // ahora no había forma de indicarlos al publicar un viaje real.
+  const [numDias, setNumDias] = useState(1);
+  const [tiempoEsperaHoras, setTiempoEsperaHoras] = useState(0);
   const [cargandoMapa, setCargandoMapa] = useState(false);
   const [datosMapa, setDatosMapa] = useState({ origen: null, destino: null, ruta: [] });
   // Ruta del viaje en curso que se sigue en el mapa grande (HU43 — tracking).
@@ -389,7 +394,8 @@ const Dashboard = () => {
   };
 
   const totalAsientos = pasajeros.adultos + pasajeros.ninos;
-  const textoViajeros = `${totalAsientos} viajero${totalAsientos > 1 ? 's' : ''}`;
+  const textoViajeros = `${totalAsientos} viajero${totalAsientos > 1 ? 's' : ''}`
+    + (numDias > 1 ? ` · ${numDias} días` : '');
 
   // Trazar ruta con Google Directions Service (via SDK JS, no REST directo — evita problemas de CORS)
   // Ademas de distancia/tiempo, arma un objeto `datosRutaParaPrecio` con la info que el motor de
@@ -550,6 +556,8 @@ const Dashboard = () => {
     setAvisoSinConductores(false);
     setPrecioSugerido(null);
     setMostrarDesglosePrecio(false);
+    setNumDias(1);
+    setTiempoEsperaHoras(0);
   };
 
   // ÉPICA 12 (HU28) — pide el precio sugerido al backend con lo que se sabe
@@ -574,6 +582,8 @@ const Dashboard = () => {
           tipo_via: datosParaPrecio.posible_trocha ? 'DESTAPADA' : 'PAVIMENTADA',
           requiere_ac: comodidadesFiltro.tiene_ac,
           requiere_wifi: comodidadesFiltro.tiene_wifi,
+          num_days: numDias,
+          wait_time_hours: tiempoEsperaHoras,
         }),
       });
       if (!res.ok) { setPrecioSugerido(null); return; }
@@ -583,7 +593,7 @@ const Dashboard = () => {
     } finally {
       setCargandoPrecio(false);
     }
-  }, [infoRuta, busqueda.departure_time, tipoViaje, pasajeros.adultos, pasajeros.ninos, comodidadesFiltro.tiene_ac, comodidadesFiltro.tiene_wifi, token]);
+  }, [infoRuta, busqueda.departure_time, tipoViaje, pasajeros.adultos, pasajeros.ninos, comodidadesFiltro.tiene_ac, comodidadesFiltro.tiene_wifi, numDias, tiempoEsperaHoras, token]);
 
   useEffect(() => { actualizarPrecioSugerido(); }, [actualizarPrecioSugerido]);
 
@@ -641,7 +651,8 @@ const Dashboard = () => {
         departure_time: busqueda.departure_time,
         return_time: tipoViaje === 'redondo' ? busqueda.return_time : null,
         trip_type: tipoViaje === 'redondo' ? 'ROUND_TRIP' : 'ONE_WAY',
-        adults_count: pasajeros.adultos, children_count: pasajeros.ninos, has_pets: pasajeros.mascotas
+        adults_count: pasajeros.adultos, children_count: pasajeros.ninos, has_pets: pasajeros.mascotas,
+        num_days: numDias, wait_time_hours: tiempoEsperaHoras,
       };
 
       // Épica 2 (HU25) — distancia y tipo de vía salen de lo que YA calculó el Directions Service
@@ -702,6 +713,8 @@ const Dashboard = () => {
       setTipoServicio('ECONOMICO');
       setPrecioSugerido(null);
       setMostrarDesglosePrecio(false);
+      setNumDias(1);
+      setTiempoEsperaHoras(0);
       setAvisoSinConductores(false);
       setBusqueda({ origen: '', destino: '', departure_time: '', return_time: '' });
       if (!sinConductoresConectados) {
@@ -1633,6 +1646,38 @@ const Dashboard = () => {
                       <input type="checkbox" checked={pasajeros.mascotas} onChange={(e) => setPasajeros(prev => ({ ...prev, mascotas: e.target.checked }))} style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: BRAND_GREEN }} />
                     </div>
                     {totalAsientos >= 44 && <p style={{ color: '#d97706', fontSize: '13px', marginTop: '10px', textAlign: 'center' }}>Límite máximo alcanzado.</p>}
+
+                    {/* HU60 — días que se necesita el vehículo (viajes de varios días,
+                        ej. excursiones). 1 día = viaje normal de un solo día. */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid var(--t-linea)' }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold', fontSize: '16px', color: 'var(--t-tinta)' }}>Días</div>
+                        <div style={{ fontSize: '14px', color: 'var(--t-piedra)', marginTop: '2px' }}>¿Necesitás el vehículo varios días?</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setNumDias(d => Math.max(1, d - 1))}
+                          style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>-</motion.button>
+                        <span style={{ width: '20px', textAlign: 'center', fontSize: '16px' }}>{numDias}</span>
+                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setNumDias(d => Math.min(30, d + 1))}
+                          style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>+</motion.button>
+                      </div>
+                    </div>
+
+                    {/* HU29 — tiempo de espera estimado (ej. el conductor te espera en
+                        el destino antes de volver). Se cobra por hora. */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0' }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold', fontSize: '16px', color: 'var(--t-tinta)' }}>Espera</div>
+                        <div style={{ fontSize: '14px', color: 'var(--t-piedra)', marginTop: '2px' }}>Horas de espera estimadas</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setTiempoEsperaHoras(h => Math.max(0, h - 0.5))}
+                          style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>-</motion.button>
+                        <span style={{ width: '28px', textAlign: 'center', fontSize: '16px' }}>{tiempoEsperaHoras}</span>
+                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setTiempoEsperaHoras(h => Math.min(48, h + 0.5))}
+                          style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>+</motion.button>
+                      </div>
+                    </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '15px' }}>
                       <motion.button whileTap={{ scale: 0.95 }} onClick={() => setMostrarPasajeros(false)} type="button" style={{ background: BRAND_GREEN, color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Cerrar</motion.button>
                     </div>
@@ -1754,7 +1799,7 @@ const Dashboard = () => {
           <AnimatePresence>
             {infoRuta && (
               <motion.div initial={{ opacity: 0, y: 50, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: 50, x: '-50%' }}
-                style={{ position: 'absolute', bottom: '24px', left: '50%', backgroundColor: 'var(--t-papel)', padding: '20px 25px', borderRadius: '15px', zIndex: 1000, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', textAlign: 'center', width: '380px', maxWidth: 'calc(100% - 32px)' }}>
+                style={{ position: 'absolute', bottom: '24px', left: '50%', backgroundColor: 'var(--t-papel)', padding: '20px 25px', borderRadius: '15px', zIndex: 1000, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', textAlign: 'center', width: '380px', maxWidth: 'calc(100% - 32px)', maxHeight: 'calc(100% - 48px)', overflowY: 'auto' }}>
                 <p style={{ margin: 0, color: 'var(--t-piedra)', fontSize: '14px' }}>Resumen del viaje</p>
                 <h3 style={{ margin: '8px 0 4px', color: 'var(--t-tinta)' }}>{infoRuta.tiempo} · {infoRuta.distancia}</h3>
                 {infoRuta.distancia === 'No disponible' && (
@@ -1917,6 +1962,16 @@ const Dashboard = () => {
                           : 'Confirmar y Publicar Viaje'}
                   </button>
                 </div>
+
+                {/* ÉPICA 12 (HU28) — el precio sugerido es el camino principal, pero
+                    la negociación manual (oferta/contraoferta con cada conductor)
+                    sigue existiendo: se publica igual, y ahí es donde pasa. */}
+                {precioSugerido && !avisoSinConductores && (
+                  <button type="button" onClick={intentarPublicar} disabled={enviandoSolicitud || verificandoComodidades}
+                    style={{ display: 'block', width: '100%', marginTop: '10px', background: 'none', border: 'none', padding: 0, color: 'var(--t-piedra-clara)', fontSize: '11.5px', cursor: (enviandoSolicitud || verificandoComodidades) ? 'not-allowed' : 'pointer', textDecoration: 'underline' }}>
+                    Prefiero no usar el precio sugerido — publicar y negociar directamente con cada conductor
+                  </button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

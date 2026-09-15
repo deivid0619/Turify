@@ -138,6 +138,13 @@ class ServiceRequestCreate(BaseModel):
     tolls_count: Optional[int] = Field(None, ge=0)
     tolls_cost: Optional[float] = Field(None, ge=0)
     tipo_via: Optional[str] = None  # 'PAVIMENTADA' | 'DESTAPADA' | 'MIXTA'
+    # HU60 — días que se necesita el vehículo (1 = viaje normal de un solo
+    # día). HU29 — tiempo de espera estimado, cobrado por hora. El motor de
+    # precio (Épica 12) ya sabía calcular ambos; hasta ahora no había forma
+    # de indicarlos al publicar un viaje real (solo existían en el
+    # estimador previo /price-estimate).
+    num_days: int = Field(1, ge=1, le=30)
+    wait_time_hours: float = Field(0, ge=0, le=48)
     # HU55 — comodidades que el pasajero exige del vehículo (filtro de búsqueda).
     requiere_ac: Optional[bool] = False
     requiere_wifi: Optional[bool] = False

@@ -152,6 +152,10 @@ def create_service_request(
             tolls_count=request_data.tolls_count or 0,
             tolls_cost=request_data.tolls_cost or 0,
             tipo_via=request_data.tipo_via or "PAVIMENTADA",
+            # HU60 / HU29 — días que se necesita el vehículo y tiempo de espera
+            # estimado, ambos ya soportados por el motor de precio (Épica 12).
+            num_days=request_data.num_days or 1,
+            wait_time_hours=request_data.wait_time_hours or 0,
             # HU26 — búsqueda de conductores 100% automática: ya no la elige el
             # pasajero. El centro de búsqueda es siempre el origen del viaje, y el
             # radio guardado es amplio y fijo (RADIO_VISIBILIDAD_KM) para que la
@@ -198,6 +202,8 @@ def create_service_request(
                 fecha_salida=new_request.departure_time,
                 ida_y_vuelta=(trip_type_str == "ROUND_TRIP"),
                 tolls_cost=float(new_request.tolls_cost or 0),
+                tiempo_espera_horas=float(new_request.wait_time_hours or 0),
+                num_dias=new_request.num_days or 1,
                 tipo_via=new_request.tipo_via or "PAVIMENTADA",
                 comodidades={
                     "tiene_ac": bool(new_request.requiere_ac),
@@ -1581,8 +1587,8 @@ def complete_trip(
                 suggested_price=float(viaje.suggested_price) if viaje.suggested_price is not None else float(oferta_aceptada.offered_price),
                 final_price=float(oferta_aceptada.offered_price),
                 tolls_cost=float(viaje.tolls_cost or 0) * 2,
-                wait_time_hours=0,
-                num_days=1,
+                wait_time_hours=float(viaje.wait_time_hours or 0),
+                num_days=viaje.num_days or 1,
                 is_peak_hour=bool(viaje.is_peak_hour),
                 is_high_season=bool(viaje.is_high_season),
                 tipo_via=viaje.tipo_via or "PAVIMENTADA",
