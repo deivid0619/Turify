@@ -151,6 +151,14 @@ const Dashboard = () => {
   const [avisoSinConductores, setAvisoSinConductores] = useState(false);
   const [infoRuta, setInfoRuta] = useState(null);
 
+  // ÉPICA 12 (HU28/HU29) — precio sugerido con desglose, calculado por el
+  // backend (motor de ML + reglas) ANTES de publicar el viaje. Se vuelve a
+  // pedir cada vez que cambia algo que afecta el precio (ruta, pasajeros,
+  // fecha/hora, tipo de viaje) mientras el resumen esté abierto.
+  const [precioSugerido, setPrecioSugerido] = useState(null);
+  const [cargandoPrecio, setCargandoPrecio] = useState(false);
+  const [mostrarDesglosePrecio, setMostrarDesglosePrecio] = useState(false);
+
   // Equivalente al viejo <AjustarCamara> de Leaflet: cuando hay origen y destino, encuadra ambos;
   // si solo hay origen (ej. geolocalizacion inicial), centra ahi con zoom de calle.
   const encuadrarMapa = useCallback(() => {
@@ -540,7 +548,44 @@ const Dashboard = () => {
     setTipoServicio('ECONOMICO');
     setComodidadesFiltro(COMODIDADES_VACIAS);
     setAvisoSinConductores(false);
+    setPrecioSugerido(null);
+    setMostrarDesglosePrecio(false);
   };
+
+  // ÉPICA 12 (HU28) — pide el precio sugerido al backend con lo que se sabe
+  // hasta ahora del viaje. No crea nada: es solo una vista previa. Si algo
+  // falla (red, backend caído) se deja `precioSugerido` en null y la tarjeta
+  // simplemente no se muestra — nunca bloquea poder publicar el viaje.
+  const actualizarPrecioSugerido = useCallback(async () => {
+    const datosParaPrecio = infoRuta?.datosParaPrecio;
+    if (!datosParaPrecio || !busqueda.departure_time) { setPrecioSugerido(null); return; }
+
+    setCargandoPrecio(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/price-estimate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({
+          trip_type: tipoViaje === 'redondo' ? 'ROUND_TRIP' : 'ONE_WAY',
+          departure_time: busqueda.departure_time,
+          adults_count: pasajeros.adultos,
+          children_count: pasajeros.ninos,
+          distance_km: Math.round((datosParaPrecio.distancia_metros / 1000) * 100) / 100,
+          tipo_via: datosParaPrecio.posible_trocha ? 'DESTAPADA' : 'PAVIMENTADA',
+          requiere_ac: comodidadesFiltro.tiene_ac,
+          requiere_wifi: comodidadesFiltro.tiene_wifi,
+        }),
+      });
+      if (!res.ok) { setPrecioSugerido(null); return; }
+      setPrecioSugerido(await res.json());
+    } catch {
+      setPrecioSugerido(null);
+    } finally {
+      setCargandoPrecio(false);
+    }
+  }, [infoRuta, busqueda.departure_time, tipoViaje, pasajeros.adultos, pasajeros.ninos, comodidadesFiltro.tiene_ac, comodidadesFiltro.tiene_wifi, token]);
+
+  useEffect(() => { actualizarPrecioSugerido(); }, [actualizarPrecioSugerido]);
 
   // HU55.1 — se llama al presionar "Confirmar y Publicar Viaje": si el
   // pasajero pidió Premium con al menos una comodidad marcada, primero
@@ -655,6 +700,8 @@ const Dashboard = () => {
       setDatosMapa({ origen: null, destino: null, ruta: [] });
       setComodidadesFiltro(COMODIDADES_VACIAS);
       setTipoServicio('ECONOMICO');
+      setPrecioSugerido(null);
+      setMostrarDesglosePrecio(false);
       setAvisoSinConductores(false);
       setBusqueda({ origen: '', destino: '', departure_time: '', return_time: '' });
       if (!sinConductoresConectados) {
@@ -1722,6 +1769,72 @@ const Dashboard = () => {
                 <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--t-piedra)', textAlign: 'left' }}>
                   Buscamos automáticamente a los conductores disponibles más cercanos a tu origen.
                 </p>
+
+                {/* ÉPICA 12 (HU28/HU29) — precio sugerido. Es el primer número que ve el
+                    pasajero, antes que nada de comodidades u ofertas: la negociación
+                    manual (contraoferta) sigue existiendo más adelante, pero ya no es
+                    el punto de partida — este precio sí lo es. */}
+                {(cargandoPrecio || precioSugerido) && (
+                  <div style={{ textAlign: 'left', margin: '0 0 14px', padding: '14px 16px', background: 'rgba(22,163,74,0.07)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                      <IconPrecio size={13} color={BRAND_GREEN} />
+                      <span style={{ fontFamily: T.dato, fontSize: '10.5px', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--t-piedra)' }}>
+                        Precio sugerido
+                      </span>
+                    </div>
+
+                    {!precioSugerido ? (
+                      <p style={{ margin: 0, fontSize: '14px', color: 'var(--t-piedra)' }}>Calculando…</p>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
+                          <span style={{ fontFamily: T.display, fontSize: '28px', fontWeight: 800, color: BRAND_GREEN, opacity: cargandoPrecio ? 0.55 : 1 }}>
+                            ${Number(precioSugerido.precio_sugerido).toLocaleString('es-CO')}
+                          </span>
+                          <span style={{ fontSize: '12.5px', color: 'var(--t-piedra)' }}>
+                            ${Number(precioSugerido.precio_por_persona).toLocaleString('es-CO')} por persona
+                          </span>
+                        </div>
+                        <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: 'var(--t-piedra-clara)' }}>
+                          Rango: ${Number(precioSugerido.precio_minimo).toLocaleString('es-CO')} — ${Number(precioSugerido.precio_maximo).toLocaleString('es-CO')} · vehículo tipo {precioSugerido.categoria_vehiculo.replace('_', ' ').toLowerCase()}
+                        </p>
+
+                        {(precioSugerido.es_nocturno || precioSugerido.es_temporada_alta || precioSugerido.excede_capacidad_maxima) && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', margin: '8px 0 0' }}>
+                            {precioSugerido.es_nocturno && (
+                              <span style={{ fontSize: '11px', fontWeight: 600, color: '#4338ca', background: '#eef2ff', padding: '3px 8px', borderRadius: '999px' }}>Recargo nocturno</span>
+                            )}
+                            {precioSugerido.es_temporada_alta && (
+                              <span style={{ fontSize: '11px', fontWeight: 600, color: '#92400e', background: '#fff7ed', padding: '3px 8px', borderRadius: '999px' }}>{precioSugerido.motivo_temporada_alta || 'Temporada alta'}</span>
+                            )}
+                            {precioSugerido.excede_capacidad_maxima && (
+                              <span style={{ fontSize: '11px', fontWeight: 600, color: '#991b1b', background: '#fef2f2', padding: '3px 8px', borderRadius: '999px' }}>Grupo grande — puede necesitar más de un vehículo</span>
+                            )}
+                          </div>
+                        )}
+
+                        <button type="button" onClick={() => setMostrarDesglosePrecio(v => !v)}
+                          style={{ marginTop: '10px', background: 'none', border: 'none', padding: 0, color: BRAND_GREEN, fontSize: '12px', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>
+                          {mostrarDesglosePrecio ? 'Ocultar desglose' : 'Ver desglose'}
+                        </button>
+
+                        {mostrarDesglosePrecio && (
+                          <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(22,163,74,0.25)' }}>
+                            {precioSugerido.desglose.map((linea, i) => (
+                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '12px', color: 'var(--t-tinta)', padding: '2px 0' }}>
+                                <span>{linea.concepto}</span>
+                                <span style={{ fontWeight: 600, flexShrink: 0 }}>${Number(linea.monto).toLocaleString('es-CO')}</span>
+                              </div>
+                            ))}
+                            <p style={{ margin: '8px 0 0', fontSize: '11.5px', color: 'var(--t-piedra-clara)', lineHeight: 1.5 }}>
+                              {precioSugerido.explicacion}
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {/* HU55.1 — Estándar / Premium */}
                 <div style={{ display: 'flex', gap: '8px', margin: '0 0 6px' }}>
