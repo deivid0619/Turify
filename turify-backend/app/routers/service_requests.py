@@ -1,5 +1,6 @@
 import io
 import json
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -11,6 +12,9 @@ from app.database import get_db
 from app import models, schemas, security # Tu lógica de seguridad
 from ..security import get_current_user
 from app.audit import registrar_log
+from app.pricing.vehicle_categories import calcular_categoria, sugerir_categoria_para_pasajeros
+from app.pricing.features import PricingInput
+from app.pricing.service import obtener_precio_sugerido, registrar_resultado_viaje
 
 router = APIRouter(prefix="/api/service-requests", tags=["Service Requests"])
 
@@ -55,6 +59,37 @@ def verificar_comodidades_disponibles(
     )
 
     return {"conductores_que_cumplen": total}
+
+
+# HU28 — precio sugerido con desglose, ANTES de publicar el viaje. No crea
+# ningún registro: el frontend llama esto mientras el pasajero todavía está
+# llenando el formulario (después de trazar la ruta con Google Maps), para
+# mostrarle el precio sugerido y su desglose antes del botón "Confirmar y
+# Publicar Viaje".
+@router.post("/price-estimate", response_model=schemas.PriceEstimateResponse)
+def estimar_precio_sugerido(
+    payload: schemas.PriceEstimateRequest,
+    current_user: models.User = Depends(security.get_current_user),
+):
+    categoria_sugerida = sugerir_categoria_para_pasajeros(
+        payload.adults_count + payload.children_count
+    )
+    entrada_precio = PricingInput(
+        distancia_km=payload.distance_km,
+        categoria_vehiculo=categoria_sugerida["categoria"],
+        num_adultos=payload.adults_count,
+        num_ninos=payload.children_count,
+        num_infantes=payload.infants_count,
+        fecha_salida=payload.departure_time,
+        ida_y_vuelta=(payload.trip_type == schemas.TripType.ROUND_TRIP),
+        tolls_cost=payload.tolls_cost,
+        tiempo_espera_horas=payload.wait_time_hours,
+        num_dias=payload.num_days,
+        tipo_via=payload.tipo_via,
+        comodidades={"tiene_ac": payload.requiere_ac, "tiene_wifi": payload.requiere_wifi},
+    )
+    resultado = obtener_precio_sugerido(entrada_precio)
+    return resultado.to_dict()
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -105,6 +140,7 @@ def create_service_request(
             trip_type=trip_type_str,
             adults_count=request_data.adults_count,
             children_count=request_data.children_count,
+            infants_count=request_data.infants_count or 0,
             has_pets=request_data.has_pets,
             status="PENDING",
             # Épica 2 (HU25) — datos de ruta de Google Maps, para el motor de precio (Épica 12)
@@ -143,7 +179,39 @@ def create_service_request(
                 if (request_data.tipo_servicio or "ECONOMICO").upper() in ("ECONOMICO", "ESTANDAR")
                 else "ECONOMICO",
         )
-        
+
+        # ── Motor de precio sugerido (ÉPICA 12 / HU29) ──────────────────────
+        # Se calcula acá, antes del commit, para que el viaje ya quede creado
+        # con su precio sugerido/desglose/min/max. Si Google Maps no pudo
+        # resolver la distancia (distance_km viene None), se deja sin precio
+        # sugerido — el pasajero igual puede publicar y negociar directamente.
+        if new_request.distance_km is not None:
+            categoria_sugerida = sugerir_categoria_para_pasajeros(
+                new_request.adults_count + new_request.children_count
+            )
+            entrada_precio = PricingInput(
+                distancia_km=float(new_request.distance_km),
+                categoria_vehiculo=categoria_sugerida["categoria"],
+                num_adultos=new_request.adults_count,
+                num_ninos=new_request.children_count,
+                num_infantes=new_request.infants_count or 0,
+                fecha_salida=new_request.departure_time,
+                ida_y_vuelta=(trip_type_str == "ROUND_TRIP"),
+                tolls_cost=float(new_request.tolls_cost or 0),
+                tipo_via=new_request.tipo_via or "PAVIMENTADA",
+                comodidades={
+                    "tiene_ac": bool(new_request.requiere_ac),
+                    "tiene_wifi": bool(new_request.requiere_wifi),
+                },
+            )
+            resultado_precio = obtener_precio_sugerido(entrada_precio)
+            new_request.suggested_price = resultado_precio.precio_sugerido
+            new_request.suggested_price_min = resultado_precio.precio_minimo
+            new_request.suggested_price_max = resultado_precio.precio_maximo
+            new_request.is_peak_hour = resultado_precio.es_nocturno
+            new_request.is_high_season = resultado_precio.es_temporada_alta
+            new_request.price_explanation = resultado_precio.explicacion
+
         db.add(new_request)
         db.commit()
         db.refresh(new_request)
@@ -1225,21 +1293,10 @@ def crear_notificacion(db, user_id: int, title: str, message: str, tipo: str, of
         print(f"[Notificación] Error: {e}")
 
 
-# HU55 — Categoría de vehículo (misma tabla de rangos que app/routers/drivers.py)
-_RANGOS_CATEGORIA_VEHICULO = [
-    (1, 4,   "SEDAN"),
-    (5, 10,  "VAN"),
-    (11, 19, "MICROBUS"),
-    (20, 35, "BUS"),
-    (36, 60, "BUS_GRANDE"),
-]
-
-
-def _categoria_vehiculo(capacidad: int) -> str:
-    for minimo, maximo, categoria in _RANGOS_CATEGORIA_VEHICULO:
-        if minimo <= capacidad <= maximo:
-            return categoria
-    return "BUS_GRANDE" if capacidad > 60 else "SEDAN"
+# HU55 — Categoría de vehículo. Vive en app/pricing/vehicle_categories.py
+# (única fuente de verdad); este alias corto se deja para no tocar el resto
+# de este archivo, que ya la llama como `_categoria_vehiculo(...)`.
+_categoria_vehiculo = calcular_categoria
 
 
 # HU46 — Calificaciones bidireccionales (SCRUM-194)
@@ -1500,6 +1557,41 @@ def complete_trip(
 
     viaje.status = 'COMPLETED'
     db.commit()
+
+    # ÉPICA 12 (HU29) — cada viaje completado alimenta el historial real de
+    # precios: es lo que hace que, con el tiempo, el modelo de ML deje de
+    # depender del dataset sintético de arranque (ver
+    # app/pricing/service.py::MINIMO_MUESTRAS_REALES_PARA_ML). Un fallo acá no
+    # debe impedir que el viaje quede completado para el pasajero/conductor.
+    try:
+        vehiculo = db.query(models.Vehicle).filter(
+            models.Vehicle.vehicle_id == oferta_aceptada.vehicle_id
+        ).first()
+        if vehiculo is not None and viaje.distance_km is not None:
+            registrar_resultado_viaje(
+                db,
+                request_id=viaje.request_id,
+                vehicle_category=calcular_categoria(vehiculo.capacidad_real or vehiculo.capacity),
+                distance_km=float(viaje.distance_km),
+                suggested_price=float(viaje.suggested_price) if viaje.suggested_price is not None else float(oferta_aceptada.offered_price),
+                final_price=float(oferta_aceptada.offered_price),
+                tolls_cost=float(viaje.tolls_cost or 0),
+                wait_time_hours=0,
+                num_days=1,
+                is_peak_hour=bool(viaje.is_peak_hour),
+                is_high_season=bool(viaje.is_high_season),
+                tipo_via=viaje.tipo_via or "PAVIMENTADA",
+                has_ac=bool(vehiculo.tiene_ac),
+                has_wifi=bool(vehiculo.tiene_wifi),
+                num_passengers=viaje.adults_count + viaje.children_count,
+                origin_city=viaje.origin,
+                destination_city=viaje.destination,
+            )
+    except Exception:
+        db.rollback()
+        logging.getLogger("turify.pricing").exception(
+            "No se pudo registrar PriceHistory para el viaje #%s", viaje.request_id
+        )
 
     # Notificar al pasajero
     crear_notificacion(

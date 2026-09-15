@@ -154,7 +154,7 @@ class ServiceRequest(Base):
         'PENDING', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'SCHEDULED',
         name='request_status'
     ), default='PENDING')
-    # Campos nuevos — Agente IA precio (Épica 4)
+    # Campos del motor de precio sugerido (ÉPICA 12, HU29 — antes Épica 4)
     distance_km         = Column(Numeric(10, 2))
     tolls_count         = Column(Integer, default=0)
     tolls_cost          = Column(Numeric(10, 2), default=0)
@@ -261,7 +261,9 @@ class Notification(Base):
 
 
 class PriceHistory(Base):
-    """Historial de precios para alimentar el agente IA (Épica 4)"""
+    """Historial de precios para entrenar el modelo de ML del precio sugerido
+    (ÉPICA 12, HU29). Cada fila se crea automáticamente al completar un viaje
+    — ver app/pricing/service.py::registrar_resultado_viaje."""
     __tablename__ = "PriceHistory"
 
     history_id          = Column(Integer, primary_key=True, autoincrement=True)

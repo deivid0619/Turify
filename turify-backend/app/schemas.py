@@ -123,6 +123,11 @@ class ServiceRequestCreate(BaseModel):
     # Nuevos campos según la tabla SQL
     adults_count: int = Field(..., ge=1, le=60, description="Al menos un adulto")
     children_count: int = Field(0, ge=0, le=60)
+    # HU29 — los menores de 2 años no cuentan como pasajero para capacidad ni
+    # precio; se reciben aparte para no perder el dato (antes ni siquiera se
+    # podían declarar: el modelo ya tenía la columna, pero este schema no la
+    # exponía).
+    infants_count: int = Field(0, ge=0, le=60)
     has_pets: bool = False
     # Épica 2 (HU25) — datos de la ruta calculados con Google Maps, para el motor de precio (Épica 12)
     origin_lat: Optional[float] = Field(None, ge=-90, le=90)
@@ -185,6 +190,54 @@ class ServiceRequestResponse(ServiceRequestCreate):
     class Config:
         from_attributes = True
         
+# ── Precio sugerido (ÉPICA 12 / HU28, HU29) ─────────────────────────────────
+# Petición de estimado "antes de publicar el viaje": no crea nada en la base
+# de datos, solo calcula. Comparte casi todos los campos con
+# ServiceRequestCreate a propósito (mismos nombres, mismas validaciones) para
+# que el frontend pueda armar este payload con los mismos datos que ya tiene
+# listos para publicar el viaje.
+class PriceEstimateRequest(BaseModel):
+    trip_type: TripType
+    departure_time: datetime
+    adults_count: int = Field(..., ge=1, le=60)
+    children_count: int = Field(0, ge=0, le=60)
+    infants_count: int = Field(0, ge=0, le=60)
+    distance_km: float = Field(..., ge=0)
+    tolls_cost: float = Field(0, ge=0)
+    wait_time_hours: float = Field(0, ge=0, le=48)
+    num_days: int = Field(1, ge=1, le=30)
+    tipo_via: str = "PAVIMENTADA"
+    requiere_ac: bool = False
+    requiere_wifi: bool = False
+
+    @field_validator('tipo_via')
+    @classmethod
+    def _v_tipo_via_estimate(cls, v):
+        if v not in ('PAVIMENTADA', 'DESTAPADA', 'MIXTA'):
+            raise ValueError("tipo_via debe ser PAVIMENTADA, DESTAPADA o MIXTA.")
+        return v
+
+
+class ComponentePrecioResponse(BaseModel):
+    concepto: str
+    monto: float
+
+
+class PriceEstimateResponse(BaseModel):
+    precio_sugerido: float
+    precio_minimo: float
+    precio_maximo: float
+    precio_por_persona: float
+    fuente: str
+    desglose: list[ComponentePrecioResponse]
+    explicacion: str
+    es_nocturno: bool
+    es_temporada_alta: bool
+    motivo_temporada_alta: Optional[str] = None
+    categoria_vehiculo: str
+    excede_capacidad_maxima: bool
+
+
 class DriverResponse(BaseModel):
     id: int
     full_name: str

@@ -14,6 +14,11 @@ from app.database import get_db
 from app.security import get_current_user
 from app import models, schemas
 from app.audit import registrar_log
+from app.pricing.vehicle_categories import (
+    RANGOS_CATEGORIA,
+    calcular_categoria,
+    rango_tarifa_km,
+)
 
 load_dotenv()
 
@@ -42,29 +47,10 @@ TAMANO_MAXIMO_MB = 5
 router = APIRouter(prefix="/drivers", tags=["Modo Conductor"])
 
 # ── HU55 — Categorías de vehículo y rango estándar de tarifa por km ─────────
-# Rangos en COP/km, orientativos — el conductor puede moverse dentro de su
-# categoría pero no salirse de ella (evita tarifas absurdas por error).
-RANGOS_CATEGORIA = [
-    (1, 4,   "SEDAN",      (1500, 3000)),
-    (5, 10,  "VAN",        (2000, 4000)),
-    (11, 19, "MICROBUS",   (2500, 5000)),
-    (20, 35, "BUS",        (3000, 6000)),
-    (36, 60, "BUS_GRANDE", (3500, 7000)),
-]
-
-
-def calcular_categoria(capacidad: int) -> str:
-    for minimo, maximo, categoria, _ in RANGOS_CATEGORIA:
-        if minimo <= capacidad <= maximo:
-            return categoria
-    return "BUS_GRANDE" if capacidad > 60 else "SEDAN"
-
-
-def rango_tarifa_km(categoria: str):
-    for _, _, cat, rango in RANGOS_CATEGORIA:
-        if cat == categoria:
-            return list(rango)
-    return [1500, 3000]
+# RANGOS_CATEGORIA / calcular_categoria / rango_tarifa_km viven ahora en
+# app/pricing/vehicle_categories.py (única fuente de verdad, reutilizada
+# también por service_requests.py y por el motor de precio sugerido de la
+# ÉPICA 12) — se importan arriba en vez de redefinirse aquí.
 
 
 def _detectar_tipo_real(cabecera: bytes) -> str:
