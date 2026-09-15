@@ -76,8 +76,12 @@ PEAJES_ANTIOQUIA: list[Peaje] = [
           "Gobernación de Antioquia, ene-2026"),
     Peaje("Vía Pajarito (San Pedro de los Milagros)", 6.4420, -75.5600, 12900, "Norte",
           "Gobernación de Antioquia, ene-2026"),
-    Peaje("Aburrá (San Cristóbal, antes del Túnel de Occidente)", 6.2865, -75.6432, 27300, "Occidente",
-          "Devimar / ANI, 2026"),
+    # Coordenada verificada contra una ruta real (Medellín -> San Jerónimo):
+    # el geocodificador de Google ubica "San Cristóbal, Medellín" en
+    # (6.27769, -75.63550), y el punto de la ruta trazada más cercano a eso
+    # quedó a 201m — la única de esta tabla confirmada así, no solo estimada.
+    Peaje("Aburrá (San Cristóbal, antes del Túnel de Occidente)", 6.27589, -75.63527, 27300, "Occidente",
+          "Devimar / ANI, 2026 — coordenada verificada contra ruta real, sep-2026"),
     Peaje("Amagá", 6.0400, -75.7000, 20600, "Suroeste",
           "ANI, ene-2026"),
     Peaje("La Pintada", 5.7500, -75.6100, 23900, "Suroeste",
