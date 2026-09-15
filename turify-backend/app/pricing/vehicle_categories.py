@@ -24,16 +24,37 @@ RANGOS_CATEGORIA = [
     (36, 60, "BUS_GRANDE", (3500, 7000)),
 ]
 
-# HU29 — "Tarifas base por tipo de vehículo: Sedán $1.500/km, Van $3.000/km,
-# Microbús $4.500/km, Bus $6.000/km, Bus Ejecutivo $9.000/km". "Bus Ejecutivo"
-# de la HU es la misma categoría que "BUS_GRANDE" en el resto del código
-# (enum `vehicle_category` de PriceHistory, RANGOS_CATEGORIA de arriba).
+# Tarifas base COP/km — recalibradas en septiembre 2026 contra referencias
+# reales (la HU29 original traía $1.500/3.000/4.500/6.000/9.000 sin ninguna
+# fuente citada; resultaban en precios sugeridos muy por debajo del mercado).
+#
+# SEDAN: única categoría con una referencia pública verificable — la tarifa
+# oficial de transporte por plataforma en Medellín para 2026 es $1.625-1.654/km
+# + $4.600 de banderazo (Alcaldía de Medellín / El Tiempo, feb-2026). Un carro
+# particular sin ánimo de lucro cuesta ~$1.380/km solo en combustible+desgaste
+# (kilometraje.co, con metodología del Mineducación/Banrep/ANI) — ese es el
+# piso, no lo que debe cobrar un conductor que vive de esto. Se fijó $1.700/km
+# para además absorber, dentro de la tarifa por km, el equivalente al
+# banderazo que Turify no cobra aparte (no hay cargo fijo por viaje).
+#
+# VAN/MICROBUS/BUS/BUS_GRANDE: no encontramos un índice público de tarifas de
+# transporte especial por categoría de vehículo en Antioquia (es un mercado de
+# nicho, sin el equivalente al tarifario de taxis/plataformas). Se mantuvieron
+# las mismas proporciones relativas a SEDAN que ya traía la HU29 (Van 2x,
+# Microbús 3x, Bus 4x, Bus Ejecutivo 6x) aplicadas sobre la nueva base —
+# quedan como estimación razonada, no como dato verificado. Pendiente:
+# contrastar con las tarifas reales de las empresas afiliadas (Departour,
+# Transporte Real, mencionadas en el Manual de Usuario) para reemplazar estas
+# tres por números reales.
+#
+# "Bus Ejecutivo" de la HU es la misma categoría que "BUS_GRANDE" en el resto
+# del código (enum `vehicle_category` de PriceHistory, RANGOS_CATEGORIA arriba).
 TARIFA_BASE_KM_SUGERIDO = {
-    "SEDAN": 1500,
-    "VAN": 3000,
-    "MICROBUS": 4500,
-    "BUS": 6000,
-    "BUS_GRANDE": 9000,
+    "SEDAN": 1700,
+    "VAN": 3400,
+    "MICROBUS": 5100,
+    "BUS": 6800,
+    "BUS_GRANDE": 10200,
 }
 
 # Capacidad real máxima de la categoría más grande — por encima de esto, un

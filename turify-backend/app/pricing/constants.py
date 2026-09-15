@@ -14,12 +14,19 @@ RECARGO_TEMPORADA_ALTA = 0.20
 RECARGO_VIA_DESTAPADA = 0.15
 RECARGO_VIA_MIXTA = RECARGO_VIA_DESTAPADA / 2
 
-# Recargo por cada comodidad activa del vehículo (aire, wifi, etc.) — variable
-# de entrada del modelo de ML y también componente menor de la fórmula de
-# reglas, para que el precio no sea idéntico entre un vehículo pelado y uno
-# con todas las comodidades.
-RECARGO_POR_COMODIDAD = 0.01
-MAXIMO_RECARGO_COMODIDADES = 0.08
+# Recargo por cada comodidad activa del vehículo (aire, wifi, etc.) —
+# recalibrado en septiembre 2026: la versión original (1% por comodidad, tope
+# 8%) salió inventada sin ninguna referencia y resultaba insignificante (unos
+# $4.300 sobre un viaje típico). Los tiers "comfort/premium" de apps de
+# transporte cobran entre 20% y 40% más que el estándar (Uber Comfort: +20%
+# en Chile, +30% en Costa Rica, +25-30% típico; taxi de lujo vs básico en
+# Medellín 2026: banderazo +44%, carrera mínima +46%). Con 3% por comodidad y
+# tope en 24% (las 8 comodidades marcadas a la vez), un vehículo Premium
+# completo queda en el rango bajo-medio de esa franja real — conservador
+# porque acá "premium" es una casilla marcada, no una flota curada como Uber
+# Comfort.
+RECARGO_POR_COMODIDAD = 0.03
+MAXIMO_RECARGO_COMODIDADES = 0.24
 
 # Banda de incertidumbre alrededor del precio puntual sugerido, para mostrar
 # un rango mínimo/máximo (HU28) en vez de un único número tajante.
