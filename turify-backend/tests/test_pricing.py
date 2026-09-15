@@ -172,11 +172,21 @@ def test_desglose_de_reglas_suma_el_precio_total():
 # del núcleo de reglas de arriba, que no depende de ninguna de las dos.
 
 def test_dataset_sintetico_tiene_las_columnas_que_espera_el_modelo():
-    from app.pricing.ml_model import COLUMNAS_CATEGORICAS, COLUMNAS_NUMERICAS, COLUMNA_OBJETIVO
+    # Las columnas de interacción (distance_km__SEDAN, etc.) las genera
+    # ml_model._expandir_interacciones a partir de estas — el dataset crudo
+    # no las tiene todavía, y no debería tenerlas (ver ml_model.py).
+    from app.pricing.ml_model import (
+        COLUMNAS_CATEGORICAS,
+        COLUMNAS_NUMERICAS_PLANAS,
+        VARIABLES_ESCALADAS_POR_CATEGORIA,
+        COLUMNA_OBJETIVO,
+    )
     from app.pricing.synthetic_data import generar_dataset_sintetico
 
     df = generar_dataset_sintetico()
-    columnas_esperadas = set(COLUMNAS_CATEGORICAS + COLUMNAS_NUMERICAS + [COLUMNA_OBJETIVO])
+    columnas_esperadas = set(
+        COLUMNAS_CATEGORICAS + COLUMNAS_NUMERICAS_PLANAS + VARIABLES_ESCALADAS_POR_CATEGORIA + [COLUMNA_OBJETIVO]
+    )
     assert columnas_esperadas.issubset(set(df.columns))
     assert len(df) > 0
     assert (df["final_price"] > 0).all()
