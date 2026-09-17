@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import List
+from typing import List, Optional
 from supabase import create_client, Client
 
 from app.database import get_db
@@ -152,7 +152,12 @@ async def upload_to_supabase(
 async def register_driver_info(
     request: Request,
     age: int = Form(...),
-    affiliated_company: int = Form(...),
+    affiliated_company: Optional[int] = Form(None),
+    # Si la empresa del conductor no está en la lista fija (Departour /
+    # Transporte Real), puede escribirla — se busca primero por NIT (único)
+    # para no duplicarla si dos conductores de la misma empresa la escriben.
+    new_company_name: Optional[str] = Form(None),
+    new_company_nit: Optional[str] = Form(None),
     plate: str = Form(...),
     capacity: int = Form(...),
     # HU55 — comodidades del vehículo, opcionales desde el registro (el conductor
@@ -190,6 +195,34 @@ async def register_driver_info(
             detail="Ya tienes documentos enviados. Debes esperar la revisión del administrador o tener documentos rechazados para volver a enviar."
         )
 
+    # Resolver la empresa afiliada: o viene de la lista fija (affiliated_company
+    # = un company_id existente), o el conductor escribió una nueva (nombre +
+    # NIT) porque no está en la lista. Se busca primero por NIT antes de crear
+    # una fila nueva, para que dos conductores de la misma empresa terminen
+    # apuntando al mismo AffiliatedCompany en vez de duplicarla.
+    if affiliated_company:
+        empresa_id = affiliated_company
+    elif new_company_name and new_company_nit:
+        nombre_limpio = new_company_name.strip()
+        nit_limpio = new_company_nit.strip()
+        if not nombre_limpio or not nit_limpio:
+            raise HTTPException(status_code=400, detail="El nombre y el NIT de la empresa son obligatorios.")
+        empresa_existente = db.query(models.AffiliatedCompany).filter(
+            models.AffiliatedCompany.nit == nit_limpio
+        ).first()
+        if empresa_existente:
+            empresa_id = empresa_existente.company_id
+        else:
+            nueva_empresa = models.AffiliatedCompany(name=nombre_limpio, nit=nit_limpio)
+            db.add(nueva_empresa)
+            db.flush()  # asigna company_id (autoincrement) antes del commit final
+            empresa_id = nueva_empresa.company_id
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Elegí tu empresa de la lista, o escribí su nombre y NIT si no aparece."
+        )
+
     supabase = get_supabase()
     base_path = f"drivers/{current_user.user_id}"
 
@@ -202,7 +235,7 @@ async def register_driver_info(
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
         user_db.age = age
-        user_db.affiliated_company = affiliated_company
+        user_db.affiliated_company = empresa_id
         user_db.profile_photo_url = await upload_to_supabase(
             supabase, profile_photo, "turify-fotos", f"{base_path}/profile",
             db=db, current_user=current_user,
@@ -220,7 +253,7 @@ async def register_driver_info(
             )
             new_vehicle = models.Vehicle(
                 owner_id=current_user.user_id,
-                company_id=affiliated_company,
+                company_id=empresa_id,
                 plate=plate.upper(),
                 capacity=capacity,
                 photo_url=vehicle_photo_url,

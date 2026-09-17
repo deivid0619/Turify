@@ -32,15 +32,15 @@ punto de la ruta pasa lo bastante cerca (RADIO_DETECCION_METROS) — sin
 necesidad de mapear manualmente "qué peajes tiene cada municipio", lo que sí
 sería tedioso y no escalaría a nuevos destinos.
 
-OJO — coordenadas por verificar
+Coordenadas
 --------------------------------------------------------------
-Las coordenadas de abajo son una MEJOR ESTIMACIÓN a partir de la ubicación
-geográfica conocida de cada peaje (no de un GPS medido en sitio) — igual que
-las tarifas de Van/Microbus/Bus en vehicle_categories.py, quedan marcadas
-como estimación razonada, pendiente de verificar una por una en Google Maps
-(clic derecho -> coordenadas) antes de confiar en esto para producción. Las
-tarifas de categoría 1 (carro particular) sí están sacadas de fuentes
-públicas citadas por peaje.
+Las 9 coordenadas de abajo fueron verificadas a mano en Google Maps
+(sep-2026) — 8 por el usuario directamente, y la de Aburrá comparándola
+contra el polyline real de una ruta trazada (Medellín -> San Jerónimo), que
+fue la que reveló que la primera estimación (a partir de la ubicación
+geográfica conocida, sin medir) quedaba a más de 400m y no se detectaba. Las
+tarifas de categoría 1 (carro particular) están sacadas de fuentes públicas
+citadas por peaje.
 """
 from __future__ import annotations
 
@@ -68,28 +68,31 @@ class Peaje:
 # Tarifas de categoría 1 para 2026, Gobernación de Antioquia / ANI (ver
 # El Tiempo, El Colombiano, MiOriente — enero 2026).
 PEAJES_ANTIOQUIA: list[Peaje] = [
-    Peaje("Túnel de Oriente", 6.1305, -75.4790, 26300, "Oriente",
-          "Gobernación de Antioquia, ene-2026"),
-    Peaje("Variante Las Palmas", 6.1320, -75.4530, 20200, "Oriente",
-          "Gobernación de Antioquia, ene-2026"),
-    Peaje("Santa Elena", 6.1920, -75.4910, 15100, "Oriente",
-          "Gobernación de Antioquia, ene-2026"),
-    Peaje("Vía Pajarito (San Pedro de los Milagros)", 6.4420, -75.5600, 12900, "Norte",
-          "Gobernación de Antioquia, ene-2026"),
+    # Coordenadas tomadas directamente de Google Maps por el usuario (sep-2026)
+    # — reemplazan las estimaciones iniciales, que solo el de Aburrá tenía
+    # verificadas contra una ruta real.
+    Peaje("Túnel de Oriente", 6.223357209163161, -75.53339345105039, 26300, "Oriente",
+          "Gobernación de Antioquia, ene-2026 — coordenada verificada por el usuario"),
+    Peaje("Variante Las Palmas", 6.171215293802129, -75.47802951664988, 20200, "Oriente",
+          "Gobernación de Antioquia, ene-2026 — coordenada verificada por el usuario"),
+    Peaje("Santa Elena (Peaje Seminario)", 6.223468617498233, -75.53318351397311, 15100, "Oriente",
+          "Gobernación de Antioquia, ene-2026 — coordenada verificada por el usuario"),
+    Peaje("Vía Pajarito (San Pedro de los Milagros)", 6.331858690944889, -75.59896259337717, 12900, "Norte",
+          "Gobernación de Antioquia, ene-2026 — coordenada verificada por el usuario"),
     # Coordenada verificada contra una ruta real (Medellín -> San Jerónimo):
     # el geocodificador de Google ubica "San Cristóbal, Medellín" en
     # (6.27769, -75.63550), y el punto de la ruta trazada más cercano a eso
     # quedó a 201m — la única de esta tabla confirmada así, no solo estimada.
     Peaje("Aburrá (San Cristóbal, antes del Túnel de Occidente)", 6.27589, -75.63527, 27300, "Occidente",
           "Devimar / ANI, 2026 — coordenada verificada contra ruta real, sep-2026"),
-    Peaje("Amagá", 6.0400, -75.7000, 20600, "Suroeste",
-          "ANI, ene-2026"),
-    Peaje("La Pintada", 5.7500, -75.6100, 23900, "Suroeste",
-          "ANI, ene-2026"),
-    Peaje("Cisneros", 6.5383, -75.0886, 29400, "Nordeste / Magdalena Medio",
-          "ANI, ene-2026 (coordenadas: Wikipedia)"),
-    Peaje("Puerto Berrío", 6.4900, -74.4000, 14083, "Magdalena Medio",
-          "ANI, ene-2026"),
+    Peaje("Amagá", 6.047062661892503, -75.65909039759522, 20600, "Suroeste",
+          "ANI, ene-2026 — coordenada verificada por el usuario"),
+    Peaje("La Pintada", 5.812424620389276, -75.67842661294173, 23900, "Suroeste",
+          "ANI, ene-2026 — coordenada verificada por el usuario"),
+    Peaje("Cisneros", 6.536283598166445, -75.07525900686694, 29400, "Nordeste / Magdalena Medio",
+          "ANI, ene-2026 — coordenada verificada por el usuario"),
+    Peaje("Puerto Berrío", 6.496711072731817, -74.50064157246634, 14083, "Magdalena Medio",
+          "ANI, ene-2026 — coordenada verificada por el usuario"),
 ]
 
 
