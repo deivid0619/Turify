@@ -208,6 +208,7 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
           .login-izq { display:none; }
           .login-der { flex:1; border-left:none; padding:40px 24px; }
         }
+        @media (prefers-reduced-motion: reduce) { .login-fondo-animado { display:none; } }
       `}</style>
 
       <div className="login-raiz">
@@ -215,16 +216,22 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
 
           {/* ── Izquierda: monte + tablero ── */}
           <div className="login-izq">
-            {/* Topografía de montaña — curvas de nivel, no una foto de stock */}
-            <svg viewBox="0 0 400 440" preserveAspectRatio="none" aria-hidden="true"
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.18 }}>
-              <g fill="none" stroke="#86EFAC" strokeWidth="1">
-                <path d="M-10 320 C 60 290, 130 350, 200 315 S 340 265, 410 300" />
-                <path d="M-10 352 C 60 322, 130 384, 200 348 S 340 296, 410 332" />
-                <path d="M-10 288 C 60 256, 130 318, 200 282 S 340 232, 410 268" />
-                <path d="M-10 254 C 60 224, 130 284, 200 250 S 340 198, 410 236" />
-                <path d="M-10 220 C 60 192, 130 250, 200 216 S 340 164, 410 202" />
-                <path d="M-10 186 C 60 160, 130 216, 200 182 S 340 130, 410 168" />
+            {/* Cordillera con una ruta GPS recorriendo la cresta — combinación elegida
+                de las propuestas Altimetría + Trazo GPS, no una foto de stock. */}
+            <svg viewBox="0 0 360 460" preserveAspectRatio="none" aria-hidden="true"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+              <polygon points="-10,460 -10,350 50,318 110,344 170,296 230,332 290,300 370,326 370,460" fill="#86EFAC" opacity=".09" />
+              <polygon points="-10,460 -10,380 60,352 120,374 180,332 240,364 300,336 370,358 370,460" fill="#86EFAC" opacity=".15" />
+              <polygon points="-10,460 -10,408 70,388 130,404 190,372 250,396 310,376 370,392 370,460" fill="#86EFAC" opacity=".23" />
+              <g className="login-fondo-animado">
+                <path d="M-10 360 C 70 330, 130 358, 190 336 S 300 344, 380 330"
+                  fill="none" stroke="#E9A13B" strokeWidth="1.5" strokeDasharray="1 9" strokeLinecap="round" opacity=".65">
+                  <animate attributeName="stroke-dashoffset" from="40" to="0" dur="1.6s" repeatCount="indefinite" />
+                </path>
+                <circle r="3.5" fill="#E9A13B">
+                  <animateMotion dur="4.5s" repeatCount="indefinite"
+                    path="M-10 360 C 70 330, 130 358, 190 336 S 300 344, 380 330" />
+                </circle>
               </g>
             </svg>
 
