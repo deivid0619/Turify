@@ -625,9 +625,9 @@ const Dashboard = () => {
   const comodidadesAlgunaMarcada = () =>
     Object.entries(comodidadesFiltro).some(([, marcada]) => marcada);
 
-  const intentarPublicar = async () => {
+  const intentarPublicar = async (usarPrecioFijo) => {
     if (tipoServicio !== 'ESTANDAR' || !comodidadesAlgunaMarcada()) {
-      crearViaje();
+      crearViaje(usarPrecioFijo);
       return;
     }
     setVerificandoComodidades(true);
@@ -660,10 +660,10 @@ const Dashboard = () => {
     } finally {
       setVerificandoComodidades(false);
     }
-    crearViaje();
+    crearViaje(usarPrecioFijo);
   };
 
-  const crearViaje = async () => {
+  const crearViaje = async (usarPrecioFijo) => {
     if (!token) { toast.warning('Debes iniciar sesión para publicar un viaje.'); return; }
     setEnviandoSolicitud(true);
     try {
@@ -674,6 +674,10 @@ const Dashboard = () => {
         trip_type: tipoViaje === 'redondo' ? 'ROUND_TRIP' : 'ONE_WAY',
         adults_count: pasajeros.adultos, children_count: pasajeros.ninos, has_pets: pasajeros.mascotas,
         num_days: numDias, wait_time_hours: tiempoEsperaHoras,
+        // ÉPICA 12 — true: el pasajero acepta el precio sugerido tal cual, el
+        // conductor solo puede aceptarlo (no ofertar otro). false: publica
+        // abierto a negociar, igual que siempre.
+        precio_fijo: !!usarPrecioFijo && !!precioSugerido,
       };
 
       // Épica 2 (HU25) — distancia y tipo de vía salen de lo que YA calculó el Directions Service
@@ -2002,9 +2006,9 @@ const Dashboard = () => {
                     Cancelar
                   </button>
                   <button
-                    onClick={avisoSinConductores ? crearViaje : intentarPublicar}
-                    disabled={enviandoSolicitud || verificandoComodidades}
-                    style={{ flex: 2, background: (enviandoSolicitud || verificandoComodidades) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: (enviandoSolicitud || verificandoComodidades) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                    onClick={() => (avisoSinConductores ? crearViaje(true) : intentarPublicar(true))}
+                    disabled={enviandoSolicitud || verificandoComodidades || cargandoPrecio}
+                    style={{ flex: 2, background: (enviandoSolicitud || verificandoComodidades || cargandoPrecio) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: (enviandoSolicitud || verificandoComodidades || cargandoPrecio) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
                     {enviandoSolicitud
                       ? 'Procesando...'
                       : verificandoComodidades
@@ -2019,7 +2023,7 @@ const Dashboard = () => {
                     la negociación manual (oferta/contraoferta con cada conductor)
                     sigue existiendo: se publica igual, y ahí es donde pasa. */}
                 {precioSugerido && !avisoSinConductores && (
-                  <button type="button" onClick={intentarPublicar} disabled={enviandoSolicitud || verificandoComodidades}
+                  <button type="button" onClick={() => intentarPublicar(false)} disabled={enviandoSolicitud || verificandoComodidades}
                     style={{ display: 'block', width: '100%', marginTop: '10px', background: 'none', border: 'none', padding: 0, color: 'var(--t-piedra-clara)', fontSize: '11.5px', cursor: (enviandoSolicitud || verificandoComodidades) ? 'not-allowed' : 'pointer', textDecoration: 'underline' }}>
                     Prefiero no usar el precio sugerido — publicar y negociar directamente con cada conductor
                   </button>

@@ -198,6 +198,10 @@ class ServiceRequest(Base):
     # conductor cumpla TODAS las comodidades marcadas arriba para poder ver la
     # solicitud en su radar y ofertar.
     tipo_servicio            = Column(String(20), default="ECONOMICO")
+    # ÉPICA 12 — el pasajero publicó aceptando el precio sugerido tal cual
+    # (True) en vez de eligiendo negociar manualmente (False). Si es True, el
+    # conductor no puede ofertar otro precio: solo aceptar o dejarlo pasar.
+    precio_fijo         = Column(Boolean, default=False)
     created_at          = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 

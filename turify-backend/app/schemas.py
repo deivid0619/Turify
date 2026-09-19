@@ -109,6 +109,15 @@ class DocumentResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
+    # True solo cuando /users/login-google acaba de crear la cuenta (no existía
+    # ese correo). El login normal y un login-google sobre cuenta existente
+    # nunca lo marcan.
+    is_new_user: bool = False
+
+# Inicio de sesión con Google (Google Identity Services) — el frontend nunca ve
+# ni valida el token, solo lo reenvía tal cual lo entrega Google.
+class GoogleLoginRequest(BaseModel):
+    credential: str
     
 class TripType(str, Enum):
     ONE_WAY = "ONE_WAY"
@@ -145,6 +154,10 @@ class ServiceRequestCreate(BaseModel):
     # estimador previo /price-estimate).
     num_days: int = Field(1, ge=1, le=30)
     wait_time_hours: float = Field(0, ge=0, le=48)
+    # ÉPICA 12 — True cuando el pasajero publica aceptando el precio sugerido
+    # tal cual (el camino principal); False cuando eligió "negociar
+    # directamente con cada conductor". Ver POST /{id}/accept-fixed-price.
+    precio_fijo: bool = False
     # HU55 — comodidades que el pasajero exige del vehículo (filtro de búsqueda).
     requiere_ac: Optional[bool] = False
     requiere_wifi: Optional[bool] = False
@@ -311,6 +324,10 @@ class ServiceRequestRead(BaseModel):
     requiere_buen_audio: Optional[bool] = False
     requiere_acepta_mascotas: Optional[bool] = False
     tipo_servicio: Optional[str] = "ECONOMICO"
+    # ÉPICA 12 — si el viaje tiene precio fijo, el conductor ve suggested_price
+    # como el precio a aceptar (no puede ofertar otro) en vez del flujo de oferta.
+    precio_fijo: Optional[bool] = False
+    suggested_price: Optional[float] = None
     # HU55 — filtro flexible: solo presentes para el CONDUCTOR (indican cuántas de
     # las comodidades exigidas cumple su propio vehículo y cuáles le faltan)
     comodidades_exigidas: Optional[int] = None

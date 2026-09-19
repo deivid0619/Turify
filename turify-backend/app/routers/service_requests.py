@@ -232,6 +232,10 @@ def create_service_request(
             new_request.is_peak_hour = resultado_precio.es_nocturno
             new_request.is_high_season = resultado_precio.es_temporada_alta
             new_request.price_explanation = resultado_precio.explicacion
+            # ÉPICA 12 — solo tiene sentido "precio fijo" si de verdad hay un
+            # precio sugerido calculado (si no, el pasajero publica y negocia
+            # igual que siempre, sin importar qué haya pedido el frontend).
+            new_request.precio_fijo = bool(request_data.precio_fijo)
 
         db.add(new_request)
         db.commit()
@@ -429,6 +433,8 @@ def _serializar_service_request(sr) -> dict:
         "requiere_buen_audio": sr.requiere_buen_audio,
         "requiere_acepta_mascotas": sr.requiere_acepta_mascotas,
         "tipo_servicio": sr.tipo_servicio,
+        "precio_fijo": sr.precio_fijo,
+        "suggested_price": float(sr.suggested_price) if sr.suggested_price is not None else None,
     }
 
 
@@ -573,8 +579,16 @@ async def create_driver_offer(
         
     if service_request.status != 'PENDING':
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"No se pueden hacer ofertas a viajes cerrados. Estado actual: {service_request.status}"
+        )
+
+    # 2.1. ÉPICA 12 — el pasajero ya aceptó el precio sugerido al publicar:
+    #      no se negocia, solo se acepta o se deja pasar (ver /accept-fixed-price).
+    if service_request.precio_fijo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Este viaje tiene precio fijo — acéptalo al precio publicado, no se puede ofertar otro."
         )
 
     # 3. Un mismo conductor no puede tener dos ofertas activas para la misma
@@ -655,9 +669,104 @@ async def create_driver_offer(
     except Exception as e:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al guardar la oferta: {str(e)}"
         )
+
+
+# ÉPICA 12 — POST /api/service-requests/{request_id}/accept-fixed-price
+# Contraparte de create_driver_offer para viajes con precio_fijo=True: el
+# pasajero ya aceptó el precio sugerido al publicar, así que el conductor no
+# oferta ni negocia — solo acepta (o deja pasar). Aceptar salta directo a
+# ASSIGNED en un solo paso (ver accept_offer, que hace lo mismo pero
+# disparado por el pasajero cuando sí hubo negociación).
+@router.post("/{request_id}/accept-fixed-price", status_code=status.HTTP_201_CREATED)
+def aceptar_precio_fijo(
+    request_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if current_user.role != 'DRIVER':
+        raise HTTPException(status_code=403, detail="Solo los conductores pueden aceptar viajes.")
+
+    service_request = db.query(models.ServiceRequest).filter(
+        models.ServiceRequest.request_id == request_id
+    ).first()
+    if not service_request:
+        raise HTTPException(status_code=404, detail="La solicitud de viaje no existe.")
+
+    if not service_request.precio_fijo:
+        raise HTTPException(
+            status_code=400,
+            detail="Este viaje no tiene precio fijo — usa la oferta normal para negociar."
+        )
+    if service_request.status != 'PENDING':
+        raise HTTPException(
+            status_code=400,
+            detail=f"Este viaje ya no está disponible. Estado actual: {service_request.status}"
+        )
+
+    vehicle = db.query(models.Vehicle).filter(models.Vehicle.owner_id == current_user.user_id).first()
+    if not vehicle:
+        raise HTTPException(status_code=400, detail="No tienes un vehículo registrado para aceptar viajes.")
+
+    if service_request.tipo_servicio == "ESTANDAR":
+        match = _match_comodidades(db, current_user, service_request)
+        if not match["cumple_todas"]:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Este viaje es de servicio Estándar y tu vehículo no tiene: "
+                    + ", ".join(match["faltantes"]) + "."
+                )
+            )
+
+    nueva_oferta = models.DriverOffer(
+        request_id=request_id,
+        driver_id=current_user.user_id,
+        vehicle_id=vehicle.vehicle_id,
+        offered_price=service_request.suggested_price,
+        status='ACCEPTED',
+    )
+    db.add(nueva_oferta)
+    # Vuelve a chequear PENDING justo antes de asignar — si dos conductores
+    # aceptan casi al mismo tiempo, solo el primero en llegar acá gana.
+    reconsulta = db.query(models.ServiceRequest).filter(
+        models.ServiceRequest.request_id == request_id,
+        models.ServiceRequest.status == 'PENDING',
+    ).first()
+    if not reconsulta:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Otro conductor ya aceptó este viaje.")
+
+    service_request.status = 'ASSIGNED'
+    db.commit()
+    db.refresh(nueva_oferta)
+
+    registrar_log(
+        db, action="ACCEPT_FIXED_PRICE", user_id=current_user.user_id,
+        entity="ServiceRequest", entity_id=request_id,
+        detail=f"Conductor #{current_user.user_id} aceptó el precio fijo (${nueva_oferta.offered_price}) del viaje #{request_id}",
+        ip_address=request.client.host if request.client else None,
+    )
+
+    crear_notificacion(
+        db,
+        user_id=service_request.passenger_id,
+        title="¡Conductor encontrado!",
+        message=f"Un conductor aceptó tu viaje de {service_request.origin} → {service_request.destination} al precio publicado.",
+        tipo="TRIP_ACCEPTED",
+        offer_id=nueva_oferta.offer_id,
+    )
+
+    return {
+        "message": "¡Viaje aceptado! El pasajero ha sido notificado.",
+        "offer_id": nueva_oferta.offer_id,
+        "request_id": request_id,
+        "offered_price": float(nueva_oferta.offered_price),
+    }
+
 
 # SCRUM-77 — GET /api/service-requests/{request_id}/offers
 # El pasajero ve todas las ofertas de su viaje con datos del conductor

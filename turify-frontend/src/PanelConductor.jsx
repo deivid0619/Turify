@@ -496,6 +496,32 @@ const PanelConductor = ({ onVerRuta }) => {
   const [ocupantesPorViaje, setOcupantesPorViaje] = useState({});
   const [modalOcupantesId, setModalOcupantesId] = useState(null);
   const [gestionandoViaje, setGestionandoViaje] = useState(null); // request_id en proceso
+  const [aceptandoPrecioFijo, setAceptandoPrecioFijo] = useState(null); // request_id en proceso
+
+  // ÉPICA 12 — contraparte de enviarOferta para viajes con precio_fijo=True:
+  // no hay negociación, aceptar salta directo a ASSIGNED (ver
+  // POST /{id}/accept-fixed-price en el backend).
+  const aceptarPrecioFijo = async (sol) => {
+    setAceptandoPrecioFijo(sol.request_id);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${sol.request_id}/accept-fixed-price`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'No se pudo aceptar el viaje.');
+      }
+      toast.success('¡Viaje aceptado! Ya aparece en tus ofertas.');
+      cargarSolicitudes();
+      cargarViajesActivos();
+    } catch (err) {
+      toast.error(err.message);
+      cargarSolicitudes(); // por si otro conductor ya se lo llevó, que desaparezca del radar
+    } finally {
+      setAceptandoPrecioFijo(null);
+    }
+  };
 
   // HU17: Conductor inicia o finaliza el viaje
   const gestionarViaje = async (requestId, accion) => {
@@ -979,6 +1005,14 @@ const PanelConductor = ({ onVerRuta }) => {
                         </span>
                       </span>
                     </div>
+                    {/* ÉPICA 12 — precio fijo: el pasajero ya aceptó este precio, no hay
+                        oferta ni negociación posible, solo aceptarlo. */}
+                    {sol.precio_fijo && (
+                      <div style={{ marginTop: '6px', display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: BRAND_GREEN, textTransform: 'uppercase', letterSpacing: '.04em' }}>Precio fijo</span>
+                        <span style={{ fontSize: '16px', fontWeight: '800', color: 'var(--t-tinta)' }}>${Number(sol.suggested_price).toLocaleString('es-CO')}</span>
+                      </div>
+                    )}
                     <div style={{ fontSize: '13px', color: 'var(--t-piedra)', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconCalendario size={12} />{formatearFecha(sol.departure_time)}</span>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconPersonas size={12} />{(sol.adults_count || 1) + (sol.children_count || 0)} pasajero(s){sol.has_pets && <IconMascota size={12} />}</span>
@@ -998,13 +1032,22 @@ const PanelConductor = ({ onVerRuta }) => {
                       </motion.div>
                     )}
                   </div>
-                  {/* Botón oferta - SCRUM-76 */}
+                  {/* Botón oferta - SCRUM-76, o aceptar directo si es precio fijo (ÉPICA 12) */}
                   <div style={{ padding: '0 14px 14px' }}>
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                      onClick={(e) => { e.stopPropagation(); setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); }}
-                      style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
-                      <IconPrecio size={15} />Hacer oferta
-                    </motion.button>
+                    {sol.precio_fijo ? (
+                      <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                        onClick={(e) => { e.stopPropagation(); aceptarPrecioFijo(sol); }}
+                        disabled={aceptandoPrecioFijo === sol.request_id}
+                        style={{ width: '100%', background: aceptandoPrecioFijo === sol.request_id ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: aceptandoPrecioFijo === sol.request_id ? 'not-allowed' : 'pointer' }}>
+                        <IconVisto size={15} />{aceptandoPrecioFijo === sol.request_id ? 'Aceptando…' : `Aceptar viaje — $${Number(sol.suggested_price).toLocaleString('es-CO')}`}
+                      </motion.button>
+                    ) : (
+                      <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                        onClick={(e) => { e.stopPropagation(); setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); }}
+                        style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                        <IconPrecio size={15} />Hacer oferta
+                      </motion.button>
+                    )}
                   </div>
                 </motion.div>
               );
