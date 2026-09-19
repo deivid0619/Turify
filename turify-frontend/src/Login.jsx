@@ -84,6 +84,13 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
   const [captchaError, setCaptchaError] = useState(false);
   const captchaRef = useRef(null);
   const captchaWidgetId = useRef(null);
+  const googleBtnRef = useRef(null);
+  // App.jsx pasa un arrow function inline, así que la referencia cambia en
+  // cada render suyo — si entrara tal cual a las deps del efecto de Google,
+  // reinicializaría el SDK en cada render del padre, no solo al cambiar de
+  // pestaña. La guardamos en un ref y el efecto lee siempre la última.
+  const onLoginSuccessRef = useRef(onLoginSuccess);
+  useEffect(() => { onLoginSuccessRef.current = onLoginSuccess; });
 
   useEffect(() => {
     if (!requiereCaptcha || captchaWidgetId.current !== null) return;
@@ -116,6 +123,56 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
     intentarRenderizar();
     return () => { cancelado = true; };
   }, [requiereCaptcha]);
+
+  // Conexión con Google (Google Identity Services) — solo en la pestaña de
+  // pasajero: conducir sigue exigiendo el registro completo con documentos y
+  // vehículo, un botón de un click no reemplaza eso.
+  useEffect(() => {
+    if (vista !== 'viajar') return;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) return; // Sin Client ID configurado, simplemente no se muestra el botón.
+
+    const manejarCredencialGoogle = async (respuestaGoogle) => {
+      setIsLoading(true);
+      setErrorBackend('');
+      try {
+        const response = await fetch(`${API_BASE_URL}/users/login-google`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+          body: JSON.stringify({ credential: respuestaGoogle.credential }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          localStorage.setItem('token', data.access_token);
+          if (onLoginSuccessRef.current) onLoginSuccessRef.current(data.access_token);
+        } else {
+          const errorData = await response.json();
+          setErrorBackend(errorData.detail || 'No se pudo iniciar sesión con Google.');
+        }
+      } catch {
+        setErrorBackend('Error de conexión. Verifica que el backend esté activo.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    let cancelado = false;
+    const intentarRenderizar = () => {
+      if (cancelado) return;
+      if (window.google?.accounts?.id && googleBtnRef.current) {
+        window.google.accounts.id.initialize({ client_id: clientId, callback: manejarCredencialGoogle });
+        googleBtnRef.current.innerHTML = '';
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          theme: 'outline', size: 'large', shape: 'pill', text: 'continue_with',
+          width: googleBtnRef.current.offsetWidth || 340,
+        });
+      } else {
+        setTimeout(intentarRenderizar, 200);
+      }
+    };
+    intentarRenderizar();
+    return () => { cancelado = true; };
+  }, [vista]);
 
   const isFormValid = formData.email.includes('@') && formData.password.length > 0
     && (!requiereCaptcha || Boolean(captchaToken));
@@ -339,18 +396,6 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
                     )
                   )}
 
-                  {errorBackend && (
-                    <div style={{
-                      display: 'flex', alignItems: 'flex-start', gap: '8px',
-                      background: T.alertaSuave, border: `1px solid ${T.alertaLinea}`,
-                      borderRadius: T.rControl, padding: '10px 12px', marginBottom: '14px',
-                      color: T.alertaTexto, fontSize: '12.5px',
-                    }}>
-                      <IconAlerta size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
-                      <span>{errorBackend}</span>
-                    </div>
-                  )}
-
                   <Boton type="submit" ancho disabled={!isFormValid || isLoading}
                     variante={isFormValid && !isLoading ? 'primario' : 'inactivo'}
                     style={{ padding: '13px' }}>
@@ -363,6 +408,25 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
                   <span style={{ fontFamily: T.dato, fontSize: '10px', letterSpacing: '.14em', textTransform: 'uppercase', color: T.piedraClara }}>o</span>
                   <span style={{ flex: 1, height: '1px', background: T.linea }} />
                 </div>
+
+                {/* Se oculta sola si falta VITE_GOOGLE_CLIENT_ID (ver useEffect) —
+                    el div igual queda montado para que Google tenga dónde pintar el botón. */}
+                <div ref={googleBtnRef} style={{
+                  display: 'flex', justifyContent: 'center', marginBottom: '14px',
+                  opacity: isLoading ? .5 : 1, pointerEvents: isLoading ? 'none' : 'auto',
+                }} />
+
+                {errorBackend && (
+                  <div style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '8px',
+                    background: T.alertaSuave, border: `1px solid ${T.alertaLinea}`,
+                    borderRadius: T.rControl, padding: '10px 12px', marginBottom: '14px',
+                    color: T.alertaTexto, fontSize: '12.5px',
+                  }}>
+                    <IconAlerta size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span>{errorBackend}</span>
+                  </div>
+                )}
 
                 <Boton type="button" variante="fantasma" ancho onClick={() => irARegistro('pasajero')}>
                   Crear cuenta

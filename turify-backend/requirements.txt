@@ -41,3 +41,8 @@ pandas==2.2.3
 scikit-learn==1.6.1
 joblib==1.4.2
 holidays==0.65
+# Conexión con Google (login/registro con un click) — verificación de ID tokens
+google-auth==2.35.0
+cachetools==5.5.0
+pyasn1-modules==0.4.1
+requests==2.32.3
