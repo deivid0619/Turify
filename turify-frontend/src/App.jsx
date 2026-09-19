@@ -10,6 +10,7 @@ import FormularioConductor from './FormularioConductor';
 import AdminConductores from './AdminConductores';
 import AdminLogs from './AdminLogs';
 import PerfilConductorPagina from './PerfilConductorPagina';
+import Politicas from './Politicas';
 
 // Clave para recordar la intención (pasajero/conductor) del lado del navegador.
 // El state de React Router (location.state) no sobrevive a un F5 ni a que la
@@ -72,6 +73,7 @@ function App() {
           {/* Rutas Públicas */}
           <Route path="/login" element={<LoginConNavegacion />} />
           <Route path="/registro" element={<RegistroConNavegacion />} />
+          <Route path="/politicas" element={<Politicas />} />
 
           {/* Rutas Privadas — cualquier usuario autenticado */}
           <Route element={<RutaPrivada />}>
