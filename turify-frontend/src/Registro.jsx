@@ -41,6 +41,18 @@ const Registro = ({ irALogin }) => {
     if (errorBackend) setErrorBackend('');
   };
 
+  // Antes, el mensaje de cada campo ("Correo inválido...", etc.) solo se
+  // calculaba dentro de handleSubmit — pero el botón "Crear cuenta" está
+  // deshabilitado mientras el formulario no sea válido, así que handleSubmit
+  // nunca llegaba a correr y el usuario se quedaba sin ninguna pista de qué
+  // estaba mal. Ahora, al salir de un campo (blur), se valida ESE campo en
+  // el momento y se muestra su mensaje si corresponde.
+  const handleBlur = (campo) => {
+    setCampoActivo(null);
+    const erroresEncontrados = validarFormulario();
+    setErrores(prev => ({ ...prev, [campo]: erroresEncontrados[campo] || '' }));
+  };
+
   const validarFormulario = () => {
     let erroresVisuales = {};
     if (!formData.full_name.trim()) erroresVisuales.full_name = 'El nombre es obligatorio.';
@@ -227,7 +239,7 @@ const Registro = ({ irALogin }) => {
                 <div className="reg-completo">
                   <label style={estiloEtiqueta}>Nombre completo</label>
                   <input type="text" name="full_name" placeholder="Juan Pérez" value={formData.full_name}
-                    onChange={handleChange} onFocus={() => setCampoActivo('full_name')} onBlur={() => setCampoActivo(null)}
+                    onChange={handleChange} onFocus={() => setCampoActivo('full_name')} onBlur={() => handleBlur('full_name')}
                     style={estiloCampo('full_name', errores.full_name)} disabled={isLoading} />
                   {errores.full_name
                     ? <span style={estiloErrorCampo}>{errores.full_name}</span>
@@ -237,7 +249,7 @@ const Registro = ({ irALogin }) => {
                 <div>
                   <label style={estiloEtiqueta}>Correo</label>
                   <input type="email" name="email" placeholder="tu@correo.com" value={formData.email}
-                    onChange={handleChange} onFocus={() => setCampoActivo('email')} onBlur={() => setCampoActivo(null)}
+                    onChange={handleChange} onFocus={() => setCampoActivo('email')} onBlur={() => handleBlur('email')}
                     style={estiloCampo('email', errores.email)} disabled={isLoading} />
                   {errores.email && <span style={estiloErrorCampo}>{errores.email}</span>}
                 </div>
@@ -246,7 +258,7 @@ const Registro = ({ irALogin }) => {
                   <label style={estiloEtiqueta}>Teléfono</label>
                   <input type="tel" inputMode="tel" name="phone_number" placeholder="3001234567" value={formData.phone_number}
                     onChange={(e) => handleChange({ target: { name: 'phone_number', value: e.target.value.replace(/[^0-9+\s()-]/g, '') } })}
-                    onFocus={() => setCampoActivo('phone_number')} onBlur={() => setCampoActivo(null)} maxLength={20}
+                    onFocus={() => setCampoActivo('phone_number')} onBlur={() => handleBlur('phone_number')} maxLength={20}
                     style={{ ...estiloCampo('phone_number', errores.phone_number), fontFamily: T.dato, letterSpacing: '.06em' }} disabled={isLoading} />
                   {errores.phone_number && <span style={estiloErrorCampo}>{errores.phone_number}</span>}
                 </div>
@@ -256,7 +268,7 @@ const Registro = ({ irALogin }) => {
                   <div style={{ position: 'relative' }}>
                     <input type={showPassword ? 'text' : 'password'} name="password" placeholder="••••••••"
                       value={formData.password} onChange={handleChange}
-                      onFocus={() => setCampoActivo('password')} onBlur={() => setCampoActivo(null)}
+                      onFocus={() => setCampoActivo('password')} onBlur={() => handleBlur('password')}
                       style={{ ...estiloCampo('password', errores.password), paddingRight: '44px' }} disabled={isLoading} />
                     {ojo(showPassword, () => setShowPassword(p => !p))}
                   </div>
@@ -267,7 +279,7 @@ const Registro = ({ irALogin }) => {
                   <div style={{ position: 'relative' }}>
                     <input type={showConfirm ? 'text' : 'password'} name="confirmPassword" placeholder="••••••••"
                       value={formData.confirmPassword} onChange={handleChange}
-                      onFocus={() => setCampoActivo('confirmPassword')} onBlur={() => setCampoActivo(null)}
+                      onFocus={() => setCampoActivo('confirmPassword')} onBlur={() => handleBlur('confirmPassword')}
                       style={{ ...estiloCampo('confirmPassword', errores.confirmPassword), paddingRight: '44px' }} disabled={isLoading} />
                     {ojo(showConfirm, () => setShowConfirm(p => !p))}
                   </div>
