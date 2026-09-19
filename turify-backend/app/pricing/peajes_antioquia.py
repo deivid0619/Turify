@@ -71,12 +71,17 @@ PEAJES_ANTIOQUIA: list[Peaje] = [
     # Coordenadas tomadas directamente de Google Maps por el usuario (sep-2026)
     # — reemplazan las estimaciones iniciales, que solo el de Aburrá tenía
     # verificadas contra una ruta real.
-    Peaje("Túnel de Oriente", 6.223357209163161, -75.53339345105039, 26300, "Oriente",
+    Peaje("Túnel de Oriente", 6.224754408343694, -75.52426994242047, 26300, "Oriente",
           "Gobernación de Antioquia, ene-2026 — coordenada verificada por el usuario"),
     Peaje("Variante Las Palmas", 6.171215293802129, -75.47802951664988, 20200, "Oriente",
           "Gobernación de Antioquia, ene-2026 — coordenada verificada por el usuario"),
-    Peaje("Santa Elena (Peaje Seminario)", 6.223468617498233, -75.53318351397311, 15100, "Oriente",
-          "Gobernación de Antioquia, ene-2026 — coordenada verificada por el usuario"),
+    # Corregida (sep-2026): la coordenada original quedaba a 26m del Túnel de
+    # Oriente (prácticamente el mismo punto, cualquier ruta cobraba los dos
+    # peajes de una) — la suite de tests la detectó al fallar
+    # test_calcular_peajes_detecta_un_peaje_conocido. Esta es la ubicación
+    # real, confirmada por el usuario.
+    Peaje("Santa Elena (Peaje Seminario)", 6.179944567709092, -75.45981191419231, 15100, "Oriente",
+          "Gobernación de Antioquia, ene-2026 — coordenada corregida por el usuario, sep-2026"),
     Peaje("Vía Pajarito (San Pedro de los Milagros)", 6.331858690944889, -75.59896259337717, 12900, "Norte",
           "Gobernación de Antioquia, ene-2026 — coordenada verificada por el usuario"),
     # Coordenada verificada contra una ruta real (Medellín -> San Jerónimo):
@@ -124,5 +129,5 @@ def calcular_peajes_de_ruta(puntos_ruta: list[dict]) -> dict:
     return {
         "tolls_cost": sum(p.tarifa_categoria_1 for p in detectados),
         "tolls_count": len(detectados),
-        "peajes": [{"nombre": p.nombre, "tarifa": p.tarifa_categoria_1} for p in detectados],
+        "peajes": [{"nombre": p.nombre, "tarifa": p.tarifa_categoria_1, "lat": p.lat, "lng": p.lng} for p in detectados],
     }

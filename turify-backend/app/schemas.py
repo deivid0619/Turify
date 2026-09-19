@@ -261,6 +261,8 @@ class CalcularPeajesRequest(BaseModel):
 class PeajeDetectado(BaseModel):
     nombre: str
     tarifa: float
+    lat: float
+    lng: float
 
 
 class CalcularPeajesResponse(BaseModel):

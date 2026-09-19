@@ -48,7 +48,7 @@ export const T = {
 // Colores fijos — SOLO para donde no llega el CSS: marcadores de Google Maps,
 // el favicon y cualquier export a imagen. El logo NO los usa: sigue el tema,
 // porque un verde de marca distinto al de los botones se lee como un error.
-export const FIJO = { ruta: '#16A34A', chiva: '#E9A13B', monte: '#0E2A1E', tinta: '#131A16' };
+export const FIJO = { ruta: '#16A34A', chiva: '#E9A13B', monte: '#0E2A1E', tinta: '#131A16', cielo: '#2563EB' };
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,6 +72,17 @@ export const MAPA_OSCURO = [
   { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#07160F' }] },
   { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3F5A4B' }] },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  MAPA EN MODO CLARO — el estilo por defecto de Google viene cargado de pines
+//  de comercios y sitios de interés que compiten visualmente con los propios
+//  (origen, destino, peajes, solicitudes): se apagan esas etiquetas, igual que
+//  ya se hacía en MAPA_OSCURO, sin recolorear nada más.
+// ─────────────────────────────────────────────────────────────────────────────
+export const MAPA_CLARO = [
+  { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
 ];
 
 export const FUENTES_URL =

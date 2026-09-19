@@ -4,7 +4,7 @@ import {
   IconReloj, IconVisto, IconEquis, IconBandera, IconAuto, IconCalendario,
   IconPersonas, IconPersona, IconRadar, IconPin, IconEstrella, IconClipboard,
   IconAlerta, IconCampana, IconPrecio, IconIntercambio, IconRecibo,
-  LogoWordmark, BotonTema, useTema, MAPA_OSCURO, FIJO, BotonCentrarMapa,
+  LogoWordmark, BotonTema, useTema, MAPA_OSCURO, MAPA_CLARO, FIJO, BotonCentrarMapa,
 } from './diseno';
 
 const IconGirar   = (p) => <Icono {...p}><path d="M4 4v5h5" /><path d="M20 20v-5h-5" /><path d="M5.5 15A7.5 7.5 0 0 0 19 9.5" /><path d="M18.5 9A7.5 7.5 0 0 0 5 14.5" /></Icono>;
@@ -55,6 +55,8 @@ const PanelConductor = ({ onVerRuta }) => {
   // Ruta origen→destino que se dibuja en el mapa grande cuando el conductor toca
   // 'ver ruta' de una solicitud. { path:[{lat,lng}], origen, destino } | null
   const [rutaConductor, setRutaConductor] = useState(null);
+  // HU27 — peajes detectados sobre esa misma ruta, para pintarlos como pines.
+  const [peajesRutaConductor, setPeajesRutaConductor] = useState([]);
   const [notificaciones, setNotificaciones] = useState([]);
   const [mostrarNotifPanel, setMostrarNotifPanel] = useState(false);
   // HU37 — el conductor accede a "Mis Docs" (subir RUNT) desde el drawer de perfil,
@@ -583,6 +585,25 @@ const PanelConductor = ({ onVerRuta }) => {
   // Dibuja la ruta de una solicitud (origen→destino) en el mapa grande del
   // conductor, usando el Directions Service. Si no hay coordenadas de destino,
   // al menos centra en el origen.
+  // HU27 — mismo cálculo que usa Dashboard.jsx al armar el viaje (ver
+  // calcularPeajesDeRuta ahí): le manda el polyline ya trazado al backend, que
+  // lo compara contra la base local de peajes de Antioquia. Si falla, el mapa
+  // simplemente no muestra pines de peaje (no bloquea nada).
+  const calcularPeajesDeRuta = async (puntosRuta) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/calcular-peajes`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ puntos_ruta: puntosRuta })
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.peajes || [];
+    } catch {
+      return [];
+    }
+  };
+
   const trazarRutaConductor = (sol) => {
     if (!mapsLoaded || !window.google) return;
     const tieneOrigen = sol.origin_lat != null && sol.origin_lng != null;
@@ -593,12 +614,14 @@ const PanelConductor = ({ onVerRuta }) => {
         mapaRef.current.setZoom(14);
       }
       setRutaConductor(null);
+      setPeajesRutaConductor([]);
       return;
     }
     const origen = { lat: sol.origin_lat, lng: sol.origin_lng };
     const destino = { lat: sol.destination_lat, lng: sol.destination_lng };
     const ajustar = (path) => {
       setRutaConductor({ path, origen, destino });
+      calcularPeajesDeRuta(path).then(setPeajesRutaConductor);
       if (mapaRef.current) {
         const b = new window.google.maps.LatLngBounds();
         path.forEach(pt => b.extend(pt));
@@ -627,6 +650,7 @@ const PanelConductor = ({ onVerRuta }) => {
     if (esLaMisma) {
       setTarjetaRutaId(null);
       setRutaConductor(null);
+      setPeajesRutaConductor([]);
     } else {
       setTarjetaRutaId(sol.request_id);
       trazarRutaConductor(sol);
@@ -1402,7 +1426,7 @@ const PanelConductor = ({ onVerRuta }) => {
             center={ubicacionActual || centroDefaultAntioquia}
             zoom={ubicacionActual ? 12 : 9}
             onLoad={(mapa) => { mapaRef.current = mapa; }}
-            options={{ disableDefaultUI: true, zoomControl: true, styles: tema === 'oscuro' ? MAPA_OSCURO : undefined }}
+            options={{ disableDefaultUI: true, zoomControl: true, styles: tema === 'oscuro' ? MAPA_OSCURO : MAPA_CLARO }}
           >
             {ubicacionActual && (
               <MarkerF position={ubicacionActual} title="Tu posición"
@@ -1411,8 +1435,12 @@ const PanelConductor = ({ onVerRuta }) => {
 
             {solicitudesConUbicacion.map(sol => (
               <MarkerF key={sol.request_id} position={{ lat: sol.origin_lat, lng: sol.origin_lng }}
-                title={`${sol.origin} → ${sol.destination}`}
-                onClick={() => { setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); }}
+                title={sol.precio_fijo
+                  ? `${sol.origin} → ${sol.destination} — precio fijo $${Number(sol.suggested_price).toLocaleString('es-CO')}`
+                  : `${sol.origin} → ${sol.destination}`}
+                onClick={() => sol.precio_fijo
+                  ? handleClickTarjeta(sol)
+                  : (() => { setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); })()}
                 icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: '#f59e0b', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
             ))}
 
@@ -1424,6 +1452,11 @@ const PanelConductor = ({ onVerRuta }) => {
                   icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: FIJO.ruta, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
                 <MarkerF position={rutaConductor.destino} title="Destino"
                   icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: FIJO.chiva, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
+                {peajesRutaConductor.map((peaje, i) => (
+                  <MarkerF key={`peaje-${i}`} position={{ lat: peaje.lat, lng: peaje.lng }}
+                    title={`Peaje: ${peaje.nombre} — $${Number(peaje.tarifa).toLocaleString()}`}
+                    icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: FIJO.cielo, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
+                ))}
               </>
             )}
           </GoogleMap>
