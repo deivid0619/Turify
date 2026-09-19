@@ -2,6 +2,7 @@ import API_BASE_URL from './api';
 import { useState, useEffect, useRef } from 'react';
 import { T, EstilosBase, Boton, Rotulo, TableroRuta, IconAlerta, IconOjo, IconOjoTachado,
          LogoWordmark, LogoMonograma, LogoBifurcacion } from './diseno';
+import LandingInfo from './LandingInfo';
 
 // Logo en uso. Alternativas: LogoMonograma | LogoBifurcacion
 const LOGO = LogoWordmark;
@@ -177,18 +178,31 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
 
   const estiloEtiqueta = { display: 'block', fontSize: '11.5px', fontWeight: 500, color: T.piedra, marginBottom: '6px' };
 
+  // CTA de la sección informativa de abajo: lleva al panel de "Conducir" del
+  // hero (arriba) en vez de duplicar un flujo de registro aparte.
+  // Scroll instantáneo, no "smooth": el cambio de pestaña altera el alto del
+  // hero (el panel de Conducir mide distinto al de Viajar) justo mientras
+  // animaría, y la animación se trababa a mitad de camino.
+  const irAConducirDesdeCTA = () => {
+    setVista('conducir');
+    window.scrollTo(0, 0);
+  };
+
   return (
     <>
       <EstilosBase />
       <style>{`
-        .login-raiz { display:flex; flex-direction:column; min-height:100vh; font-family:${T.ui}; background:${T.niebla}; }
-        .login-cuerpo { flex:1; display:flex; min-height:0; }
+        .login-raiz { font-family:${T.ui}; background:${T.niebla}; }
+        /* Alto fijo de una pantalla para el hero — lo que sigue (LandingInfo)
+           corre debajo en flujo normal, así toda la página es scrolleable en
+           vez de quedar todo encerrado en 100vh como antes. */
+        .login-cuerpo { height:100vh; display:flex; min-height:0; }
         .login-izq { flex:1.6 1 0; min-width:0; position:relative; overflow:hidden; background:${T.monte};
                      padding:44px clamp(48px, 6vw, 84px); display:flex; flex-direction:column; gap:34px; }
         .login-izq__centro { flex:1; display:flex; flex-direction:column; justify-content:center;
                              gap:26px; position:relative; min-height:0; }
-        .login-der { flex:0 0 400px; min-width:0; background:${T.papel}; display:flex; align-items:center;
-                     justify-content:center; padding:48px 40px; border-left:1px solid ${T.linea}; }
+        .login-der { flex:0 0 400px; min-width:0; background:${T.papel}; display:flex; flex-direction:column;
+                     align-items:center; justify-content:center; padding:48px 40px; border-left:1px solid ${T.linea}; }
         .login-forma { width:100%; max-width:340px; }
         .login-izq h1 span { color:${T.chiva}; }
         .login-pestana { font-family:${T.dato}; font-size:11px; font-weight:500; letter-spacing:.14em;
@@ -413,8 +427,21 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
                 </Boton>
               </div>
             )}
+
+            {/* Visible en las tres pestañas — no solo un adorno del panel oscuro,
+                que además se oculta en pantallas angostas (ver @media arriba). */}
+            <p style={{ textAlign: 'center', fontSize: '12px', color: T.piedraClara, margin: '28px 0 0' }}>
+              {/* rel="opener" a propósito (no noopener): target="_blank" es noopener por
+                  defecto en navegadores recientes salvo que se pida lo contrario — el botón
+                  "Cerrar" de /politicas necesita window.opener para cerrar la pestaña. */}
+              <a href="/politicas" target="_blank" rel="opener" style={{ color: 'inherit' }}>
+                Términos, privacidad y demás políticas
+              </a>
+            </p>
           </div>
         </div>
+
+        <LandingInfo onQuieroConducir={irAConducirDesdeCTA} />
       </div>
     </>
   );
