@@ -341,11 +341,15 @@ class CounterOfferCreate(BaseModel):
 
 class ResolveOfferCreate(BaseModel):
     action: str  # 'ACCEPT' | 'REJECT'
-# HU10 — FUEC
+# HU10 — FUEC (los ocupantes del viaje; el FUEC en sí lo sube el conductor
+# como archivo, ver /{request_id}/fuec — esto es solo la lista de personas).
 class TripPassengerItem(BaseModel):
     full_name: str
     document_type: str = 'CC'  # CC, TI, CE, PA
     document_number: str
+    # El representante del viaje: siempre el pasajero que publicó el viaje,
+    # mayor de edad. Este campo solo marca cuál de las filas es esa persona.
+    es_representante: bool = False
 
     @field_validator('full_name')
     @classmethod
@@ -365,6 +369,21 @@ class TripPassengerItem(BaseModel):
 
 class TripPassengersCreate(BaseModel):
     passengers: list[TripPassengerItem]
+
+    @model_validator(mode='after')
+    def _v_representante(self):
+        representantes = [p for p in self.passengers if p.es_representante]
+        if len(representantes) != 1:
+            raise ValueError(
+                "Debe haber exactamente un representante del viaje entre los ocupantes registrados."
+            )
+        # TI (Tarjeta de Identidad) es el documento de menores de edad en
+        # Colombia -- el representante del viaje tiene que ser mayor de edad.
+        if representantes[0].document_type == 'TI':
+            raise ValueError(
+                "El representante del viaje debe ser mayor de edad y no puede registrarse con Tarjeta de Identidad."
+            )
+        return self
 # HU16 — Perfil de usuario
 class UpdatePhoneRequest(BaseModel):
     phone_number: str

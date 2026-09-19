@@ -809,6 +809,7 @@ const Dashboard = () => {
       full_name: o.full_name.trim(),
       document_type: o.document_type,
       document_number: o.document_number.trim(),
+      es_representante: !!o.es_representante,
     }));
     setEnviandoFuec(true);
     try {
@@ -891,14 +892,20 @@ const Dashboard = () => {
   };
 
   const MAX_OCUPANTES = 60;
-  const slotOcupanteVacio = () => ({ full_name: '', document_type: 'CC', document_number: '' });
+  const slotOcupanteVacio = () => ({ full_name: '', document_type: 'CC', document_number: '', es_representante: false });
 
   // Abre el registro de ocupantes ya con tantos slots como pasajeros declaró el
   // viaje (adultos + niños). El conductor/pasajero puede agregar más o quitar.
+  // El primer slot es siempre "el representante del viaje": el pasajero que
+  // publicó el viaje, mayor de edad — se precarga su nombre (ya lo sabemos de
+  // la cuenta) y no se puede quitar ni reemplazar por otro ocupante.
   const abrirModalOcupantes = (viaje) => {
     const n = Math.min(MAX_OCUPANTES, Math.max(1, viaje?.seats_needed || 1));
     setOcupantesEsperados(n);
-    setOcupantesFuec(Array.from({ length: n }, slotOcupanteVacio));
+    setOcupantesFuec([
+      { full_name: usuario?.full_name || '', document_type: 'CC', document_number: '', es_representante: true },
+      ...Array.from({ length: Math.max(0, n - 1) }, slotOcupanteVacio),
+    ]);
     setModalFuec(viaje.id);
   };
 
@@ -907,6 +914,7 @@ const Dashboard = () => {
   };
 
   const quitarOcupante = (idx) => {
+    if (idx === 0) return; // el representante del viaje no se quita
     if (ocupantesFuec.length === 1) return;
     setOcupantesFuec(prev => prev.filter((_, i) => i !== idx));
   };
@@ -945,11 +953,15 @@ const Dashboard = () => {
       const dup = lista.some((otro, j) => j !== idx && (otro.document_number || '').trim() === num && num !== '');
       if (dup) err.document_number = 'Documento repetido.';
     }
+
+    if (o.es_representante && tipo === 'TI') {
+      err.document_type = 'El representante del viaje debe ser mayor de edad (no puede ir con Tarjeta de Identidad).';
+    }
     return err;
   };
 
   const erroresOcupantes = ocupantesFuec.map((o, i) => validarOcupante(o, i, ocupantesFuec));
-  const ocupantesValidos = erroresOcupantes.every(e => !e.full_name && !e.document_number);
+  const ocupantesValidos = erroresOcupantes.every(e => !e.full_name && !e.document_number && !e.document_type);
 
   const marcarTodasLeidas = () => {
     notificaciones.filter(n => !n.is_read).forEach(n => marcarLeida(n.notification_id));
@@ -2627,16 +2639,28 @@ const Dashboard = () => {
               {/* CONTENIDO — scrollable */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', backgroundColor: 'var(--t-monte)' }}>
                 {ocupantesFuec.map((ocupante, idx) => (
-                  <div key={idx} style={{ backgroundColor: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.12)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '700', color: 'rgba(255,255,255,0.5)' }}>Ocupante {idx + 1}</span>
-                      {ocupantesFuec.length > 1 && (
+                  <div key={idx} style={{ backgroundColor: ocupante.es_representante ? 'rgba(233,161,59,0.06)' : 'rgba(34,197,94,0.05)', border: ocupante.es_representante ? '1px solid rgba(233,161,59,0.35)' : '1px solid rgba(34,197,94,0.12)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: ocupante.es_representante ? '2px' : '10px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: 'rgba(255,255,255,0.5)' }}>Ocupante {idx + 1}</span>
+                        {ocupante.es_representante && (
+                          <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--t-chiva)', background: 'rgba(233,161,59,0.15)', border: '1px solid rgba(233,161,59,0.35)', borderRadius: '20px', padding: '2px 8px' }}>
+                            Representante del viaje
+                          </span>
+                        )}
+                      </span>
+                      {ocupantesFuec.length > 1 && !ocupante.es_representante && (
                         <button onClick={() => quitarOcupante(idx)}
                           style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '6px', color: 'var(--t-alerta-linea)', cursor: 'pointer', fontSize: '12px', padding: '3px 8px', fontWeight: '600' }}>
                           Quitar
                         </button>
                       )}
                     </div>
+                    {ocupante.es_representante && (
+                      <p style={{ margin: '0 0 10px', fontSize: '11.5px', color: 'rgba(255,255,255,0.4)' }}>
+                        Es quien queda registrado ante la empresa afiliada para el FUEC. Debe ser mayor de edad.
+                      </p>
+                    )}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 130px', gap: '8px', minWidth: 0 }}>
                       <div>
                         <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Nombre completo</label>
@@ -2652,10 +2676,11 @@ const Dashboard = () => {
                           onChange={e => actualizarOcupante(idx, 'document_type', e.target.value)}
                           className="fuec-select" style={{}}>
                           <option value="CC">CC</option>
-                          <option value="TI">TI</option>
+                          <option value="TI" disabled={ocupante.es_representante}>TI</option>
                           <option value="CE">CE</option>
                           <option value="PA">PA</option>
                         </select>
+                        {erroresOcupantes[idx]?.document_type && <div className="fuec-error-msg">{erroresOcupantes[idx].document_type}</div>}
                       </div>
                       <div>
                         <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Número</label>

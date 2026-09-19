@@ -168,6 +168,11 @@ class ServiceRequest(Base):
     suggested_price_max = Column(Numeric(10, 2))
     price_explanation   = Column(Text)
     intermediate_stops  = Column(JSONB)
+    # El FUEC (Formato Único de Extracto de Contrato) lo expide la empresa
+    # afiliada del conductor -- Turify no lo genera, solo lo recibe. El
+    # conductor lo carga acá antes de poder iniciar el viaje (junto con los
+    # ocupantes registrados en TripPassenger, ver start_trip).
+    fuec_url            = Column(Text)
     # HU26 — Punto y radio de búsqueda de conductores. Ya NO lo elige el pasajero:
     # se calculan automáticamente al crear el viaje (search_lat/lng = origen del
     # viaje; search_radius_km = radio amplio fijo usado para que cualquier
@@ -227,6 +232,12 @@ class TripPassenger(Base):
     full_name           = Column(String(100), nullable=False)
     document_type       = Column(Enum('CC', 'TI', 'CE', 'PA', name='doc_id_type'), default='CC')
     document_number     = Column(String(20), nullable=False)
+    # El representante del viaje es siempre el pasajero que lo publicó
+    # (request_id -> ServiceRequest.passenger_id), mayor de edad -- este
+    # campo solo diferencia CUÁL de los ocupantes registrados es esa persona,
+    # para el FUEC. Debe haber como máximo uno en True por viaje (ver
+    # TripPassengersCreate en schemas.py).
+    es_representante    = Column(Boolean, default=False)
     created_at          = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 

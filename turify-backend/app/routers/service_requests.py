@@ -1,7 +1,7 @@
 import io
 import json
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -16,6 +16,7 @@ from app.pricing.vehicle_categories import calcular_categoria, sugerir_categoria
 from app.pricing.features import PricingInput
 from app.pricing.service import obtener_precio_sugerido, registrar_resultado_viaje
 from app.pricing.peajes_antioquia import calcular_peajes_de_ruta
+from app.routers.drivers import get_supabase, upload_to_supabase
 
 router = APIRouter(prefix="/api/service-requests", tags=["Service Requests"])
 
@@ -740,6 +741,12 @@ def get_driver_active_offers(
                 models.Rating.rater_id == current_user.user_id
             ).first() is not None
 
+        # FUEC — para que "Iniciar viaje" se pueda deshabilitar en el panel
+        # sin depender de que falle la petición al backend.
+        ocupantes = db.query(models.TripPassenger).filter(
+            models.TripPassenger.request_id == oferta.request_id
+        ).all() if viaje else []
+
         resultado.append({
             "offer_id": oferta.offer_id,
             "request_id": oferta.request_id,
@@ -757,6 +764,9 @@ def get_driver_active_offers(
             "destination_lat": float(viaje.destination_lat) if viaje and viaje.destination_lat is not None else None,
             "destination_lng": float(viaje.destination_lng) if viaje and viaje.destination_lng is not None else None,
             "ya_califico": ya_califico,
+            "fuec_cargado": bool(viaje.fuec_url) if viaje else False,
+            "ocupantes_registrados": len(ocupantes),
+            "tiene_representante": any(o.es_representante for o in ocupantes),
         })
 
     return resultado
@@ -1520,6 +1530,27 @@ def start_trip(
     if not oferta_aceptada:
         raise HTTPException(status_code=403, detail="No eres el conductor asignado a este viaje.")
 
+    # Requisitos legales antes de arrancar: el FUEC (lo sube el conductor,
+    # expedido por su empresa afiliada) y los ocupantes registrados, con
+    # exactamente un representante del viaje entre ellos (ya lo garantiza
+    # TripPassengersCreate al registrarlos, se revalida acá por si acaso).
+    faltantes = []
+    if not viaje.fuec_url:
+        faltantes.append("el FUEC del viaje")
+    ocupantes = db.query(models.TripPassenger).filter(
+        models.TripPassenger.request_id == request_id
+    ).all()
+    if not ocupantes:
+        faltantes.append("los ocupantes del viaje")
+    elif not any(o.es_representante for o in ocupantes):
+        faltantes.append("el representante del viaje entre los ocupantes")
+
+    if faltantes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Antes de iniciar el viaje falta registrar: {', '.join(faltantes)}."
+        )
+
     viaje.status = 'IN_PROGRESS'
     db.commit()
 
@@ -1662,11 +1693,14 @@ def get_trip_status(
         "status": viaje.status,
         "origin": viaje.origin,
         "destination": viaje.destination,
-        "departure_time": viaje.departure_time.isoformat() if viaje.departure_time else None
+        "departure_time": viaje.departure_time.isoformat() if viaje.departure_time else None,
+        "fuec_cargado": bool(viaje.fuec_url),
     }
 
 # HU10 — POST /api/service-requests/{request_id}/passengers
-# Pasajero registra los ocupantes del viaje (FUEC simulado)
+# Pasajero registra los ocupantes del viaje (los datos que respaldan el FUEC
+# que expide la empresa afiliada -- el archivo del FUEC en sí lo sube el
+# conductor aparte, ver POST /{request_id}/fuec).
 @router.post("/{request_id}/passengers", status_code=201)
 def registrar_ocupantes(
     request_id: int,
@@ -1697,7 +1731,8 @@ def registrar_ocupantes(
             request_id=request_id,
             full_name=p.full_name,
             document_type=p.document_type,
-            document_number=p.document_number
+            document_number=p.document_number,
+            es_representante=p.es_representante,
         ))
 
     db.commit()
@@ -1751,10 +1786,59 @@ def get_ocupantes(
             "passenger_entry_id": o.passenger_entry_id,
             "full_name": o.full_name,
             "document_type": o.document_type,
-            "document_number": o.document_number
+            "document_number": o.document_number,
+            "es_representante": o.es_representante,
         }
         for o in ocupantes
     ]
+
+
+# El FUEC lo expide la empresa afiliada del conductor -- Turify no lo genera,
+# solo lo recibe como respaldo de que el viaje es legal antes de arrancar.
+# Junto con los ocupantes (arriba), es requisito obligatorio para iniciar el
+# viaje (ver start_trip).
+@router.post("/{request_id}/fuec", status_code=status.HTTP_201_CREATED)
+async def subir_fuec(
+    request_id: int,
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    if current_user.role != 'DRIVER':
+        raise HTTPException(status_code=403, detail="Solo el conductor puede subir el FUEC del viaje.")
+
+    viaje = db.query(models.ServiceRequest).filter(
+        models.ServiceRequest.request_id == request_id
+    ).first()
+    if not viaje:
+        raise HTTPException(status_code=404, detail="Viaje no encontrado.")
+
+    oferta_aceptada = db.query(models.DriverOffer).filter(
+        models.DriverOffer.request_id == request_id,
+        models.DriverOffer.driver_id == current_user.user_id,
+        models.DriverOffer.status == 'ACCEPTED'
+    ).first()
+    if not oferta_aceptada:
+        raise HTTPException(status_code=403, detail="No eres el conductor asignado a este viaje.")
+
+    if viaje.status not in ('ASSIGNED', 'IN_PROGRESS'):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Solo puedes subir el FUEC de un viaje confirmado. Estado actual: {viaje.status}"
+        )
+
+    supabase = get_supabase()
+    viaje.fuec_url = await upload_to_supabase(
+        supabase, archivo, "turify-documentos", f"trips/{request_id}/fuec",
+        db=db, current_user=current_user,
+    )
+    db.commit()
+
+    registrar_log(db, action="UPLOAD_FUEC", user_id=current_user.user_id,
+        entity="ServiceRequest", entity_id=request_id,
+        detail=f"FUEC cargado para viaje #{request_id}")
+
+    return {"message": "FUEC cargado correctamente.", "fuec_url": viaje.fuec_url}
 
 
 # ── HU46 — Calificaciones bidireccionales (SCRUM-194) ────────────────────────
