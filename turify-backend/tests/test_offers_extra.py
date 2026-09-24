@@ -148,7 +148,9 @@ def test_cancelar_viaje_rechaza_si_no_es_el_dueno(client, crear_pasajero, auth_h
     assert respuesta.status_code == 403
 
 
-def test_cancelar_viaje_ya_asignado_falla(client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers):
+# HU59 — un viaje ya asignado sí se puede cancelar; la penalización depende
+# de cuánto falte para la salida (antes esto devolvía 400 siempre).
+def test_cancelar_viaje_asignado_con_24h_o_mas_es_libre(client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers):
     pasajero, _conductor, _v, viaje, oferta = _viaje_con_oferta(
         client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers
     )
@@ -158,6 +160,39 @@ def test_cancelar_viaje_ya_asignado_falla(client, crear_pasajero, crear_conducto
         f"/api/service-requests/{viaje['request_id']}/cancel",
         headers=auth_headers(pasajero),
     )
+    assert respuesta.status_code == 200
+    assert respuesta.json()["status"] == "CANCELLED"
+    assert respuesta.json()["penalty_percentage"] == 0
+
+
+def test_cancelar_viaje_asignado_entre_24h_y_2h_cobra_30(client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers):
+    pasajero = crear_pasajero()
+    conductor, _vehiculo = crear_conductor_con_vehiculo()
+    salida = datetime.now(timezone.utc) + timedelta(hours=10)
+    viaje = _publicar_viaje(client, pasajero, auth_headers, departure_time=salida.isoformat()).json()
+    oferta = client.post(
+        f"/api/service-requests/{viaje['request_id']}/offers",
+        json={"offered_price": 85000},
+        headers=auth_headers(conductor),
+    ).json()
+    client.patch(f"/api/service-requests/offers/{oferta['offer_id']}/accept", headers=auth_headers(pasajero))
+
+    respuesta = client.patch(
+        f"/api/service-requests/{viaje['request_id']}/cancel",
+        headers=auth_headers(pasajero),
+    )
+    assert respuesta.status_code == 200
+    assert respuesta.json()["penalty_percentage"] == 30
+    assert respuesta.json()["penalty_amount"] == 25500
+
+
+def test_cancelar_viaje_ya_cancelado_falla(client, crear_pasajero, auth_headers):
+    pasajero = crear_pasajero()
+    viaje = _publicar_viaje(client, pasajero, auth_headers).json()
+    url = f"/api/service-requests/{viaje['request_id']}/cancel"
+    client.patch(url, headers=auth_headers(pasajero))
+
+    respuesta = client.patch(url, headers=auth_headers(pasajero))
     assert respuesta.status_code == 400
 
 

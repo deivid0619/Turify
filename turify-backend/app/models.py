@@ -52,6 +52,11 @@ class User(Base):
     # RUNT del conductor (experiencia declarada verificada). Es independiente del
     # rol DRIVER/documentos obligatorios de registro — el RUNT es opcional y posterior.
     conductor_verificado = Column(Boolean, default=False)
+    # HU59 — cuántas veces este conductor canceló un viaje ya ASSIGNED sin
+    # justificar fuerza mayor. Es la "penalización en su calificación" del
+    # criterio de aceptación: un contador aparte de rating_avg, porque Rating
+    # exige un viaje COMPLETED y una cancelación nunca llega a serlo.
+    cancelaciones_injustificadas = Column(Integer, nullable=False, default=0)
     created_at          = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     company     = relationship("AffiliatedCompany", back_populates="users")
@@ -154,7 +159,7 @@ class ServiceRequest(Base):
         'PENDING', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'SCHEDULED',
         name='request_status'
     ), default='PENDING')
-    # Campos nuevos — Agente IA precio (Épica 4)
+    # Campos del motor de precio sugerido (ÉPICA 12, HU29 — antes Épica 4)
     distance_km         = Column(Numeric(10, 2))
     tolls_count         = Column(Integer, default=0)
     tolls_cost          = Column(Numeric(10, 2), default=0)
@@ -168,6 +173,11 @@ class ServiceRequest(Base):
     suggested_price_max = Column(Numeric(10, 2))
     price_explanation   = Column(Text)
     intermediate_stops  = Column(JSONB)
+    # El FUEC (Formato Único de Extracto de Contrato) lo expide la empresa
+    # afiliada del conductor -- Turify no lo genera, solo lo recibe. El
+    # conductor lo carga acá antes de poder iniciar el viaje (junto con los
+    # ocupantes registrados en TripPassenger, ver start_trip).
+    fuec_url            = Column(Text)
     # HU26 — Punto y radio de búsqueda de conductores. Ya NO lo elige el pasajero:
     # se calculan automáticamente al crear el viaje (search_lat/lng = origen del
     # viaje; search_radius_km = radio amplio fijo usado para que cualquier
@@ -193,6 +203,21 @@ class ServiceRequest(Base):
     # conductor cumpla TODAS las comodidades marcadas arriba para poder ver la
     # solicitud en su radar y ofertar.
     tipo_servicio            = Column(String(20), default="ECONOMICO")
+    # ÉPICA 12 — el pasajero publicó aceptando el precio sugerido tal cual
+    # (True) en vez de eligiendo negociar manualmente (False). Si es True, el
+    # conductor no puede ofertar otro precio: solo aceptar o dejarlo pasar.
+    precio_fijo         = Column(Boolean, default=False)
+    # HU59 — registro de cómo se canceló el viaje (SCRUM-211). penalty_amount
+    # es lo que corresponde según la anticipación, calculado sobre el precio
+    # ya aceptado -- Turify todavía no cobra nada automáticamente (no hay
+    # pasarela de pago integrada), es el registro contractual de lo debido.
+    cancelled_by         = Column(Enum('PASSENGER', 'DRIVER', name='cancelled_by_type'))
+    cancellation_reason  = Column(Text)
+    is_force_majeure     = Column(Boolean, default=False)
+    force_majeure_evidence_url = Column(Text)
+    penalty_percentage   = Column(Numeric(5, 2))
+    penalty_amount       = Column(Numeric(10, 2))
+    cancelled_at          = Column(TIMESTAMP(timezone=True))
     created_at          = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 
@@ -227,6 +252,12 @@ class TripPassenger(Base):
     full_name           = Column(String(100), nullable=False)
     document_type       = Column(Enum('CC', 'TI', 'CE', 'PA', name='doc_id_type'), default='CC')
     document_number     = Column(String(20), nullable=False)
+    # El representante del viaje es siempre el pasajero que lo publicó
+    # (request_id -> ServiceRequest.passenger_id), mayor de edad -- este
+    # campo solo diferencia CUÁL de los ocupantes registrados es esa persona,
+    # para el FUEC. Debe haber como máximo uno en True por viaje (ver
+    # TripPassengersCreate en schemas.py).
+    es_representante    = Column(Boolean, default=False)
     created_at          = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 
@@ -261,7 +292,9 @@ class Notification(Base):
 
 
 class PriceHistory(Base):
-    """Historial de precios para alimentar el agente IA (Épica 4)"""
+    """Historial de precios para entrenar el modelo de ML del precio sugerido
+    (ÉPICA 12, HU29). Cada fila se crea automáticamente al completar un viaje
+    — ver app/pricing/service.py::registrar_resultado_viaje."""
     __tablename__ = "PriceHistory"
 
     history_id          = Column(Integer, primary_key=True, autoincrement=True)

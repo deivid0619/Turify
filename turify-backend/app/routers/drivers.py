@@ -7,13 +7,18 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import List
+from typing import List, Optional
 from supabase import create_client, Client
 
 from app.database import get_db
 from app.security import get_current_user
 from app import models, schemas
 from app.audit import registrar_log
+from app.pricing.vehicle_categories import (
+    RANGOS_CATEGORIA,
+    calcular_categoria,
+    rango_tarifa_km,
+)
 
 load_dotenv()
 
@@ -42,29 +47,10 @@ TAMANO_MAXIMO_MB = 5
 router = APIRouter(prefix="/drivers", tags=["Modo Conductor"])
 
 # ── HU55 — Categorías de vehículo y rango estándar de tarifa por km ─────────
-# Rangos en COP/km, orientativos — el conductor puede moverse dentro de su
-# categoría pero no salirse de ella (evita tarifas absurdas por error).
-RANGOS_CATEGORIA = [
-    (1, 4,   "SEDAN",      (1500, 3000)),
-    (5, 10,  "VAN",        (2000, 4000)),
-    (11, 19, "MICROBUS",   (2500, 5000)),
-    (20, 35, "BUS",        (3000, 6000)),
-    (36, 60, "BUS_GRANDE", (3500, 7000)),
-]
-
-
-def calcular_categoria(capacidad: int) -> str:
-    for minimo, maximo, categoria, _ in RANGOS_CATEGORIA:
-        if minimo <= capacidad <= maximo:
-            return categoria
-    return "BUS_GRANDE" if capacidad > 60 else "SEDAN"
-
-
-def rango_tarifa_km(categoria: str):
-    for _, _, cat, rango in RANGOS_CATEGORIA:
-        if cat == categoria:
-            return list(rango)
-    return [1500, 3000]
+# RANGOS_CATEGORIA / calcular_categoria / rango_tarifa_km viven ahora en
+# app/pricing/vehicle_categories.py (única fuente de verdad, reutilizada
+# también por service_requests.py y por el motor de precio sugerido de la
+# ÉPICA 12) — se importan arriba en vez de redefinirse aquí.
 
 
 def _detectar_tipo_real(cabecera: bytes) -> str:
@@ -166,7 +152,12 @@ async def upload_to_supabase(
 async def register_driver_info(
     request: Request,
     age: int = Form(...),
-    affiliated_company: int = Form(...),
+    affiliated_company: Optional[int] = Form(None),
+    # Si la empresa del conductor no está en la lista fija (Departour /
+    # Transporte Real), puede escribirla — se busca primero por NIT (único)
+    # para no duplicarla si dos conductores de la misma empresa la escriben.
+    new_company_name: Optional[str] = Form(None),
+    new_company_nit: Optional[str] = Form(None),
     plate: str = Form(...),
     capacity: int = Form(...),
     # HU55 — comodidades del vehículo, opcionales desde el registro (el conductor
@@ -204,6 +195,34 @@ async def register_driver_info(
             detail="Ya tienes documentos enviados. Debes esperar la revisión del administrador o tener documentos rechazados para volver a enviar."
         )
 
+    # Resolver la empresa afiliada: o viene de la lista fija (affiliated_company
+    # = un company_id existente), o el conductor escribió una nueva (nombre +
+    # NIT) porque no está en la lista. Se busca primero por NIT antes de crear
+    # una fila nueva, para que dos conductores de la misma empresa terminen
+    # apuntando al mismo AffiliatedCompany en vez de duplicarla.
+    if affiliated_company:
+        empresa_id = affiliated_company
+    elif new_company_name and new_company_nit:
+        nombre_limpio = new_company_name.strip()
+        nit_limpio = new_company_nit.strip()
+        if not nombre_limpio or not nit_limpio:
+            raise HTTPException(status_code=400, detail="El nombre y el NIT de la empresa son obligatorios.")
+        empresa_existente = db.query(models.AffiliatedCompany).filter(
+            models.AffiliatedCompany.nit == nit_limpio
+        ).first()
+        if empresa_existente:
+            empresa_id = empresa_existente.company_id
+        else:
+            nueva_empresa = models.AffiliatedCompany(name=nombre_limpio, nit=nit_limpio)
+            db.add(nueva_empresa)
+            db.flush()  # asigna company_id (autoincrement) antes del commit final
+            empresa_id = nueva_empresa.company_id
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Elegí tu empresa de la lista, o escribí su nombre y NIT si no aparece."
+        )
+
     supabase = get_supabase()
     base_path = f"drivers/{current_user.user_id}"
 
@@ -216,7 +235,7 @@ async def register_driver_info(
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
         user_db.age = age
-        user_db.affiliated_company = affiliated_company
+        user_db.affiliated_company = empresa_id
         user_db.profile_photo_url = await upload_to_supabase(
             supabase, profile_photo, "turify-fotos", f"{base_path}/profile",
             db=db, current_user=current_user,
@@ -234,7 +253,7 @@ async def register_driver_info(
             )
             new_vehicle = models.Vehicle(
                 owner_id=current_user.user_id,
-                company_id=affiliated_company,
+                company_id=empresa_id,
                 plate=plate.upper(),
                 capacity=capacity,
                 photo_url=vehicle_photo_url,

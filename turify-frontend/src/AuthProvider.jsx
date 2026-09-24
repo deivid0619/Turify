@@ -27,11 +27,15 @@ export function AuthProvider({ children }) {
     setUsuario(null);
   }
 
-  useEffect(() => {
-    if (!token) { setUsuario(null); return; }
-    fetch(`${API_BASE_URL}/users/me`, {
+  // Extraída del efecto para poder llamarla también "a demanda" — por ejemplo,
+  // cuando el frontend se entera de que el rol del usuario cambió del lado del
+  // backend (ej. un admin aprobó sus documentos de conductor) y hay que traer
+  // el usuario de nuevo sin esperar a un logout/login o un F5.
+  function cargarUsuario(tok) {
+    if (!tok) { setUsuario(null); return Promise.resolve(null); }
+    return fetch(`${API_BASE_URL}/users/me`, {
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `Bearer ${tok}`,
         'ngrok-skip-browser-warning': 'true'
       }
     })
@@ -40,9 +44,18 @@ export function AuthProvider({ children }) {
         if (!res.ok) throw new Error();
         return res.json();
       })
-      .then(data => { if (data) setUsuario(data); })
-      .catch(() => { if (tokenEstaExpirado(token)) cerrarSesion(); });
+      .then(data => { if (data) setUsuario(data); return data; })
+      .catch(() => { if (tokenEstaExpirado(tok)) cerrarSesion(); return null; });
+  }
+
+  useEffect(() => {
+    cargarUsuario(token);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  function refrescarUsuario() {
+    return cargarUsuario(token);
+  }
 
   useEffect(() => {
     if (!token) return;
@@ -58,7 +71,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ token, usuario, iniciarSesion, cerrarSesion }}>
+    <AuthContext.Provider value={{ token, usuario, iniciarSesion, cerrarSesion, refrescarUsuario }}>
       {children}
     </AuthContext.Provider>
   );

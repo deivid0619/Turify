@@ -109,6 +109,15 @@ class DocumentResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
+    # True solo cuando /users/login-google acaba de crear la cuenta (no existía
+    # ese correo). El login normal y un login-google sobre cuenta existente
+    # nunca lo marcan.
+    is_new_user: bool = False
+
+# Inicio de sesión con Google (Google Identity Services) — el frontend nunca ve
+# ni valida el token, solo lo reenvía tal cual lo entrega Google.
+class GoogleLoginRequest(BaseModel):
+    credential: str
     
 class TripType(str, Enum):
     ONE_WAY = "ONE_WAY"
@@ -123,6 +132,11 @@ class ServiceRequestCreate(BaseModel):
     # Nuevos campos según la tabla SQL
     adults_count: int = Field(..., ge=1, le=60, description="Al menos un adulto")
     children_count: int = Field(0, ge=0, le=60)
+    # HU29 — los menores de 2 años no cuentan como pasajero para capacidad ni
+    # precio; se reciben aparte para no perder el dato (antes ni siquiera se
+    # podían declarar: el modelo ya tenía la columna, pero este schema no la
+    # exponía).
+    infants_count: int = Field(0, ge=0, le=60)
     has_pets: bool = False
     # Épica 2 (HU25) — datos de la ruta calculados con Google Maps, para el motor de precio (Épica 12)
     origin_lat: Optional[float] = Field(None, ge=-90, le=90)
@@ -133,6 +147,17 @@ class ServiceRequestCreate(BaseModel):
     tolls_count: Optional[int] = Field(None, ge=0)
     tolls_cost: Optional[float] = Field(None, ge=0)
     tipo_via: Optional[str] = None  # 'PAVIMENTADA' | 'DESTAPADA' | 'MIXTA'
+    # HU60 — días que se necesita el vehículo (1 = viaje normal de un solo
+    # día). HU29 — tiempo de espera estimado, cobrado por hora. El motor de
+    # precio (Épica 12) ya sabía calcular ambos; hasta ahora no había forma
+    # de indicarlos al publicar un viaje real (solo existían en el
+    # estimador previo /price-estimate).
+    num_days: int = Field(1, ge=1, le=30)
+    wait_time_hours: float = Field(0, ge=0, le=48)
+    # ÉPICA 12 — True cuando el pasajero publica aceptando el precio sugerido
+    # tal cual (el camino principal); False cuando eligió "negociar
+    # directamente con cada conductor". Ver POST /{id}/accept-fixed-price.
+    precio_fijo: bool = False
     # HU55 — comodidades que el pasajero exige del vehículo (filtro de búsqueda).
     requiere_ac: Optional[bool] = False
     requiere_wifi: Optional[bool] = False
@@ -185,6 +210,80 @@ class ServiceRequestResponse(ServiceRequestCreate):
     class Config:
         from_attributes = True
         
+# ── Precio sugerido (ÉPICA 12 / HU28, HU29) ─────────────────────────────────
+# Petición de estimado "antes de publicar el viaje": no crea nada en la base
+# de datos, solo calcula. Comparte casi todos los campos con
+# ServiceRequestCreate a propósito (mismos nombres, mismas validaciones) para
+# que el frontend pueda armar este payload con los mismos datos que ya tiene
+# listos para publicar el viaje.
+class PriceEstimateRequest(BaseModel):
+    trip_type: TripType
+    departure_time: datetime
+    adults_count: int = Field(..., ge=1, le=60)
+    children_count: int = Field(0, ge=0, le=60)
+    infants_count: int = Field(0, ge=0, le=60)
+    distance_km: float = Field(..., ge=0)
+    tolls_cost: float = Field(0, ge=0)
+    wait_time_hours: float = Field(0, ge=0, le=48)
+    num_days: int = Field(1, ge=1, le=30)
+    tipo_via: str = "PAVIMENTADA"
+    requiere_ac: bool = False
+    requiere_wifi: bool = False
+
+    @field_validator('tipo_via')
+    @classmethod
+    def _v_tipo_via_estimate(cls, v):
+        if v not in ('PAVIMENTADA', 'DESTAPADA', 'MIXTA'):
+            raise ValueError("tipo_via debe ser PAVIMENTADA, DESTAPADA o MIXTA.")
+        return v
+
+
+class ComponentePrecioResponse(BaseModel):
+    concepto: str
+    monto: float
+
+
+class PriceEstimateResponse(BaseModel):
+    precio_sugerido: float
+    precio_minimo: float
+    precio_maximo: float
+    precio_por_persona: float
+    fuente: str
+    desglose: list[ComponentePrecioResponse]
+    explicacion: str
+    es_nocturno: bool
+    es_temporada_alta: bool
+    motivo_temporada_alta: Optional[str] = None
+    categoria_vehiculo: str
+    excede_capacidad_maxima: bool
+
+
+# ── Peajes automáticos (HU27) ────────────────────────────────────────────────
+# El frontend ya traza la ruta con Google Directions y decodifica el
+# polyline (Dashboard.jsx::trazarRutaConCoords) — se manda una sola vez acá
+# para detectar qué peajes conocidos de app/pricing/peajes_antioquia.py toca.
+class PuntoRuta(BaseModel):
+    lat: float = Field(..., ge=-90, le=90)
+    lng: float = Field(..., ge=-180, le=180)
+
+
+class CalcularPeajesRequest(BaseModel):
+    puntos_ruta: list[PuntoRuta] = Field(..., min_length=2, max_length=2000)
+
+
+class PeajeDetectado(BaseModel):
+    nombre: str
+    tarifa: float
+    lat: float
+    lng: float
+
+
+class CalcularPeajesResponse(BaseModel):
+    tolls_cost: float
+    tolls_count: int
+    peajes: list[PeajeDetectado]
+
+
 class DriverResponse(BaseModel):
     id: int
     full_name: str
@@ -225,6 +324,10 @@ class ServiceRequestRead(BaseModel):
     requiere_buen_audio: Optional[bool] = False
     requiere_acepta_mascotas: Optional[bool] = False
     tipo_servicio: Optional[str] = "ECONOMICO"
+    # ÉPICA 12 — si el viaje tiene precio fijo, el conductor ve suggested_price
+    # como el precio a aceptar (no puede ofertar otro) en vez del flujo de oferta.
+    precio_fijo: Optional[bool] = False
+    suggested_price: Optional[float] = None
     # HU55 — filtro flexible: solo presentes para el CONDUCTOR (indican cuántas de
     # las comodidades exigidas cumple su propio vehículo y cuáles le faltan)
     comodidades_exigidas: Optional[int] = None
@@ -257,11 +360,15 @@ class CounterOfferCreate(BaseModel):
 
 class ResolveOfferCreate(BaseModel):
     action: str  # 'ACCEPT' | 'REJECT'
-# HU10 — FUEC
+# HU10 — FUEC (los ocupantes del viaje; el FUEC en sí lo sube el conductor
+# como archivo, ver /{request_id}/fuec — esto es solo la lista de personas).
 class TripPassengerItem(BaseModel):
     full_name: str
     document_type: str = 'CC'  # CC, TI, CE, PA
     document_number: str
+    # El representante del viaje: siempre el pasajero que publicó el viaje,
+    # mayor de edad. Este campo solo marca cuál de las filas es esa persona.
+    es_representante: bool = False
 
     @field_validator('full_name')
     @classmethod
@@ -281,6 +388,21 @@ class TripPassengerItem(BaseModel):
 
 class TripPassengersCreate(BaseModel):
     passengers: list[TripPassengerItem]
+
+    @model_validator(mode='after')
+    def _v_representante(self):
+        representantes = [p for p in self.passengers if p.es_representante]
+        if len(representantes) != 1:
+            raise ValueError(
+                "Debe haber exactamente un representante del viaje entre los ocupantes registrados."
+            )
+        # TI (Tarjeta de Identidad) es el documento de menores de edad en
+        # Colombia -- el representante del viaje tiene que ser mayor de edad.
+        if representantes[0].document_type == 'TI':
+            raise ValueError(
+                "El representante del viaje debe ser mayor de edad y no puede registrarse con Tarjeta de Identidad."
+            )
+        return self
 # HU16 — Perfil de usuario
 class UpdatePhoneRequest(BaseModel):
     phone_number: str

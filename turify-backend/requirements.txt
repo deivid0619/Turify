@@ -35,3 +35,14 @@ email-validator==2.2.0
 supabase==2.15.1
 reportlab==5.0.1
 slowapi==0.1.9
+# Épica 12 — motor de precio sugerido (regresión lineal múltiple + reglas de respaldo)
+numpy==2.2.6
+pandas==2.2.3
+scikit-learn==1.6.1
+joblib==1.4.2
+holidays==0.65
+# Conexión con Google (login/registro con un click) — verificación de ID tokens
+google-auth==2.35.0
+cachetools==5.5.0
+pyasn1-modules==0.4.1
+requests==2.32.3

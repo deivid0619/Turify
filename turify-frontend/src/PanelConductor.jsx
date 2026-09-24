@@ -4,7 +4,7 @@ import {
   IconReloj, IconVisto, IconEquis, IconBandera, IconAuto, IconCalendario,
   IconPersonas, IconPersona, IconRadar, IconPin, IconEstrella, IconClipboard,
   IconAlerta, IconCampana, IconPrecio, IconIntercambio, IconRecibo,
-  LogoWordmark, BotonTema, useTema, MAPA_OSCURO, FIJO, BotonCentrarMapa,
+  LogoWordmark, BotonTema, useTema, MAPA_VERDE, FIJO, BotonCentrarMapa,
 } from './diseno';
 
 const IconGirar   = (p) => <Icono {...p}><path d="M4 4v5h5" /><path d="M20 20v-5h-5" /><path d="M5.5 15A7.5 7.5 0 0 0 19 9.5" /><path d="M18.5 9A7.5 7.5 0 0 0 5 14.5" /></Icono>;
@@ -55,8 +55,20 @@ const PanelConductor = ({ onVerRuta }) => {
   // Ruta origen→destino que se dibuja en el mapa grande cuando el conductor toca
   // 'ver ruta' de una solicitud. { path:[{lat,lng}], origen, destino } | null
   const [rutaConductor, setRutaConductor] = useState(null);
+  // HU27 — peajes detectados sobre esa misma ruta, para pintarlos como pines.
+  const [peajesRutaConductor, setPeajesRutaConductor] = useState([]);
   const [notificaciones, setNotificaciones] = useState([]);
   const [mostrarNotifPanel, setMostrarNotifPanel] = useState(false);
+  // Campana animada: solo se sacude cuando el número de no-leídas SUBE (llega
+  // algo nuevo), no en cada refresco ni al abrir el panel — si animara siempre
+  // que hay pendientes, se sacudiría sin parar mientras alguien no las lea.
+  const [campanaSacudida, setCampanaSacudida] = useState(false);
+  const noLeidasPrevRef = useRef(0);
+  useEffect(() => {
+    const noLeidas = notificaciones.filter(n => !n.is_read).length;
+    if (noLeidas > noLeidasPrevRef.current) setCampanaSacudida(true);
+    noLeidasPrevRef.current = noLeidas;
+  }, [notificaciones]);
   // HU37 — el conductor accede a "Mis Docs" (subir RUNT) desde el drawer de perfil,
   // que antes solo se abría desde el Dashboard del pasajero.
   const [mostrarPerfil, setMostrarPerfil] = useState(false);
@@ -494,6 +506,77 @@ const PanelConductor = ({ onVerRuta }) => {
   const [ocupantesPorViaje, setOcupantesPorViaje] = useState({});
   const [modalOcupantesId, setModalOcupantesId] = useState(null);
   const [gestionandoViaje, setGestionandoViaje] = useState(null); // request_id en proceso
+  const [aceptandoPrecioFijo, setAceptandoPrecioFijo] = useState(null); // request_id en proceso
+
+  // HU59 — Cancelar un viaje ya ASSIGNED (SCRUM-211). A diferencia del
+  // pasajero, al conductor no le aplica un % sobre el precio -- el criterio
+  // de aceptación es "penalización en su calificación": si cancela sin
+  // fuerza mayor, sube el contador cancelaciones_injustificadas del usuario.
+  const [modalCancelarViaje, setModalCancelarViaje] = useState(null); // el viaje completo, no solo el id
+  const [motivoCancelacion, setMotivoCancelacion] = useState('');
+  const [fuerzaMayorCancelacion, setFuerzaMayorCancelacion] = useState(false);
+  const [evidenciaCancelacion, setEvidenciaCancelacion] = useState(null);
+  const [enviandoCancelacion, setEnviandoCancelacion] = useState(false);
+
+  // FUEC — el archivo lo expide la empresa afiliada y lo sube el conductor acá
+  // (ver POST /{request_id}/fuec). Un solo input oculto reutilizado por todas
+  // las tarjetas: abrirSelectorFuec guarda para cuál viaje es antes de abrir
+  // el selector de archivos del sistema operativo.
+  const [subiendoFuec, setSubiendoFuec] = useState(null); // request_id en proceso
+  const fuecInputRef = useRef(null);
+  const fuecTargetIdRef = useRef(null);
+
+  const abrirSelectorFuec = (requestId) => {
+    fuecTargetIdRef.current = requestId;
+    fuecInputRef.current?.click();
+  };
+
+  const subirFuec = async (archivo) => {
+    const requestId = fuecTargetIdRef.current;
+    if (!requestId || !archivo) return;
+    setSubiendoFuec(requestId);
+    try {
+      const formData = new FormData();
+      formData.append('archivo', archivo);
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${requestId}/fuec`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        body: formData,
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+      toast.success('FUEC cargado correctamente.');
+      cargarViajesActivos();
+    } catch (e) {
+      toast.error(`Error: ${e.message}`);
+    } finally {
+      setSubiendoFuec(null);
+    }
+  };
+
+  // ÉPICA 12 — contraparte de enviarOferta para viajes con precio_fijo=True:
+  // no hay negociación, aceptar salta directo a ASSIGNED (ver
+  // POST /{id}/accept-fixed-price en el backend).
+  const aceptarPrecioFijo = async (sol) => {
+    setAceptandoPrecioFijo(sol.request_id);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${sol.request_id}/accept-fixed-price`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'No se pudo aceptar el viaje.');
+      }
+      toast.success('¡Viaje aceptado! Ya aparece en tus ofertas.');
+      cargarSolicitudes();
+      cargarViajesActivos();
+    } catch (err) {
+      toast.error(err.message);
+      cargarSolicitudes(); // por si otro conductor ya se lo llevó, que desaparezca del radar
+    } finally {
+      setAceptandoPrecioFijo(null);
+    }
+  };
 
   // HU17: Conductor inicia o finaliza el viaje
   const gestionarViaje = async (requestId, accion) => {
@@ -514,6 +597,44 @@ const PanelConductor = ({ onVerRuta }) => {
       toast.error(`Error: ${e.message}`);
     } finally {
       setGestionandoViaje(null);
+    }
+  };
+
+  const abrirModalCancelarViaje = (viaje) => {
+    setMotivoCancelacion('');
+    setFuerzaMayorCancelacion(false);
+    setEvidenciaCancelacion(null);
+    setModalCancelarViaje(viaje);
+  };
+
+  const confirmarCancelacionViaje = async () => {
+    if (!modalCancelarViaje) return;
+    if (fuerzaMayorCancelacion && !evidenciaCancelacion) {
+      toast.error('Adjunta una evidencia (foto, certificado, etc.) para reportar fuerza mayor.');
+      return;
+    }
+    setEnviandoCancelacion(true);
+    try {
+      const formData = new FormData();
+      if (motivoCancelacion.trim()) formData.append('motivo', motivoCancelacion.trim());
+      formData.append('es_fuerza_mayor', fuerzaMayorCancelacion ? 'true' : 'false');
+      if (evidenciaCancelacion) formData.append('evidencia', evidenciaCancelacion);
+
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${modalCancelarViaje.request_id}/cancel`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'No se pudo cancelar el viaje.');
+
+      toast.success('Viaje cancelado. Volvió a quedar disponible para otro conductor.');
+      setModalCancelarViaje(null);
+      cargarViajesActivos();
+    } catch (error) {
+      toast.error(`Error: ${error.message}`);
+    } finally {
+      setEnviandoCancelacion(false);
     }
   };
 
@@ -583,6 +704,25 @@ const PanelConductor = ({ onVerRuta }) => {
   // Dibuja la ruta de una solicitud (origen→destino) en el mapa grande del
   // conductor, usando el Directions Service. Si no hay coordenadas de destino,
   // al menos centra en el origen.
+  // HU27 — mismo cálculo que usa Dashboard.jsx al armar el viaje (ver
+  // calcularPeajesDeRuta ahí): le manda el polyline ya trazado al backend, que
+  // lo compara contra la base local de peajes de Antioquia. Si falla, el mapa
+  // simplemente no muestra pines de peaje (no bloquea nada).
+  const calcularPeajesDeRuta = async (puntosRuta) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/calcular-peajes`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ puntos_ruta: puntosRuta })
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.peajes || [];
+    } catch {
+      return [];
+    }
+  };
+
   const trazarRutaConductor = (sol) => {
     if (!mapsLoaded || !window.google) return;
     const tieneOrigen = sol.origin_lat != null && sol.origin_lng != null;
@@ -593,12 +733,14 @@ const PanelConductor = ({ onVerRuta }) => {
         mapaRef.current.setZoom(14);
       }
       setRutaConductor(null);
+      setPeajesRutaConductor([]);
       return;
     }
     const origen = { lat: sol.origin_lat, lng: sol.origin_lng };
     const destino = { lat: sol.destination_lat, lng: sol.destination_lng };
     const ajustar = (path) => {
       setRutaConductor({ path, origen, destino });
+      calcularPeajesDeRuta(path).then(setPeajesRutaConductor);
       if (mapaRef.current) {
         const b = new window.google.maps.LatLngBounds();
         path.forEach(pt => b.extend(pt));
@@ -627,6 +769,7 @@ const PanelConductor = ({ onVerRuta }) => {
     if (esLaMisma) {
       setTarjetaRutaId(null);
       setRutaConductor(null);
+      setPeajesRutaConductor([]);
     } else {
       setTarjetaRutaId(sol.request_id);
       trazarRutaConductor(sol);
@@ -722,12 +865,22 @@ const PanelConductor = ({ onVerRuta }) => {
             {/* Campana de notificaciones */}
             <button onClick={() => setMostrarNotifPanel(true)} title="Notificaciones" className="t-foco"
               style={{ position: 'relative', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: `1px solid ${T.monteLinea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <IconCampana size={15} color="rgba(234,242,236,.8)" />
-              {notificaciones.filter(n => !n.is_read).length > 0 && (
-                <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: T.alerta, color: '#fff', borderRadius: '50%', minWidth: '16px', height: '16px', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${T.monte}`, padding: '0 3px' }}>
-                  {notificaciones.filter(n => !n.is_read).length}
-                </span>
-              )}
+              <motion.span
+                animate={campanaSacudida ? { rotate: [0, -14, 11, -8, 5, -2, 0] } : { rotate: 0 }}
+                transition={{ duration: 0.5, ease: 'easeInOut' }}
+                onAnimationComplete={() => setCampanaSacudida(false)}
+                style={{ display: 'inline-flex', transformOrigin: '50% 20%' }}>
+                <IconCampana size={15} color="rgba(234,242,236,.8)" />
+              </motion.span>
+              <AnimatePresence>
+                {notificaciones.filter(n => !n.is_read).length > 0 && (
+                  <motion.span initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.6, opacity: 0 }}
+                    transition={{ type: 'spring', duration: 0.4, bounce: 0.3 }}
+                    style={{ position: 'absolute', top: '-4px', right: '-4px', background: T.alerta, color: '#fff', borderRadius: '50%', minWidth: '16px', height: '16px', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${T.monte}`, padding: '0 3px' }}>
+                    {notificaciones.filter(n => !n.is_read).length}
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </button>
           </div>
         </div>
@@ -933,13 +1086,21 @@ const PanelConductor = ({ onVerRuta }) => {
               </motion.div>
             )}
             {/* TARJETAS */}
-            {!cargando && solicitudesFiltradas.map((sol) => {
+            {!cargando && solicitudesFiltradas.map((sol, index) => {
               const estaSeleccionada = tarjetaRutaId === sol.request_id;
               return (
                 <motion.div key={sol.request_id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                  style={{ border: `1px solid ${estaSeleccionada ? BRAND_GREEN : 'var(--t-linea)'}`, borderRadius: '12px', marginBottom: '12px', overflow: 'hidden', boxShadow: estaSeleccionada ? `0 0 0 2px ${BRAND_GREEN}33` : '0 1px 3px rgba(0,0,0,0.06)', transition: 'all 0.2s' }}>
+                  transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.04, ease: [0.23, 1, 0.32, 1] }}
+                  style={{ border: `1px solid ${estaSeleccionada ? BRAND_GREEN : 'var(--t-linea)'}`, borderRadius: '12px', marginBottom: '12px', overflow: 'hidden', boxShadow: estaSeleccionada ? `0 0 0 2px ${BRAND_GREEN}33` : '0 1px 3px rgba(0,0,0,0.06)', transition: 'border-color 0.2s, box-shadow 0.2s' }}>
                   {/* Cuerpo clickeable → traza ruta SCRUM-77 */}
-                  <div onClick={() => handleClickTarjeta(sol)} style={{ padding: '14px', cursor: 'pointer', backgroundColor: estaSeleccionada ? 'var(--t-musgo)' : '#fff' }}>
+                  <div role="button" tabIndex={0} aria-pressed={estaSeleccionada}
+                    onClick={() => handleClickTarjeta(sol)}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return; // no robar Enter a los botones internos
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClickTarjeta(sol); }
+                    }}
+                    className="t-foco"
+                    style={{ padding: '14px', cursor: 'pointer', backgroundColor: estaSeleccionada ? 'var(--t-musgo)' : 'var(--t-papel)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
                       <div style={{ flex: 1 }}>
                         <TableroRuta origen={sol.origin} destino={sol.destination} size={11} />
@@ -955,6 +1116,14 @@ const PanelConductor = ({ onVerRuta }) => {
                         </span>
                       </span>
                     </div>
+                    {/* ÉPICA 12 — precio fijo: el pasajero ya aceptó este precio, no hay
+                        oferta ni negociación posible, solo aceptarlo. */}
+                    {sol.precio_fijo && (
+                      <div style={{ marginTop: '6px', display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: BRAND_GREEN, textTransform: 'uppercase', letterSpacing: '.04em' }}>Precio fijo</span>
+                        <span style={{ fontSize: '16px', fontWeight: '800', color: 'var(--t-tinta)' }}>${Number(sol.suggested_price).toLocaleString('es-CO')}</span>
+                      </div>
+                    )}
                     <div style={{ fontSize: '13px', color: 'var(--t-piedra)', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconCalendario size={12} />{formatearFecha(sol.departure_time)}</span>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconPersonas size={12} />{(sol.adults_count || 1) + (sol.children_count || 0)} pasajero(s){sol.has_pets && <IconMascota size={12} />}</span>
@@ -974,13 +1143,22 @@ const PanelConductor = ({ onVerRuta }) => {
                       </motion.div>
                     )}
                   </div>
-                  {/* Botón oferta - SCRUM-76 */}
+                  {/* Botón oferta - SCRUM-76, o aceptar directo si es precio fijo (ÉPICA 12) */}
                   <div style={{ padding: '0 14px 14px' }}>
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                      onClick={(e) => { e.stopPropagation(); setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); }}
-                      style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
-                      <IconPrecio size={15} />Hacer oferta
-                    </motion.button>
+                    {sol.precio_fijo ? (
+                      <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                        onClick={(e) => { e.stopPropagation(); aceptarPrecioFijo(sol); }}
+                        disabled={aceptandoPrecioFijo === sol.request_id}
+                        style={{ width: '100%', background: aceptandoPrecioFijo === sol.request_id ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: aceptandoPrecioFijo === sol.request_id ? 'not-allowed' : 'pointer' }}>
+                        <IconVisto size={15} />{aceptandoPrecioFijo === sol.request_id ? 'Aceptando…' : `Aceptar viaje — $${Number(sol.suggested_price).toLocaleString('es-CO')}`}
+                      </motion.button>
+                    ) : (
+                      <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                        onClick={(e) => { e.stopPropagation(); setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); }}
+                        style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                        <IconPrecio size={15} />Hacer oferta
+                      </motion.button>
+                    )}
                   </div>
                 </motion.div>
               );
@@ -1007,7 +1185,7 @@ const PanelConductor = ({ onVerRuta }) => {
               </motion.div>
             )}
 
-            {viajesActivos.map((viaje) => {
+            {viajesActivos.map((viaje, index) => {
               const esContraoferta = viaje.status === 'PASSENGER_COUNTER_OFFERED';
               const esAceptado = viaje.status === 'ACCEPTED';
               const esRechazado = viaje.status === 'REJECTED';
@@ -1029,8 +1207,9 @@ const PanelConductor = ({ onVerRuta }) => {
 
               return (
                 <motion.div key={viaje.offer_id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.04, ease: [0.23, 1, 0.32, 1] }}
                   style={{ border: `1px solid ${esContraoferta ? '#3b82f6' : 'var(--t-linea)'}`, borderRadius: '12px', padding: '14px', marginBottom: '12px', overflow: 'hidden',
-                    boxShadow: esContraoferta ? '0 0 0 2px #3b82f633' : 'none', transition: 'all 0.2s' }}>
+                    boxShadow: esContraoferta ? '0 0 0 2px #3b82f633' : 'none' }}>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '8px' }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
@@ -1080,18 +1259,64 @@ const PanelConductor = ({ onVerRuta }) => {
                     </button>
                   )}
 
-                  {esAceptado && estadoViaje === 'ASSIGNED' && (
-                    <div style={{ marginTop: '10px' }}>
-                      <div style={{ backgroundColor: 'var(--t-musgo)', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '13px', color: 'var(--t-musgo-texto)', fontWeight: '600' }}>
-                        <IconVisto size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Viaje confirmado. Cuando recojas al pasajero, iniciá el viaje.
+                  {/* FUEC — lo expide la empresa afiliada, lo sube el conductor acá.
+                      Requisito obligatorio para iniciar el viaje (ver start_trip). */}
+                  {esAceptado && (estadoViaje === 'ASSIGNED' || estadoViaje === 'IN_PROGRESS') && (
+                    <button
+                      onClick={() => abrirSelectorFuec(viaje.request_id)}
+                      disabled={subiendoFuec === viaje.request_id}
+                      style={{
+                        marginTop: '8px', width: '100%', padding: '9px',
+                        background: viaje.fuec_cargado ? 'var(--t-musgo)' : 'var(--t-papel)',
+                        border: `1px solid ${viaje.fuec_cargado ? 'var(--t-ruta)' : 'var(--t-linea)'}`,
+                        borderRadius: '8px', color: viaje.fuec_cargado ? 'var(--t-musgo-texto)' : 'var(--t-piedra)',
+                        fontSize: '13px', fontWeight: '700',
+                        cursor: subiendoFuec === viaje.request_id ? 'not-allowed' : 'pointer',
+                      }}>
+                      <IconRecibo size={15} />
+                      {subiendoFuec === viaje.request_id
+                        ? 'Subiendo…'
+                        : viaje.fuec_cargado ? 'FUEC cargado — cambiar archivo' : 'Subir FUEC del viaje'}
+                    </button>
+                  )}
+
+                  {esAceptado && estadoViaje === 'ASSIGNED' && (() => {
+                    const faltantes = [];
+                    if (!viaje.fuec_cargado) faltantes.push('el FUEC del viaje');
+                    if (!viaje.ocupantes_registrados) faltantes.push('los ocupantes del viaje');
+                    else if (!viaje.tiene_representante) faltantes.push('el representante entre los ocupantes');
+                    const puedeIniciar = faltantes.length === 0;
+                    return (
+                      <div style={{ marginTop: '10px' }}>
+                        <div style={{ backgroundColor: puedeIniciar ? 'var(--t-musgo)' : 'var(--t-chiva-suave)', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '13px', color: puedeIniciar ? 'var(--t-musgo-texto)' : 'var(--t-chiva-texto)', fontWeight: '600' }}>
+                          {puedeIniciar
+                            ? <><IconVisto size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Viaje confirmado. Cuando recojas al pasajero, iniciá el viaje.</>
+                            : <><IconAlerta size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Antes de iniciar falta: {faltantes.join(', ')}.</>}
+                        </div>
+                        <motion.button whileTap={{ scale: 0.96 }}
+                          onClick={() => gestionarViaje(viaje.request_id, 'start')}
+                          disabled={gestionandoViaje === viaje.request_id + 'start' || !puedeIniciar}
+                          style={{ width: '100%', background: puedeIniciar ? '#2563eb' : 'var(--t-piedra-clara)', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '14px', cursor: puedeIniciar ? 'pointer' : 'not-allowed' }}>
+                          {gestionandoViaje === viaje.request_id + 'start' ? '...' : <><IconAuto size={15} />Iniciar viaje</>}
+                        </motion.button>
                       </div>
-                      <motion.button whileTap={{ scale: 0.96 }}
-                        onClick={() => gestionarViaje(viaje.request_id, 'start')}
-                        disabled={gestionandoViaje === viaje.request_id + 'start'}
-                        style={{ width: '100%', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
-                        {gestionandoViaje === viaje.request_id + 'start' ? '...' : <><IconAuto size={15} />Iniciar viaje</>}
-                      </motion.button>
-                    </div>
+                    );
+                  })()}
+
+                  {/* Cancelar viaje — HU59 (SCRUM-211). Solo mientras está
+                      ASSIGNED: una vez IN_PROGRESS ya recogiste al pasajero,
+                      no es cancelable por la app. Cancelar sin fuerza mayor
+                      queda registrado y afecta tu confiabilidad. */}
+                  {esAceptado && estadoViaje === 'ASSIGNED' && (
+                    <button
+                      onClick={() => abrirModalCancelarViaje(viaje)}
+                      style={{
+                        marginTop: '8px', width: '100%', padding: '9px',
+                        background: 'var(--t-alerta-suave)', border: '1px solid var(--t-alerta-linea)', borderRadius: '8px',
+                        color: 'var(--t-alerta-texto)', fontSize: '13px', fontWeight: '700', cursor: 'pointer'
+                      }}>
+                      <IconEquis size={14} />Cancelar viaje
+                    </button>
                   )}
 
                   {esAceptado && estadoViaje === 'IN_PROGRESS' && (
@@ -1402,7 +1627,7 @@ const PanelConductor = ({ onVerRuta }) => {
             center={ubicacionActual || centroDefaultAntioquia}
             zoom={ubicacionActual ? 12 : 9}
             onLoad={(mapa) => { mapaRef.current = mapa; }}
-            options={{ disableDefaultUI: true, zoomControl: true, styles: tema === 'oscuro' ? MAPA_OSCURO : undefined }}
+            options={{ disableDefaultUI: true, zoomControl: true, styles: MAPA_VERDE }}
           >
             {ubicacionActual && (
               <MarkerF position={ubicacionActual} title="Tu posición"
@@ -1411,8 +1636,12 @@ const PanelConductor = ({ onVerRuta }) => {
 
             {solicitudesConUbicacion.map(sol => (
               <MarkerF key={sol.request_id} position={{ lat: sol.origin_lat, lng: sol.origin_lng }}
-                title={`${sol.origin} → ${sol.destination}`}
-                onClick={() => { setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); }}
+                title={sol.precio_fijo
+                  ? `${sol.origin} → ${sol.destination} — precio fijo $${Number(sol.suggested_price).toLocaleString('es-CO')}`
+                  : `${sol.origin} → ${sol.destination}`}
+                onClick={() => sol.precio_fijo
+                  ? handleClickTarjeta(sol)
+                  : (() => { setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); })()}
                 icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: '#f59e0b', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
             ))}
 
@@ -1420,6 +1649,15 @@ const PanelConductor = ({ onVerRuta }) => {
             {rutaConductor && (
               <>
                 <PolylineF path={rutaConductor.path} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
+                {/* Los peajes van ANTES que origen/destino a propósito: cuando un peaje
+                    cae muy cerca de una punta de la ruta (pasa seguido, ej. "Aburrá" junto
+                    al Túnel de Occidente), el pin más grande de origen/destino queda encima
+                    en vez de taparse por el más chico del peaje. */}
+                {peajesRutaConductor.map((peaje, i) => (
+                  <MarkerF key={`peaje-${i}`} position={{ lat: peaje.lat, lng: peaje.lng }}
+                    title={`Peaje: ${peaje.nombre} — $${Number(peaje.tarifa).toLocaleString()}`}
+                    icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: FIJO.cielo, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
+                ))}
                 <MarkerF position={rutaConductor.origen} title="Origen"
                   icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: FIJO.ruta, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
                 <MarkerF position={rutaConductor.destino} title="Destino"
@@ -1494,7 +1732,7 @@ const PanelConductor = ({ onVerRuta }) => {
                   return (
                     <div key={notif.notification_id}
                       onClick={() => !notif.is_read && marcarLeida(notif.notification_id)}
-                      style={{ backgroundColor: notif.is_read ? '#fff' : cfg.bg, borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', border: `1px solid ${notif.is_read ? 'var(--t-linea)' : cfg.color + '33'}`, cursor: notif.is_read ? 'default' : 'pointer', transition: 'all 0.2s' }}>
+                      style={{ backgroundColor: notif.is_read ? 'var(--t-papel)' : cfg.bg, borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', border: `1px solid ${notif.is_read ? 'var(--t-linea)' : cfg.color + '33'}`, cursor: notif.is_read ? 'default' : 'pointer', transition: 'all 0.2s' }}>
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                         <span style={{ flexShrink: 0, width: '28px', height: '28px', borderRadius: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: notif.is_read ? T.niebla2 : 'rgba(255,255,255,.16)', color: notif.is_read ? T.piedraClara : cfg.color }}>
                           <cfg.Ico size={15} />
@@ -1614,8 +1852,79 @@ const PanelConductor = ({ onVerRuta }) => {
         )}
       </AnimatePresence>
 
+      {/* MODAL CANCELAR VIAJE — HU59 (SCRUM-211) */}
+      <AnimatePresence>
+        {modalCancelarViaje && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => !enviandoCancelacion && setModalCancelarViaje(null)}
+              style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
+            <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
+              style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '380px', maxWidth: '92vw', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+              <h3 style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px', fontFamily: T.display, fontWeight: 800, letterSpacing: '-.01em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <IconAlerta size={17} color="var(--t-alerta-linea)" />Cancelar viaje
+              </h3>
+              <p style={{ margin: '0 0 14px', color: 'var(--t-piedra)', fontSize: '14px' }}>
+                {modalCancelarViaje.origin} → {modalCancelarViaje.destination}
+              </p>
+
+              {!fuerzaMayorCancelacion && (
+                <div style={{ padding: '10px 12px', borderRadius: '8px', marginBottom: '14px', background: 'var(--t-alerta-suave)', border: '1px solid var(--t-alerta-linea)' }}>
+                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'var(--t-alerta-texto)' }}>Esto queda registrado como cancelación</p>
+                  <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>
+                    Sin fuerza mayor, afecta tu confiabilidad como conductor. El pasajero no queda varado: el viaje vuelve a quedar disponible para otro conductor.
+                  </p>
+                </div>
+              )}
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--t-tinta)', marginBottom: '10px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={fuerzaMayorCancelacion}
+                  onChange={e => setFuerzaMayorCancelacion(e.target.checked)} />
+                Fue por fuerza mayor (accidente, falla mecánica, clima extremo, etc.)
+              </label>
+
+              {fuerzaMayorCancelacion && (
+                <div style={{ marginBottom: '10px' }}>
+                  <p style={{ margin: '0 0 6px', fontSize: '12px', color: 'var(--t-piedra)' }}>
+                    No afecta tu confiabilidad si adjuntas una evidencia (foto, reporte, certificado, etc.).
+                  </p>
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    onChange={e => setEvidenciaCancelacion(e.target.files?.[0] || null)}
+                    style={{ fontSize: '12.5px', width: '100%' }} />
+                </div>
+              )}
+
+              <textarea value={motivoCancelacion} onChange={e => setMotivoCancelacion(e.target.value)}
+                placeholder={fuerzaMayorCancelacion ? 'Cuéntanos qué pasó (obligatorio)' : 'Motivo (opcional)'} rows={2}
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', outline: 'none', resize: 'none', fontFamily: 'inherit', marginBottom: '16px' }} />
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={() => setModalCancelarViaje(null)} disabled={enviandoCancelacion}
+                  style={{ flex: 1, background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>
+                  Volver
+                </button>
+                <button onClick={confirmarCancelacionViaje}
+                  disabled={enviandoCancelacion || (fuerzaMayorCancelacion && (!evidenciaCancelacion || !motivoCancelacion.trim()))}
+                  style={{ flex: 1, background: enviandoCancelacion ? 'var(--t-piedra-clara)' : 'var(--t-alerta-linea)', color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: enviandoCancelacion ? 'not-allowed' : 'pointer' }}>
+                  {enviandoCancelacion ? 'Cancelando…' : 'Sí, cancelar viaje'}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
     <PerfilDrawer abierto={mostrarPerfil} onCerrar={() => setMostrarPerfil(false)} />
     <ToastContainer toasts={toasts} onRemove={removeToast} />
+    {/* Input oculto compartido por todas las tarjetas — ver abrirSelectorFuec */}
+    <input ref={fuecInputRef} type="file"
+      accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+      style={{ display: 'none' }}
+      onChange={(e) => {
+        const archivo = e.target.files?.[0];
+        e.target.value = ''; // permite volver a elegir el mismo archivo si hace falta
+        if (archivo) subirFuec(archivo);
+      }} />
     </>
   );
 };

@@ -19,7 +19,7 @@ import {
   IconRadar, IconRecibo, IconEstrella, IconClipboard, IconEquis, IconFlecha,
   IconAlerta, IconGorro, IconPin, IconPersona,
   IconCampana, IconPrecio, IconIntercambio, IconIdea,
-  MarcaTurify, LogoWordmark, BotonTema, useTema, MAPA_OSCURO, FIJO, BotonCentrarMapa,
+  MarcaTurify, LogoWordmark, BotonTema, useTema, MAPA_VERDE, FIJO, BotonCentrarMapa,
 } from './diseno';
 
 // Librerias de Google Maps que necesitamos: 'places' para el autocompletar de InputDireccion,
@@ -129,6 +129,11 @@ const Dashboard = () => {
   const [busqueda, setBusqueda] = useState({ origen: '', destino: '', departure_time: '', return_time: '' });
   const [mostrarPasajeros, setMostrarPasajeros] = useState(false);
   const [pasajeros, setPasajeros] = useState({ adultos: 1, ninos: 0, mascotas: false });
+  // HU60 — viajes de varios días (tarifa_dia + km extra) y tiempo de espera
+  // por hora (HU29): la fórmula de precio ya los sabía calcular, pero hasta
+  // ahora no había forma de indicarlos al publicar un viaje real.
+  const [numDias, setNumDias] = useState(1);
+  const [tiempoEsperaHoras, setTiempoEsperaHoras] = useState(0);
   const [cargandoMapa, setCargandoMapa] = useState(false);
   const [datosMapa, setDatosMapa] = useState({ origen: null, destino: null, ruta: [] });
   // Ruta del viaje en curso que se sigue en el mapa grande (HU43 — tracking).
@@ -150,6 +155,14 @@ const Dashboard = () => {
   const [verificandoComodidades, setVerificandoComodidades] = useState(false);
   const [avisoSinConductores, setAvisoSinConductores] = useState(false);
   const [infoRuta, setInfoRuta] = useState(null);
+
+  // ÉPICA 12 (HU28/HU29) — precio sugerido con desglose, calculado por el
+  // backend (motor de ML + reglas) ANTES de publicar el viaje. Se vuelve a
+  // pedir cada vez que cambia algo que afecta el precio (ruta, pasajeros,
+  // fecha/hora, tipo de viaje) mientras el resumen esté abierto.
+  const [precioSugerido, setPrecioSugerido] = useState(null);
+  const [cargandoPrecio, setCargandoPrecio] = useState(false);
+  const [mostrarDesglosePrecio, setMostrarDesglosePrecio] = useState(false);
 
   // Equivalente al viejo <AjustarCamara> de Leaflet: cuando hay origen y destino, encuadra ambos;
   // si solo hay origen (ej. geolocalizacion inicial), centra ahi con zoom de calle.
@@ -233,6 +246,16 @@ const Dashboard = () => {
   const [viajeSeleccionado, setViajeSeleccionado] = useState(null);
   const [notificaciones, setNotificaciones] = useState([]);
   const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
+  // Campana animada: solo se sacude cuando el número de no-leídas SUBE (llega
+  // algo nuevo), no en cada refresco ni al abrir el panel — si animara siempre
+  // que hay pendientes, se sacudiría sin parar mientras alguien no las lea.
+  const [campanaSacudida, setCampanaSacudida] = useState(false);
+  const noLeidasPrevRef = useRef(0);
+  useEffect(() => {
+    const noLeidas = notificaciones.filter(n => !n.is_read).length;
+    if (noLeidas > noLeidasPrevRef.current) setCampanaSacudida(true);
+    noLeidasPrevRef.current = noLeidas;
+  }, [notificaciones]);
   const [mostrarPerfil, setMostrarPerfil] = useState(false);
   const [modalFuec, setModalFuec] = useState(null); // request_id del viaje a registrar
   // HU46 — Calificaciones bidireccionales
@@ -244,6 +267,15 @@ const Dashboard = () => {
   const [ocupantesEsperados, setOcupantesEsperados] = useState(1); // nº de pasajeros que declaró el viaje
   const [enviandoFuec, setEnviandoFuec] = useState(false);
   const [fuecEnviado, setFuecEnviado] = useState({}); // { request_id: true } para saber cuáles ya se registraron
+  // HU59 — Cancelar un viaje ya ASSIGNED (SCRUM-211). El de PENDING sigue
+  // siendo el flujo simple de arriba (confirmandoCancelarId/cancelarBusqueda);
+  // este es aparte porque acá sí puede aplicar penalización según la
+  // anticipación, y admite reportar fuerza mayor con evidencia.
+  const [modalCancelarViaje, setModalCancelarViaje] = useState(null); // el viaje completo, no solo el id
+  const [motivoCancelacion, setMotivoCancelacion] = useState('');
+  const [fuerzaMayorCancelacion, setFuerzaMayorCancelacion] = useState(false);
+  const [evidenciaCancelacion, setEvidenciaCancelacion] = useState(null);
+  const [enviandoCancelacion, setEnviandoCancelacion] = useState(false);
   const [errorDireccion, setErrorDireccion] = useState(null);
   const coordsBuffer = useRef({});
 
@@ -381,15 +413,32 @@ const Dashboard = () => {
   };
 
   const totalAsientos = pasajeros.adultos + pasajeros.ninos;
-  const textoViajeros = `${totalAsientos} viajero${totalAsientos > 1 ? 's' : ''}`;
+  const textoViajeros = `${totalAsientos} viajero${totalAsientos > 1 ? 's' : ''}`
+    + (numDias > 1 ? ` · ${numDias} días` : '');
+
+  // HU27 — peajes automáticos: manda el polyline ya decodificado al backend
+  // una sola vez (no en cada tecla), que lo compara contra los peajes
+  // conocidos de Antioquia (app/pricing/peajes_antioquia.py) y devuelve el
+  // costo total. Si falla (red, backend caído), se sigue sin peajes en vez
+  // de bloquear el trazado de la ruta — el pasajero igual puede publicar.
+  const calcularPeajesDeRuta = async (puntosRuta) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/calcular-peajes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ puntos_ruta: puntosRuta }),
+      });
+      if (!res.ok) return { tolls_cost: 0, tolls_count: 0, peajes: [] };
+      return await res.json();
+    } catch {
+      return { tolls_cost: 0, tolls_count: 0, peajes: [] };
+    }
+  };
 
   // Trazar ruta con Google Directions Service (via SDK JS, no REST directo — evita problemas de CORS)
   // Ademas de distancia/tiempo, arma un objeto `datosRutaParaPrecio` con la info que el motor de
-  // precio sugerido va a necesitar (distancia, duracion, si la ruta pasa por peajes segun los pasos
-  // de la ruta, y un texto de resumen de vias). El costo exacto de peajes no lo entrega el Directions
-  // Service clasico — para eso Google tiene la Routes API (REST, computeRoutes con extraComputations:
-  // TOLLS), que habria que llamar desde el backend porque necesita otra API habilitada y facturación
-  // aparte. Por ahora dejamos `tieneEstimacionPeajes: false` como marcador para esa integración futura.
+  // precio sugerido va a necesitar: distancia, duracion, si la ruta pasa por peajes segun los pasos
+  // de la ruta, y los peajes reales detectados contra la base local (HU27, ver calcularPeajesDeRuta).
   const trazarRutaConCoords = (lat1, lon1, lat2, lon2) => {
     if (!mapsLoaded || !window.google) {
       toast.error('El mapa todavía se está cargando, intenta de nuevo en un momento.');
@@ -403,7 +452,7 @@ const Dashboard = () => {
           destination: { lat: lat2, lng: lon2 },
           travelMode: window.google.maps.TravelMode.DRIVING,
         },
-        (result, status) => {
+        async (result, status) => {
           if (status === 'OK' && result?.routes?.[0]) {
             const ruta = result.routes[0];
             const leg = ruta.legs[0];
@@ -415,6 +464,8 @@ const Dashboard = () => {
             // (util como señal para el motor de precio mientras no tengamos la Routes API con peajes)
             const instrucciones = leg.steps.map(s => s.instructions || '').join(' ').toLowerCase();
             const posibleTrocha = /trocha|sin pavimentar|camino rural|unnamed road/.test(instrucciones);
+
+            const peajes = await calcularPeajesDeRuta(pathDecodificado);
 
             setDatosMapa({
               origen: { lat: lat1, lng: lon1 },
@@ -428,7 +479,9 @@ const Dashboard = () => {
                 distancia_metros: leg.distance.value,
                 duracion_segundos: leg.duration.value,
                 posible_trocha: posibleTrocha,
-                tiene_estimacion_peajes: false, // TODO: Routes API (backend) para costo real de peajes
+                tolls_cost: peajes.tolls_cost,
+                tolls_count: peajes.tolls_count,
+                peajes_detectados: peajes.peajes,
               },
             });
             resolve(leg);
@@ -540,7 +593,49 @@ const Dashboard = () => {
     setTipoServicio('ECONOMICO');
     setComodidadesFiltro(COMODIDADES_VACIAS);
     setAvisoSinConductores(false);
+    setPrecioSugerido(null);
+    setMostrarDesglosePrecio(false);
+    setNumDias(1);
+    setTiempoEsperaHoras(0);
   };
+
+  // ÉPICA 12 (HU28) — pide el precio sugerido al backend con lo que se sabe
+  // hasta ahora del viaje. No crea nada: es solo una vista previa. Si algo
+  // falla (red, backend caído) se deja `precioSugerido` en null y la tarjeta
+  // simplemente no se muestra — nunca bloquea poder publicar el viaje.
+  const actualizarPrecioSugerido = useCallback(async () => {
+    const datosParaPrecio = infoRuta?.datosParaPrecio;
+    if (!datosParaPrecio || !busqueda.departure_time) { setPrecioSugerido(null); return; }
+
+    setCargandoPrecio(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/price-estimate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({
+          trip_type: tipoViaje === 'redondo' ? 'ROUND_TRIP' : 'ONE_WAY',
+          departure_time: busqueda.departure_time,
+          adults_count: pasajeros.adultos,
+          children_count: pasajeros.ninos,
+          distance_km: Math.round((datosParaPrecio.distancia_metros / 1000) * 100) / 100,
+          tipo_via: datosParaPrecio.posible_trocha ? 'DESTAPADA' : 'PAVIMENTADA',
+          tolls_cost: datosParaPrecio.tolls_cost || 0,
+          requiere_ac: comodidadesFiltro.tiene_ac,
+          requiere_wifi: comodidadesFiltro.tiene_wifi,
+          num_days: numDias,
+          wait_time_hours: tiempoEsperaHoras,
+        }),
+      });
+      if (!res.ok) { setPrecioSugerido(null); return; }
+      setPrecioSugerido(await res.json());
+    } catch {
+      setPrecioSugerido(null);
+    } finally {
+      setCargandoPrecio(false);
+    }
+  }, [infoRuta, busqueda.departure_time, tipoViaje, pasajeros.adultos, pasajeros.ninos, comodidadesFiltro.tiene_ac, comodidadesFiltro.tiene_wifi, numDias, tiempoEsperaHoras, token]);
+
+  useEffect(() => { actualizarPrecioSugerido(); }, [actualizarPrecioSugerido]);
 
   // HU55.1 — se llama al presionar "Confirmar y Publicar Viaje": si el
   // pasajero pidió Premium con al menos una comodidad marcada, primero
@@ -549,9 +644,9 @@ const Dashboard = () => {
   const comodidadesAlgunaMarcada = () =>
     Object.entries(comodidadesFiltro).some(([, marcada]) => marcada);
 
-  const intentarPublicar = async () => {
+  const intentarPublicar = async (usarPrecioFijo) => {
     if (tipoServicio !== 'ESTANDAR' || !comodidadesAlgunaMarcada()) {
-      crearViaje();
+      crearViaje(usarPrecioFijo);
       return;
     }
     setVerificandoComodidades(true);
@@ -584,10 +679,10 @@ const Dashboard = () => {
     } finally {
       setVerificandoComodidades(false);
     }
-    crearViaje();
+    crearViaje(usarPrecioFijo);
   };
 
-  const crearViaje = async () => {
+  const crearViaje = async (usarPrecioFijo) => {
     if (!token) { toast.warning('Debes iniciar sesión para publicar un viaje.'); return; }
     setEnviandoSolicitud(true);
     try {
@@ -596,7 +691,12 @@ const Dashboard = () => {
         departure_time: busqueda.departure_time,
         return_time: tipoViaje === 'redondo' ? busqueda.return_time : null,
         trip_type: tipoViaje === 'redondo' ? 'ROUND_TRIP' : 'ONE_WAY',
-        adults_count: pasajeros.adultos, children_count: pasajeros.ninos, has_pets: pasajeros.mascotas
+        adults_count: pasajeros.adultos, children_count: pasajeros.ninos, has_pets: pasajeros.mascotas,
+        num_days: numDias, wait_time_hours: tiempoEsperaHoras,
+        // ÉPICA 12 — true: el pasajero acepta el precio sugerido tal cual, el
+        // conductor solo puede aceptarlo (no ofertar otro). false: publica
+        // abierto a negociar, igual que siempre.
+        precio_fijo: !!usarPrecioFijo && !!precioSugerido,
       };
 
       // Épica 2 (HU25) — distancia y tipo de vía salen de lo que YA calculó el Directions Service
@@ -614,6 +714,10 @@ const Dashboard = () => {
         if (datosParaPrecio) {
           payload.distance_km = Math.round((datosParaPrecio.distancia_metros / 1000) * 100) / 100;
           payload.tipo_via = datosParaPrecio.posible_trocha ? 'DESTAPADA' : 'PAVIMENTADA';
+          // HU27 — peajes detectados automáticamente contra la base local de
+          // peajes de Antioquia (ver calcularPeajesDeRuta / app/pricing/peajes_antioquia.py).
+          payload.tolls_cost = datosParaPrecio.tolls_cost || 0;
+          payload.tolls_count = datosParaPrecio.tolls_count || 0;
         }
       }
 
@@ -655,6 +759,10 @@ const Dashboard = () => {
       setDatosMapa({ origen: null, destino: null, ruta: [] });
       setComodidadesFiltro(COMODIDADES_VACIAS);
       setTipoServicio('ECONOMICO');
+      setPrecioSugerido(null);
+      setMostrarDesglosePrecio(false);
+      setNumDias(1);
+      setTiempoEsperaHoras(0);
       setAvisoSinConductores(false);
       setBusqueda({ origen: '', destino: '', departure_time: '', return_time: '' });
       if (!sinConductoresConectados) {
@@ -724,6 +832,7 @@ const Dashboard = () => {
       full_name: o.full_name.trim(),
       document_type: o.document_type,
       document_number: o.document_number.trim(),
+      es_representante: !!o.es_representante,
     }));
     setEnviandoFuec(true);
     try {
@@ -806,14 +915,20 @@ const Dashboard = () => {
   };
 
   const MAX_OCUPANTES = 60;
-  const slotOcupanteVacio = () => ({ full_name: '', document_type: 'CC', document_number: '' });
+  const slotOcupanteVacio = () => ({ full_name: '', document_type: 'CC', document_number: '', es_representante: false });
 
   // Abre el registro de ocupantes ya con tantos slots como pasajeros declaró el
   // viaje (adultos + niños). El conductor/pasajero puede agregar más o quitar.
+  // El primer slot es siempre "el representante del viaje": el pasajero que
+  // publicó el viaje, mayor de edad — se precarga su nombre (ya lo sabemos de
+  // la cuenta) y no se puede quitar ni reemplazar por otro ocupante.
   const abrirModalOcupantes = (viaje) => {
     const n = Math.min(MAX_OCUPANTES, Math.max(1, viaje?.seats_needed || 1));
     setOcupantesEsperados(n);
-    setOcupantesFuec(Array.from({ length: n }, slotOcupanteVacio));
+    setOcupantesFuec([
+      { full_name: usuario?.full_name || '', document_type: 'CC', document_number: '', es_representante: true },
+      ...Array.from({ length: Math.max(0, n - 1) }, slotOcupanteVacio),
+    ]);
     setModalFuec(viaje.id);
   };
 
@@ -822,6 +937,7 @@ const Dashboard = () => {
   };
 
   const quitarOcupante = (idx) => {
+    if (idx === 0) return; // el representante del viaje no se quita
     if (ocupantesFuec.length === 1) return;
     setOcupantesFuec(prev => prev.filter((_, i) => i !== idx));
   };
@@ -860,11 +976,15 @@ const Dashboard = () => {
       const dup = lista.some((otro, j) => j !== idx && (otro.document_number || '').trim() === num && num !== '');
       if (dup) err.document_number = 'Documento repetido.';
     }
+
+    if (o.es_representante && tipo === 'TI') {
+      err.document_type = 'El representante del viaje debe ser mayor de edad (no puede ir con Tarjeta de Identidad).';
+    }
     return err;
   };
 
   const erroresOcupantes = ocupantesFuec.map((o, i) => validarOcupante(o, i, ocupantesFuec));
-  const ocupantesValidos = erroresOcupantes.every(e => !e.full_name && !e.document_number);
+  const ocupantesValidos = erroresOcupantes.every(e => !e.full_name && !e.document_number && !e.document_type);
 
   const marcarTodasLeidas = () => {
     notificaciones.filter(n => !n.is_read).forEach(n => marcarLeida(n.notification_id));
@@ -947,6 +1067,8 @@ const Dashboard = () => {
             destination_lng: v.destination_lng ?? null,
             // HU46 — calificaciones
             ya_califico: v.ya_califico || false,
+            // El conductor lo sube (ver PanelConductor.jsx); acá solo se muestra si ya existe.
+            fuec_url: v.fuec_url || null,
           })));
         }
       } catch {}
@@ -1006,6 +1128,58 @@ const Dashboard = () => {
     } finally {
       setCancelandoId(null);
       setConfirmandoCancelarId(null);
+    }
+  };
+
+  // HU59 — según cuánto falte para la salida: libre, 30% o 50% de
+  // penalización sobre el precio acordado (SCRUM-211). Es solo una vista
+  // previa en el cliente; el backend recalcula lo mismo al confirmar, que es
+  // lo que de verdad queda registrado.
+  const calcularPreviewPenalizacion = (departureTimeISO) => {
+    const horas = (new Date(departureTimeISO) - new Date()) / 3600000;
+    if (horas >= 24) return { pct: 0, label: 'Cancelación gratuita', detalle: 'Faltan 24 horas o más para tu viaje.' };
+    if (horas >= 2) return { pct: 30, label: '30% de penalización', detalle: 'Estás cancelando entre 24 y 2 horas antes del viaje.' };
+    return { pct: 50, label: '50% de penalización', detalle: horas >= 0 ? 'Estás cancelando con menos de 2 horas de anticipación.' : 'La hora de salida ya pasó.' };
+  };
+
+  const abrirModalCancelarViaje = (viaje) => {
+    setMotivoCancelacion('');
+    setFuerzaMayorCancelacion(false);
+    setEvidenciaCancelacion(null);
+    setModalCancelarViaje(viaje);
+  };
+
+  const confirmarCancelacionViaje = async () => {
+    if (!modalCancelarViaje) return;
+    if (fuerzaMayorCancelacion && !evidenciaCancelacion) {
+      toast.error('Adjunta una evidencia (foto, certificado, etc.) para reportar fuerza mayor.');
+      return;
+    }
+    setEnviandoCancelacion(true);
+    try {
+      const formData = new FormData();
+      if (motivoCancelacion.trim()) formData.append('motivo', motivoCancelacion.trim());
+      formData.append('es_fuerza_mayor', fuerzaMayorCancelacion ? 'true' : 'false');
+      if (evidenciaCancelacion) formData.append('evidencia', evidenciaCancelacion);
+
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${modalCancelarViaje.id}/cancel`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'No se pudo cancelar el viaje.');
+
+      const monto = data.penalty_amount || 0;
+      toast.success(monto > 0
+        ? `Viaje cancelado. Penalización: ${data.penalty_percentage}% ($${Number(monto).toLocaleString()}).`
+        : 'Viaje cancelado sin penalización.');
+      setModalCancelarViaje(null);
+      cargarMisViajes();
+    } catch (error) {
+      toast.error(`Error: ${error.message}`);
+    } finally {
+      setEnviandoCancelacion(false);
     }
   };
 
@@ -1482,12 +1656,19 @@ const Dashboard = () => {
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
               onClick={() => { setMostrarNotificaciones(true); }}
               style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '35px', height: '35px', borderRadius: '50%', background: 'var(--t-papel)', border: '1px solid var(--t-linea)' }}>
-              <Icono size={17} color="var(--t-piedra)">
-                <path d="M18 15.5V11a6 6 0 1 0-12 0v4.5L4.5 18h15L18 15.5Z" /><path d="M10 20.5a2.2 2.2 0 0 0 4 0" />
-              </Icono>
+              <motion.span
+                animate={campanaSacudida ? { rotate: [0, -14, 11, -8, 5, -2, 0] } : { rotate: 0 }}
+                transition={{ duration: 0.5, ease: 'easeInOut' }}
+                onAnimationComplete={() => setCampanaSacudida(false)}
+                style={{ display: 'inline-flex', transformOrigin: '50% 20%' }}>
+                <Icono size={17} color="var(--t-piedra)">
+                  <path d="M18 15.5V11a6 6 0 1 0-12 0v4.5L4.5 18h15L18 15.5Z" /><path d="M10 20.5a2.2 2.2 0 0 0 4 0" />
+                </Icono>
+              </motion.span>
               <AnimatePresence>
                 {notificaciones.filter(n => !n.is_read).length > 0 && (
-                  <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
+                  <motion.span initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.6, opacity: 0 }}
+                    transition={{ type: 'spring', duration: 0.4, bounce: 0.3 }}
                     style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#C2410C', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '12px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '2px solid #fff' }}>
                     {notificaciones.filter(n => !n.is_read).length}
                   </motion.span>
@@ -1539,16 +1720,21 @@ const Dashboard = () => {
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', width: '100%' }}>
-              <SelectorFechaHora
-                label="Salida"
-                value={busqueda.departure_time}
-                onChange={val => setBusqueda(prev => ({ ...prev, departure_time: val }))}
-                placeholder="Fecha y hora de salida"
-                required
-              />
+              {/* flex:1 + minWidth:0 en las dos — sin esto "Salida" queda con su
+                  ancho natural mientras "Regreso" (con flexShrink:0) queda con el
+                  suyo, y como los textos no miden lo mismo las tarjetas no calzan. */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <SelectorFechaHora
+                  label="Salida"
+                  value={busqueda.departure_time}
+                  onChange={val => setBusqueda(prev => ({ ...prev, departure_time: val }))}
+                  placeholder="Fecha y hora de salida"
+                  required
+                />
+              </div>
               <AnimatePresence>
                 {tipoViaje === 'redondo' && (
-                  <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} style={{ flexShrink: 0 }}>
+                  <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} style={{ flex: 1, minWidth: 0 }}>
                     <SelectorFechaHora
                       label="Regreso"
                       value={busqueda.return_time}
@@ -1586,6 +1772,38 @@ const Dashboard = () => {
                       <input type="checkbox" checked={pasajeros.mascotas} onChange={(e) => setPasajeros(prev => ({ ...prev, mascotas: e.target.checked }))} style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: BRAND_GREEN }} />
                     </div>
                     {totalAsientos >= 44 && <p style={{ color: '#d97706', fontSize: '13px', marginTop: '10px', textAlign: 'center' }}>Límite máximo alcanzado.</p>}
+
+                    {/* HU60 — días que se necesita el vehículo (viajes de varios días,
+                        ej. excursiones). 1 día = viaje normal de un solo día. */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid var(--t-linea)' }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold', fontSize: '16px', color: 'var(--t-tinta)' }}>Días</div>
+                        <div style={{ fontSize: '14px', color: 'var(--t-piedra)', marginTop: '2px' }}>¿Necesitás el vehículo varios días?</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setNumDias(d => Math.max(1, d - 1))}
+                          style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>-</motion.button>
+                        <span style={{ width: '20px', textAlign: 'center', fontSize: '16px' }}>{numDias}</span>
+                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setNumDias(d => Math.min(30, d + 1))}
+                          style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>+</motion.button>
+                      </div>
+                    </div>
+
+                    {/* HU29 — tiempo de espera estimado (ej. el conductor te espera en
+                        el destino antes de volver). Se cobra por hora. */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0' }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold', fontSize: '16px', color: 'var(--t-tinta)' }}>Espera</div>
+                        <div style={{ fontSize: '14px', color: 'var(--t-piedra)', marginTop: '2px' }}>Horas de espera estimadas</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setTiempoEsperaHoras(h => Math.max(0, h - 0.5))}
+                          style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>-</motion.button>
+                        <span style={{ width: '28px', textAlign: 'center', fontSize: '16px' }}>{tiempoEsperaHoras}</span>
+                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setTiempoEsperaHoras(h => Math.min(48, h + 0.5))}
+                          style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>+</motion.button>
+                      </div>
+                    </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '15px' }}>
                       <motion.button whileTap={{ scale: 0.95 }} onClick={() => setMostrarPasajeros(false)} type="button" style={{ background: BRAND_GREEN, color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Cerrar</motion.button>
                     </div>
@@ -1639,9 +1857,24 @@ const Dashboard = () => {
               zoom={datosMapa.origen ? 15 : 6}
               onLoad={onMapLoad}
               onClick={alTocarMapa}
-              options={{ disableDefaultUI: true, zoomControl: true, styles: tema === 'oscuro' ? MAPA_OSCURO : undefined,
+              options={{ disableDefaultUI: true, zoomControl: true, styles: MAPA_VERDE,
                          draggableCursor: marcandoEnMapa ? 'crosshair' : undefined }}
             >
+              {datosMapa.ruta.length > 0 && (
+                <PolylineF path={datosMapa.ruta} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
+              )}
+
+              {/* HU27 — peajes detectados en la ruta que se está armando, como pines
+                  propios (azul, para no confundirlos con origen/destino). Van ANTES que
+                  origen/destino a propósito: cuando un peaje cae muy cerca de una punta de
+                  la ruta (pasa seguido), el pin de origen/destino queda encima en vez de
+                  taparse por el del peaje — y sigue pudiéndose arrastrar. */}
+              {infoRuta?.datosParaPrecio?.peajes_detectados?.map((peaje, i) => (
+                <MarkerF key={`peaje-${i}`} position={{ lat: peaje.lat, lng: peaje.lng }}
+                  title={`Peaje: ${peaje.nombre} — $${Number(peaje.tarifa).toLocaleString()}`}
+                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: FIJO.cielo, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
+              ))}
+
               {datosMapa.origen && (
                 <MarkerF position={datosMapa.origen} title="Origen — arrástrame para ajustar"
                   draggable onDragEnd={(e) => alArrastrarPunto('origen', e)}
@@ -1651,9 +1884,6 @@ const Dashboard = () => {
                 <MarkerF position={datosMapa.destino} title="Destino — arrástrame para ajustar"
                   draggable onDragEnd={(e) => alArrastrarPunto('destino', e)}
                   icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: FIJO.chiva, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2.5 }} />
-              )}
-              {datosMapa.ruta.length > 0 && (
-                <PolylineF path={datosMapa.ruta} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
               )}
 
               {/* HU43 — Seguimiento del viaje en curso, en el mapa grande.
@@ -1707,7 +1937,7 @@ const Dashboard = () => {
           <AnimatePresence>
             {infoRuta && (
               <motion.div initial={{ opacity: 0, y: 50, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: 50, x: '-50%' }}
-                style={{ position: 'absolute', bottom: '24px', left: '50%', backgroundColor: 'var(--t-papel)', padding: '20px 25px', borderRadius: '15px', zIndex: 1000, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', textAlign: 'center', width: '380px', maxWidth: 'calc(100% - 32px)' }}>
+                style={{ position: 'absolute', bottom: '24px', left: '50%', backgroundColor: 'var(--t-papel)', padding: '20px 25px', borderRadius: '15px', zIndex: 1000, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', textAlign: 'center', width: '380px', maxWidth: 'calc(100% - 32px)', maxHeight: 'calc(100% - 48px)', overflowY: 'auto' }}>
                 <p style={{ margin: 0, color: 'var(--t-piedra)', fontSize: '14px' }}>Resumen del viaje</p>
                 <h3 style={{ margin: '8px 0 4px', color: 'var(--t-tinta)' }}>{infoRuta.tiempo} · {infoRuta.distancia}</h3>
                 {infoRuta.distancia === 'No disponible' && (
@@ -1722,6 +1952,81 @@ const Dashboard = () => {
                 <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--t-piedra)', textAlign: 'left' }}>
                   Buscamos automáticamente a los conductores disponibles más cercanos a tu origen.
                 </p>
+
+                {/* ÉPICA 12 (HU28/HU29) — precio sugerido. Es el primer número que ve el
+                    pasajero, antes que nada de comodidades u ofertas: la negociación
+                    manual (contraoferta) sigue existiendo más adelante, pero ya no es
+                    el punto de partida — este precio sí lo es. */}
+                {(cargandoPrecio || precioSugerido) && (
+                  <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
+                    style={{ textAlign: 'left', margin: '0 0 14px', padding: '14px 16px', background: 'rgba(22,163,74,0.07)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                      <IconPrecio size={13} color={BRAND_GREEN} />
+                      <span style={{ fontFamily: T.dato, fontSize: '10.5px', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--t-piedra)' }}>
+                        Precio sugerido
+                      </span>
+                    </div>
+
+                    {!precioSugerido ? (
+                      <p style={{ margin: 0, fontSize: '14px', color: 'var(--t-piedra)' }}>Calculando…</p>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
+                          <span style={{ fontFamily: T.dato, fontSize: '28px', fontWeight: 600, color: BRAND_GREEN, opacity: cargandoPrecio ? 0.55 : 1 }}>
+                            ${Number(precioSugerido.precio_sugerido).toLocaleString('es-CO')}
+                          </span>
+                          <span style={{ fontSize: '12.5px', color: 'var(--t-piedra)' }}>
+                            ${Number(precioSugerido.precio_por_persona).toLocaleString('es-CO')} por persona
+                          </span>
+                        </div>
+                        <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: 'var(--t-piedra-clara)' }}>
+                          Rango: ${Number(precioSugerido.precio_minimo).toLocaleString('es-CO')} — ${Number(precioSugerido.precio_maximo).toLocaleString('es-CO')} · vehículo tipo {precioSugerido.categoria_vehiculo.replace('_', ' ').toLowerCase()}
+                        </p>
+                        {/* HU27 — peajes detectados automáticamente contra la base local
+                            (app/pricing/peajes_antioquia.py), ya incluidos en el precio de arriba. */}
+                        {infoRuta?.datosParaPrecio?.peajes_detectados?.length > 0 && (
+                          <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: 'var(--t-piedra-clara)' }}>
+                            Incluye peaje{infoRuta.datosParaPrecio.peajes_detectados.length > 1 ? 's' : ''}: {infoRuta.datosParaPrecio.peajes_detectados.map(p => p.nombre).join(', ')}
+                          </p>
+                        )}
+
+                        {(precioSugerido.es_nocturno || precioSugerido.es_temporada_alta || precioSugerido.excede_capacidad_maxima) && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', margin: '8px 0 0' }}>
+                            {precioSugerido.es_nocturno && (
+                              <span style={{ fontSize: '11px', fontWeight: 600, color: '#4338ca', background: '#eef2ff', padding: '3px 8px', borderRadius: '999px' }}>Recargo nocturno</span>
+                            )}
+                            {precioSugerido.es_temporada_alta && (
+                              <span style={{ fontSize: '11px', fontWeight: 600, color: '#92400e', background: '#fff7ed', padding: '3px 8px', borderRadius: '999px' }}>{precioSugerido.motivo_temporada_alta || 'Temporada alta'}</span>
+                            )}
+                            {precioSugerido.excede_capacidad_maxima && (
+                              <span style={{ fontSize: '11px', fontWeight: 600, color: '#991b1b', background: '#fef2f2', padding: '3px 8px', borderRadius: '999px' }}>Grupo grande — puede necesitar más de un vehículo</span>
+                            )}
+                          </div>
+                        )}
+
+                        <button type="button" onClick={() => setMostrarDesglosePrecio(v => !v)}
+                          style={{ marginTop: '10px', background: 'none', border: 'none', padding: 0, color: BRAND_GREEN, fontSize: '12px', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>
+                          {mostrarDesglosePrecio ? 'Ocultar desglose' : 'Ver desglose'}
+                        </button>
+
+                        {mostrarDesglosePrecio && (
+                          <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(22,163,74,0.25)' }}>
+                            {precioSugerido.desglose.map((linea, i) => (
+                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '12px', color: 'var(--t-tinta)', padding: '2px 0' }}>
+                                <span>{linea.concepto}</span>
+                                <span style={{ fontWeight: 600, flexShrink: 0 }}>${Number(linea.monto).toLocaleString('es-CO')}</span>
+                              </div>
+                            ))}
+                            <p style={{ margin: '8px 0 0', fontSize: '11.5px', color: 'var(--t-piedra-clara)', lineHeight: 1.5 }}>
+                              {precioSugerido.explicacion}
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </motion.div>
+                )}
 
                 {/* HU55.1 — Estándar / Premium */}
                 <div style={{ display: 'flex', gap: '8px', margin: '0 0 6px' }}>
@@ -1792,9 +2097,9 @@ const Dashboard = () => {
                     Cancelar
                   </button>
                   <button
-                    onClick={avisoSinConductores ? crearViaje : intentarPublicar}
-                    disabled={enviandoSolicitud || verificandoComodidades}
-                    style={{ flex: 2, background: (enviandoSolicitud || verificandoComodidades) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: (enviandoSolicitud || verificandoComodidades) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                    onClick={() => (avisoSinConductores ? crearViaje(true) : intentarPublicar(true))}
+                    disabled={enviandoSolicitud || verificandoComodidades || cargandoPrecio}
+                    style={{ flex: 2, background: (enviandoSolicitud || verificandoComodidades || cargandoPrecio) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: (enviandoSolicitud || verificandoComodidades || cargandoPrecio) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
                     {enviandoSolicitud
                       ? 'Procesando...'
                       : verificandoComodidades
@@ -1804,6 +2109,24 @@ const Dashboard = () => {
                           : 'Confirmar y Publicar Viaje'}
                   </button>
                 </div>
+
+                {/* HU59 — política de cancelaciones visible antes de confirmar (SCRUM-211) */}
+                <p style={{ margin: '10px 0 0', fontSize: '11px', color: 'var(--t-piedra-clara)', textAlign: 'center' }}>
+                  Al publicar aceptás la{' '}
+                  <a href="/politicas#cancelaciones" target="_blank" rel="opener" style={{ color: 'inherit', textDecoration: 'underline' }}>
+                    política de cancelaciones y penalizaciones
+                  </a>.
+                </p>
+
+                {/* ÉPICA 12 (HU28) — el precio sugerido es el camino principal, pero
+                    la negociación manual (oferta/contraoferta con cada conductor)
+                    sigue existiendo: se publica igual, y ahí es donde pasa. */}
+                {precioSugerido && !avisoSinConductores && (
+                  <button type="button" onClick={() => intentarPublicar(false)} disabled={enviandoSolicitud || verificandoComodidades}
+                    style={{ display: 'block', width: '100%', marginTop: '10px', background: 'none', border: 'none', padding: 0, color: 'var(--t-piedra-clara)', fontSize: '11.5px', cursor: (enviandoSolicitud || verificandoComodidades) ? 'not-allowed' : 'pointer', textDecoration: 'underline' }}>
+                    Prefiero no usar el precio sugerido — publicar y negociar directamente con cada conductor
+                  </button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -1929,10 +2252,12 @@ const Dashboard = () => {
                     <p style={{ margin: 0, fontSize: '14px', color: 'var(--t-piedra)', lineHeight: '1.5' }}>Busca una ruta en el mapa y<br/>publica tu primer viaje.</p>
                   </div>
                 )}
-                {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.map((viaje) => {
+                {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.map((viaje, index) => {
                   const avisoSinOfertas = viaje.ofertas.length === 0 && minutosTranscurridos(viaje.created_at) >= MINUTOS_AVISO_SIN_OFERTAS;
                   return (
-                  <div key={viaje.id} onClick={() => setViajeSeleccionado(viaje)} className="viaje-pasaje" style={{ cursor: 'pointer', padding: '13px 16px' }}>
+                  <motion.div key={viaje.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.04, ease: [0.23, 1, 0.32, 1] }}
+                    onClick={() => setViajeSeleccionado(viaje)} className="viaje-pasaje" style={{ cursor: 'pointer', padding: '13px 16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                       <TableroRuta origen={viaje.origin} destino={viaje.destination} size={11} style={{ flex: 1 }} />
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, marginLeft: '8px', color: viaje.ofertas.length > 0 ? BRAND_GREEN : 'var(--t-chiva-texto)', fontSize: '12px', fontWeight: '700' }}>
@@ -1989,7 +2314,7 @@ const Dashboard = () => {
                         </button>
                       </div>
                     )}
-                  </div>
+                  </motion.div>
                   );
                 })}
 
@@ -2016,7 +2341,7 @@ const Dashboard = () => {
                 )}
 
                 {!viajeSeleccionado && (pestanaViajes === 'confirmados' || pestanaViajes === 'completados') &&
-                  (pestanaViajes === 'completados' ? viajesCompletadosOrdenados : viajesActivosConfirmados).map((viaje) => {
+                  (pestanaViajes === 'completados' ? viajesCompletadosOrdenados : viajesActivosConfirmados).map((viaje, index) => {
                   const cfgEstadoViaje = {
                     ASSIGNED:    { color: BRAND_GREEN, badgeBg: 'var(--t-musgo)', badgeColor: 'var(--t-musgo-texto)', Icono: IconVisto, badgeLabel: 'Confirmado', info: 'El conductor está listo para recogerte.' },
                     IN_PROGRESS: { color: 'var(--t-cielo)',   badgeBg: 'var(--t-cielo-suave)', badgeColor: '#1e40af', Icono: IconAuto,  badgeLabel: 'En camino',   info: '¡Tu conductor está en camino!' },
@@ -2026,7 +2351,9 @@ const Dashboard = () => {
                   const esEnCurso = viaje.trip_status === 'IN_PROGRESS';
 
                   return (
-                    <div key={viaje.id} className="viaje-pasaje">
+                    <motion.div key={viaje.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.04, ease: [0.23, 1, 0.32, 1] }}
+                      className="viaje-pasaje">
                       <div style={{ padding: '16px 18px 14px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                           <span style={{ fontSize: '12.5px', color: 'var(--t-piedra-clara)' }}>{viaje.fechaCreacion}</span>
@@ -2155,6 +2482,38 @@ const Dashboard = () => {
                         </button>
                       )}
 
+                      {/* Ver FUEC — lo sube el conductor (empresa afiliada), el
+                          representante del viaje tiene derecho a verlo. Mientras no
+                          esté cargado no hay nada que mostrar, no se anuncia como
+                          "pendiente" acá para no duplicar el aviso que ya ve el
+                          conductor en su panel. */}
+                      {viaje.fuec_url && (
+                        <a href={viaje.fuec_url} target="_blank" rel="opener"
+                          style={{
+                            marginTop: '8px', width: '100%', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                            background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.3)', borderRadius: '8px',
+                            color: 'var(--t-cielo-texto)', fontSize: '13px', fontWeight: '700', textDecoration: 'none', boxSizing: 'border-box',
+                          }}>
+                          <IconRecibo size={13} />Ver FUEC del viaje
+                        </a>
+                      )}
+
+                      {/* Cancelar viaje — HU59 (SCRUM-211). Solo mientras está
+                          ASSIGNED: una vez IN_PROGRESS el viaje ya arrancó y no
+                          es cancelable por la app (se resuelve directo entre
+                          pasajero y conductor, ver política de cancelaciones). */}
+                      {viaje.trip_status === 'ASSIGNED' && (
+                        <button
+                          onClick={() => abrirModalCancelarViaje(viaje)}
+                          style={{
+                            marginTop: '8px', width: '100%', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                            background: 'var(--t-alerta-suave)', border: '1px solid var(--t-alerta-linea)', borderRadius: '8px',
+                            color: 'var(--t-alerta-texto)', fontSize: '13px', fontWeight: '700', cursor: 'pointer'
+                          }}>
+                          <IconEquis size={13} />Cancelar viaje
+                        </button>
+                      )}
+
                       {/* Botón calificar — HU46 (SCRUM-194) */}
                       {viaje.trip_status === 'COMPLETED' && (
                         <button
@@ -2191,7 +2550,7 @@ const Dashboard = () => {
                         </button>
                       )}
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 })}
 
@@ -2206,8 +2565,10 @@ const Dashboard = () => {
                           </div>
                         );
                       }
-                      return viajeActualizado.ofertas.map(oferta => (
-                        <div key={oferta.id} style={{ border: '1px solid var(--t-linea)', borderRadius: '14px', padding: '16px', marginBottom: '14px', background: 'var(--t-papel)', boxShadow: '0 1px 2px rgba(15,23,42,0.04)' }}>
+                      return viajeActualizado.ofertas.map((oferta, index) => (
+                        <motion.div key={oferta.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.04, ease: [0.23, 1, 0.32, 1] }}
+                          style={{ border: '1px solid var(--t-linea)', borderRadius: '14px', padding: '16px', marginBottom: '14px', background: 'var(--t-papel)', boxShadow: '0 1px 2px rgba(15,23,42,0.04)' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px' }}>
                             <div onClick={() => abrirPerfilConductor(oferta.driverId)}
                               style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', minWidth: 0 }}
@@ -2228,7 +2589,7 @@ const Dashboard = () => {
                                 <div style={{ fontSize: '12.5px', color: 'var(--t-piedra)', marginTop: '1px' }}>{oferta.vehiculo}</div>
                               </div>
                             </div>
-                            <div style={{ fontWeight: '800', fontSize: '17px', color: BRAND_GREEN, flexShrink: 0, fontFamily: T.display }}>${oferta.precio.toLocaleString()}</div>
+                            <div style={{ fontWeight: '600', fontSize: '17px', color: BRAND_GREEN, flexShrink: 0, fontFamily: T.dato }}>${oferta.precio.toLocaleString()}</div>
                           </div>
 
                           {oferta.comodidades && (
@@ -2283,7 +2644,7 @@ const Dashboard = () => {
                                 : <IconEquis size={14} />}
                             </button>
                           </div>
-                        </div>
+                        </motion.div>
                       ));
                     })()}
                   </div>
@@ -2427,16 +2788,28 @@ const Dashboard = () => {
               {/* CONTENIDO — scrollable */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', backgroundColor: 'var(--t-monte)' }}>
                 {ocupantesFuec.map((ocupante, idx) => (
-                  <div key={idx} style={{ backgroundColor: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.12)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '700', color: 'rgba(255,255,255,0.5)' }}>Ocupante {idx + 1}</span>
-                      {ocupantesFuec.length > 1 && (
+                  <div key={idx} style={{ backgroundColor: ocupante.es_representante ? 'rgba(233,161,59,0.06)' : 'rgba(34,197,94,0.05)', border: ocupante.es_representante ? '1px solid rgba(233,161,59,0.35)' : '1px solid rgba(34,197,94,0.12)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: ocupante.es_representante ? '2px' : '10px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: 'rgba(255,255,255,0.5)' }}>Ocupante {idx + 1}</span>
+                        {ocupante.es_representante && (
+                          <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--t-chiva)', background: 'rgba(233,161,59,0.15)', border: '1px solid rgba(233,161,59,0.35)', borderRadius: '20px', padding: '2px 8px' }}>
+                            Representante del viaje
+                          </span>
+                        )}
+                      </span>
+                      {ocupantesFuec.length > 1 && !ocupante.es_representante && (
                         <button onClick={() => quitarOcupante(idx)}
                           style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '6px', color: 'var(--t-alerta-linea)', cursor: 'pointer', fontSize: '12px', padding: '3px 8px', fontWeight: '600' }}>
                           Quitar
                         </button>
                       )}
                     </div>
+                    {ocupante.es_representante && (
+                      <p style={{ margin: '0 0 10px', fontSize: '11.5px', color: 'rgba(255,255,255,0.4)' }}>
+                        Es quien queda registrado ante la empresa afiliada para el FUEC. Debe ser mayor de edad.
+                      </p>
+                    )}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 130px', gap: '8px', minWidth: 0 }}>
                       <div>
                         <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Nombre completo</label>
@@ -2452,10 +2825,11 @@ const Dashboard = () => {
                           onChange={e => actualizarOcupante(idx, 'document_type', e.target.value)}
                           className="fuec-select" style={{}}>
                           <option value="CC">CC</option>
-                          <option value="TI">TI</option>
+                          <option value="TI" disabled={ocupante.es_representante}>TI</option>
                           <option value="CE">CE</option>
                           <option value="PA">PA</option>
                         </select>
+                        {erroresOcupantes[idx]?.document_type && <div className="fuec-error-msg">{erroresOcupantes[idx].document_type}</div>}
                       </div>
                       <div>
                         <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Número</label>
@@ -2536,6 +2910,73 @@ const Dashboard = () => {
             </motion.div>
           </>
         )}
+      </AnimatePresence>
+
+      {/* MODAL CANCELAR VIAJE — HU59 (SCRUM-211) */}
+      <AnimatePresence>
+        {modalCancelarViaje && (() => {
+          const preview = calcularPreviewPenalizacion(modalCancelarViaje.departure_time);
+          const montoEstimado = fuerzaMayorCancelacion ? 0 : Math.round((modalCancelarViaje.precio_acordado || 0) * preview.pct / 100);
+          return (
+            <>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={() => !enviandoCancelacion && setModalCancelarViaje(null)}
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
+              <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
+                style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '380px', maxWidth: '92vw', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: T.ui }}>
+                <h3 style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px', fontFamily: T.display, fontWeight: 800, letterSpacing: '-.01em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <IconAlerta size={17} color="var(--t-alerta-linea)" />Cancelar viaje
+                </h3>
+                <p style={{ margin: '0 0 14px', color: 'var(--t-piedra)', fontSize: '14px' }}>
+                  {modalCancelarViaje.origin} → {modalCancelarViaje.destination}
+                </p>
+
+                {!fuerzaMayorCancelacion && (
+                  <div style={{ padding: '10px 12px', borderRadius: '8px', marginBottom: '14px', background: preview.pct === 0 ? 'rgba(34,197,94,0.08)' : 'var(--t-alerta-suave)', border: `1px solid ${preview.pct === 0 ? 'rgba(34,197,94,0.3)' : 'var(--t-alerta-linea)'}` }}>
+                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: preview.pct === 0 ? BRAND_GREEN : 'var(--t-alerta-texto)' }}>{preview.label}</p>
+                    <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>{preview.detalle}</p>
+                    {montoEstimado > 0 && (
+                      <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>Monto estimado: <strong>${montoEstimado.toLocaleString()}</strong></p>
+                    )}
+                  </div>
+                )}
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--t-tinta)', marginBottom: '10px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={fuerzaMayorCancelacion}
+                    onChange={e => setFuerzaMayorCancelacion(e.target.checked)} />
+                  Fue por fuerza mayor (accidente, clima extremo, etc.)
+                </label>
+
+                {fuerzaMayorCancelacion && (
+                  <div style={{ marginBottom: '10px' }}>
+                    <p style={{ margin: '0 0 6px', fontSize: '12px', color: 'var(--t-piedra)' }}>
+                      Sin penalización si adjuntas una evidencia (foto, certificado médico, reporte, etc.).
+                    </p>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp"
+                      onChange={e => setEvidenciaCancelacion(e.target.files?.[0] || null)}
+                      style={{ fontSize: '12.5px', width: '100%' }} />
+                  </div>
+                )}
+
+                <textarea value={motivoCancelacion} onChange={e => setMotivoCancelacion(e.target.value)}
+                  placeholder={fuerzaMayorCancelacion ? 'Cuéntanos qué pasó (obligatorio)' : 'Motivo (opcional)'} rows={2}
+                  style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', outline: 'none', resize: 'none', fontFamily: 'inherit', marginBottom: '16px' }} />
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={() => setModalCancelarViaje(null)} disabled={enviandoCancelacion}
+                    style={{ flex: 1, background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>
+                    Volver
+                  </button>
+                  <button onClick={confirmarCancelacionViaje}
+                    disabled={enviandoCancelacion || (fuerzaMayorCancelacion && (!evidenciaCancelacion || !motivoCancelacion.trim()))}
+                    style={{ flex: 1, background: enviandoCancelacion ? 'var(--t-piedra-clara)' : 'var(--t-alerta-linea)', color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: enviandoCancelacion ? 'not-allowed' : 'pointer' }}>
+                    {enviandoCancelacion ? 'Cancelando…' : 'Sí, cancelar viaje'}
+                  </button>
+                </div>
+              </motion.div>
+            </>
+          );
+        })()}
       </AnimatePresence>
 
       {/* PERFIL DRAWER — HU16 */}

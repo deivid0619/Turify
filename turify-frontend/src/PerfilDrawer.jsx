@@ -16,6 +16,7 @@ const IconLlave   = (p) => <Icono {...p}><circle cx="8.5" cy="12" r="3.6" /><pat
 const IconCandado = (p) => <Icono {...p}><rect x="4.5" y="10.5" width="15" height="10" rx="2.4" /><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7" /></Icono>;
 const IconLapiz   = (p) => <Icono {...p}><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z" /><path d="M15.5 6.5 17.5 8.5" /></Icono>;
 const IconSalir   = (p) => <Icono {...p}><path d="M14 4h4.5a1.5 1.5 0 0 1 1.5 1.5v13a1.5 1.5 0 0 1-1.5 1.5H14" /><path d="M10 8l-4 4 4 4M6 12h9" /></Icono>;
+const IconAyuda   = (p) => <Icono {...p}><circle cx="12" cy="12" r="8.5" /><path d="M9.3 9.5a2.7 2.7 0 1 1 3.9 2.4c-.7.4-1.2.9-1.2 1.7v.4" /><circle cx="12" cy="16.7" r=".15" fill="currentColor" /></Icono>;
 
 const ICONO_DOC = {
   'SOAT': IconEscudo,
@@ -228,6 +229,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                   { id: 'perfil', label: 'Perfil', Ico: IconPersona },
                   { id: 'historial', label: perfil?.role === 'DRIVER' ? 'Mis documentos' : 'Historial', Ico: perfil?.role === 'DRIVER' ? IconClipboard : IconCalendario },
                   { id: 'seguridad', label: 'Seguridad', Ico: IconCandado },
+                  { id: 'ayuda', label: 'Ayuda', Ico: IconAyuda },
                 ].map(tab => {
                   const activa = seccion === tab.id;
                   return (
@@ -516,6 +518,32 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                     style={{ width: '100%', background: guardandoPassword ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: '700', fontSize: '15px', cursor: guardandoPassword ? 'not-allowed' : 'pointer', marginTop: '4px' }}>
                     {guardandoPassword ? 'Actualizando...' : 'Actualizar contraseña'}
                   </button>
+                </div>
+              )}
+
+              {/* AYUDA — canal de PQRS/contacto (art. 50 Ley 1480 de 2011) y acceso a las políticas */}
+              {!cargando && seccion === 'ayuda' && (
+                <div>
+                  <h3 style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: '700', color: 'var(--t-tinta)' }}>¿Necesitas ayuda?</h3>
+                  <p style={{ margin: '0 0 18px', fontSize: '13.5px', color: 'var(--t-piedra)', lineHeight: 1.6 }}>
+                    Quejas sobre un viaje, reclamos, dudas sobre tus datos personales o cualquier otra cosa — escríbenos
+                    y te respondemos dentro de los 15 días hábiles siguientes.
+                  </p>
+                  <a href="mailto:soporte.turify@gmail.com"
+                    style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--t-musgo)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '10px', padding: '14px', textDecoration: 'none', marginBottom: '10px' }}>
+                    <span style={{ width: '34px', height: '34px', borderRadius: '50%', background: BRAND_GREEN, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <IconAyuda size={16} color="#fff" />
+                    </span>
+                    <span>
+                      <span style={{ display: 'block', fontSize: '11px', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--t-musgo-texto)' }}>Soporte y PQRS</span>
+                      <span style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: 'var(--t-tinta)' }}>soporte.turify@gmail.com</span>
+                    </span>
+                  </a>
+                  {/* rel="opener" a propósito — ver Login.jsx */}
+                  <a href="/politicas" target="_blank" rel="opener"
+                    style={{ display: 'block', textAlign: 'center', padding: '12px', border: '1px solid var(--t-linea)', borderRadius: '10px', color: 'var(--t-piedra)', textDecoration: 'none', fontSize: '13.5px', fontWeight: 600 }}>
+                    Ver términos, privacidad y demás políticas
+                  </a>
                 </div>
               )}
             </div>

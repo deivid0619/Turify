@@ -1,9 +1,12 @@
 import os
+import secrets
 import httpx
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_auth_requests
 from app.database import get_db
 from app import models, schemas, security
 from fastapi.security import OAuth2PasswordRequestForm
@@ -12,6 +15,11 @@ from app.audit import registrar_log
 from app.rate_limit import limiter
 
 router = APIRouter(prefix="/users", tags=["Authentication"])
+
+# Conexion con Google (login/registro con un click) - Client ID del proyecto
+# en Google Cloud Console (OAuth consent screen). Sin esto, /login-google
+# responde 503 en vez de fallar la verificacion del token a medias.
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
 # HU seguridad (OWASP A07) - reCAPTCHA v2 en el login, solo despues de que
 # una IP acumula intentos fallidos recientes (no en cada login normal).
@@ -143,6 +151,76 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
         ip_address=ip
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+@router.post("/login-google", response_model=schemas.TokenResponse)
+def login_google(payload: schemas.GoogleLoginRequest, request: Request, db: Session = Depends(get_db)):
+    """Login o registro con un click via Google Identity Services.
+
+    El frontend nunca decodifica el credential: se lo pasamos tal cual a
+    Google para que lo verifique (firma, aud, expiracion). Si el correo ya
+    existe en Turify (con cualquier rol) se hace login directo; si no,
+    se crea una cuenta PASSENGER nueva -- conducir sigue exigiendo el
+    registro completo con documentos, eso no lo reemplaza Google.
+    """
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=503, detail="El inicio de sesión con Google no está configurado todavía.")
+
+    try:
+        info = google_id_token.verify_oauth2_token(
+            payload.credential, google_auth_requests.Request(), GOOGLE_CLIENT_ID
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Token de Google inválido o expirado.")
+
+    if not info.get("email_verified"):
+        raise HTTPException(status_code=400, detail="Tu cuenta de Google no tiene el correo verificado.")
+
+    email = info["email"]
+    ip = request.client.host if request.client else None
+    user = db.query(models.User).filter(models.User.email == email).first()
+    es_nuevo = user is None
+
+    if es_nuevo:
+        user = models.User(
+            full_name=(info.get("name") or email.split("@")[0])[:100],
+            email=email,
+            # Telefono real obligatorio en la tabla (NOT NULL + CHECK de formato) y
+            # Google no lo entrega -- placeholder reconocible que el pasajero
+            # completa despues desde su perfil (PATCH /users/me/phone), igual que
+            # los usuarios antiguos que quedaron sin este dato.
+            phone_number="0000000000",
+            # Password inutilizable: esta cuenta solo entra por Google. Nadie puede
+            # adivinar este valor porque no se le informa a nadie, ni siquiera al dueño.
+            password_hash=security.get_password_hash(secrets.token_urlsafe(32)),
+            role="PASSENGER",
+            profile_photo_url=info.get("picture"),
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        registrar_log(
+            db,
+            action="REGISTER",
+            user_id=user.user_id,
+            entity="User",
+            entity_id=user.user_id,
+            detail=f"Nuevo pasajero registrado vía Google: {user.email}",
+            ip_address=ip,
+        )
+
+    access_token = security.create_access_token(data={"sub": str(user.user_id)})
+
+    registrar_log(
+        db,
+        action="LOGIN",
+        user_id=user.user_id,
+        entity="User",
+        entity_id=user.user_id,
+        detail=f"Login con Google: {user.email} (rol: {user.role})",
+        ip_address=ip,
+    )
+    return {"access_token": access_token, "token_type": "bearer", "is_new_user": es_nuevo}
+
 
 @router.get("/me", response_model=schemas.UserResponse)
 def get_my_profile(current_user: models.User = Depends(get_current_user)):

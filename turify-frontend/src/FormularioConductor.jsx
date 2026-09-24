@@ -33,49 +33,76 @@ const pesoLegible = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+// Mismas reglas que valida el backend en drivers.py (_leer_y_validar_archivo /
+// TIPOS_PERMITIDOS) — se repiten acá para avisar al toque, apenas se elige o
+// arrastra el archivo, en vez de que el usuario se entere recién al final,
+// después de completar las otras dos secciones y darle a "Enviar solicitud".
+// Esto es solo una validación de conveniencia en el cliente (mira el MIME
+// que reporta el navegador, que se puede falsificar) — el backend sigue
+// siendo quien de verdad decide, revisando los bytes reales del archivo.
+const TIPOS_ARCHIVO_PERMITIDOS = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const TAMANO_MAXIMO_MB = 5;
+
+const validarArchivoLocal = (file) => {
+  if (!file) return '';
+  if (file.size === 0) return 'El archivo está vacío.';
+  if (file.size > TAMANO_MAXIMO_MB * 1024 * 1024) return `El archivo supera el límite de ${TAMANO_MAXIMO_MB}MB.`;
+  if (!TIPOS_ARCHIVO_PERMITIDOS.includes(file.type)) return 'Tipo de archivo no permitido. Solo se aceptan PDF, JPG, PNG y WEBP.';
+  return '';
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  ZONA DE CARGA — tres estados claros: vacía, arrastrando y con archivo.
 // ─────────────────────────────────────────────────────────────────────────────
-const DropZone = ({ label, name, onChange, file, Ico = IconSubir }) => {
+const DropZone = ({ label, name, onChange, file, error, Ico = IconSubir }) => {
   const [arrastrando, setArrastrando] = useState(false);
-  const cargado = Boolean(file);
+  const cargado = Boolean(file) && !error;
+  const conError = Boolean(file) && Boolean(error);
 
   return (
-    <div
-      onDragOver={(e) => { e.preventDefault(); setArrastrando(true); }}
-      onDragLeave={() => setArrastrando(false)}
-      onDrop={(e) => {
-        e.preventDefault(); setArrastrando(false);
-        if (e.dataTransfer.files?.length > 0) onChange({ target: { name, type: 'file', files: e.dataTransfer.files } });
-      }}
-      style={{
-        position: 'relative', display: 'flex', alignItems: 'center', gap: '13px',
-        border: `1.5px ${cargado ? 'solid' : 'dashed'} ${arrastrando ? BRAND_GREEN : cargado ? T.musgoLinea : T.linea}`,
-        borderRadius: T.rTarjeta, padding: '15px 16px', minHeight: '76px',
-        background: arrastrando ? T.musgo : cargado ? T.musgo : T.niebla,
-        cursor: 'pointer', transition: 'border-color .18s, background .18s',
-      }}>
-      <input type="file" name={name} onChange={onChange} aria-label={label}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
+    <div>
+      <div
+        onDragOver={(e) => { e.preventDefault(); setArrastrando(true); }}
+        onDragLeave={() => setArrastrando(false)}
+        onDrop={(e) => {
+          e.preventDefault(); setArrastrando(false);
+          if (e.dataTransfer.files?.length > 0) onChange({ target: { name, type: 'file', files: e.dataTransfer.files } });
+        }}
+        style={{
+          position: 'relative', display: 'flex', alignItems: 'center', gap: '13px',
+          border: `1.5px ${cargado || conError ? 'solid' : 'dashed'} ${arrastrando ? BRAND_GREEN : conError ? T.alertaLinea : cargado ? T.musgoLinea : T.linea}`,
+          borderRadius: T.rTarjeta, padding: '15px 16px', minHeight: '76px',
+          background: arrastrando ? T.musgo : conError ? T.alertaSuave : cargado ? T.musgo : T.niebla,
+          cursor: 'pointer', transition: 'border-color .18s, background .18s',
+        }}>
+        <input type="file" name={name} onChange={onChange} aria-label={label}
+          accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
 
-      <span style={{
-        flexShrink: 0, width: '38px', height: '38px', borderRadius: '11px',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: cargado ? 'transparent' : T.papel,
-        border: `1px solid ${cargado ? 'transparent' : T.linea}`,
-        color: cargado ? T.musgoTexto : T.piedraClara,
-      }}>
-        {cargado ? <IconVisto size={19} /> : <Ico size={18} />}
-      </span>
+        <span style={{
+          flexShrink: 0, width: '38px', height: '38px', borderRadius: '11px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: cargado || conError ? 'transparent' : T.papel,
+          border: `1px solid ${cargado || conError ? 'transparent' : T.linea}`,
+          color: conError ? T.alertaTexto : cargado ? T.musgoTexto : T.piedraClara,
+        }}>
+          {conError ? <IconEquis size={19} /> : cargado ? <IconVisto size={19} /> : <Ico size={18} />}
+        </span>
 
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: '14px', fontWeight: 700, color: cargado ? T.musgoTexto : T.tinta }}>{label}</div>
-        <div style={{ fontSize: '12.5px', color: cargado ? T.musgoTexto : T.piedraClara, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {cargado
-            ? <>{file.name} · <span style={{ fontFamily: T.dato }}>{pesoLegible(file.size)}</span></>
-            : 'Arrastrá el archivo o hacé clic'}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: conError ? T.alertaTexto : cargado ? T.musgoTexto : T.tinta }}>{label}</div>
+          <div style={{ fontSize: '12.5px', color: conError ? T.alertaTexto : cargado ? T.musgoTexto : T.piedraClara, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {file
+              ? <>{file.name} · <span style={{ fontFamily: T.dato }}>{pesoLegible(file.size)}</span></>
+              : 'Arrastrá el archivo o hacé clic'}
+          </div>
         </div>
       </div>
+      {conError && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '6px', fontSize: '12.5px', color: T.alertaTexto }}>
+          <IconAlerta size={12} style={{ flexShrink: 0 }} />{error}
+        </div>
+      )}
     </div>
   );
 };
@@ -135,7 +162,7 @@ const estiloBloqueado = { ...estiloEntrada, background: T.niebla2, color: T.pied
 // ─────────────────────────────────────────────────────────────────────────────
 const VistaEstadoDocumentos = ({ estadoData, onVolver }) => {
   const config = {
-    PENDIENTE: { Ico: IconReloj,  color: T.chivaTexto,  bg: T.chivaSuave,  borde: T.chivaLinea,  titulo: 'Documentos en revisión', descripcion: 'Un administrador está revisando tus documentos. Te avisamos apenas haya respuesta.' },
+    PENDIENTE: { Ico: IconReloj,  color: T.chivaTexto,  bg: T.chivaSuave,  borde: T.chivaLinea,  titulo: 'Documentos en revisión', descripcion: 'Un administrador está revisando tus documentos. Esta pantalla se actualiza sola apenas haya respuesta — no hace falta que refresques.' },
     APROBADO:  { Ico: IconVisto,  color: T.musgoTexto,  bg: T.musgo,       borde: T.musgoLinea,  titulo: 'Ya sos conductor',      descripcion: 'Tus documentos quedaron aprobados. Ya podés recibir solicitudes de viaje.' },
     RECHAZADO: { Ico: IconEquis,  color: T.alertaTexto, bg: T.alertaSuave, borde: T.alertaLinea, titulo: 'Documentos rechazados', descripcion: 'Algunos documentos no pasaron la revisión. Corregilos y volvé a enviarlos.' },
   };
@@ -151,7 +178,8 @@ const VistaEstadoDocumentos = ({ estadoData, onVolver }) => {
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
       style={{ maxWidth: '620px', margin: '0 auto', background: T.papel, borderRadius: '18px', border: `1px solid ${T.linea}`, boxShadow: '0 1px 2px rgba(0,0,0,.04), 0 24px 50px -34px rgba(0,0,0,.35)', overflow: 'hidden' }}>
 
-      <Cabecera titulo="Estado de tu solicitud" onVolver={onVolver} />
+      <Cabecera titulo="Estado de tu solicitud" onVolver={onVolver}
+        etiquetaVolver={estadoData.estado === 'APROBADO' ? 'Ir a mi panel' : 'Volver al mapa'} />
 
       <div style={{ padding: '28px 30px 32px' }}>
         <div style={{ background: c.bg, border: `1px solid ${c.borde}`, borderRadius: T.rTarjeta, padding: '26px 24px', textAlign: 'center', marginBottom: '24px' }}>
@@ -195,7 +223,7 @@ const VistaEstadoDocumentos = ({ estadoData, onVolver }) => {
 };
 
 // Cabecera compartida — monte, como la entrada y el panel del conductor.
-const Cabecera = ({ titulo, onVolver }) => (
+const Cabecera = ({ titulo, onVolver, etiquetaVolver = 'Volver al mapa' }) => (
   <div style={{ position: 'relative', overflow: 'hidden', background: T.monte, padding: '20px 26px' }}>
     <svg viewBox="0 0 600 90" preserveAspectRatio="none" aria-hidden="true"
       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.15 }}>
@@ -212,7 +240,7 @@ const Cabecera = ({ titulo, onVolver }) => (
       </div>
       <button type="button" onClick={onVolver} className="t-foco"
         style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: 'rgba(255,255,255,0.08)', border: `1px solid ${T.monteLinea}`, color: 'rgba(234,242,236,.9)', padding: '8px 14px', borderRadius: T.rControl, cursor: 'pointer', fontWeight: 600, fontSize: '13.5px', fontFamily: T.ui }}>
-        <IconFlechaIz size={14} />Volver al mapa
+        <IconFlechaIz size={14} />{etiquetaVolver}
       </button>
     </div>
   </div>
@@ -223,15 +251,19 @@ const Cabecera = ({ titulo, onVolver }) => (
 // ─────────────────────────────────────────────────────────────────────────────
 const FormularioConductor = () => {
   const navigate = useNavigate();
-  const { token, usuario } = useContext(AuthContext);
+  const { token, usuario, refrescarUsuario } = useContext(AuthContext);
 
   const [estadoCarga, setEstadoCarga] = useState('cargando'); // 'cargando' | 'mostrar_formulario' | 'mostrar_estado'
   const [estadoData, setEstadoData] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState('');
+  const [erroresArchivo, setErroresArchivo] = useState({});
 
   const [formConductor, setFormConductor] = useState({
-    age: '', affiliated_company: '', profile_photo: null,
+    age: '', affiliated_company: '',
+    // Si la empresa del conductor no está en la lista (affiliated_company === 'otra')
+    nueva_empresa_nombre: '', nueva_empresa_nit: '',
+    profile_photo: null,
     plate: '', capacity: '', vehicle_photo: null,
     doc_soat: null, doc_licencia: null, doc_tarjeta_operacion: null,
     doc_tecnomecanica: null, doc_seguros: null,
@@ -249,49 +281,95 @@ const FormularioConductor = () => {
     phone_number: usuario?.phone_number || ''
   };
 
+  // Consulta el estado de la solicitud de conductor. Se usa tanto al cargar la
+  // página como en el polling de abajo mientras el usuario espera con estado
+  // PENDIENTE — así, si un admin aprueba los documentos mientras esta pantalla
+  // sigue abierta, se entera solo, sin que el usuario tenga que refrescar.
+  const consultarEstado = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/drivers/registration-status`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+
+      if (data.estado === 'SIN_DOCUMENTOS' || data.estado === 'RECHAZADO') {
+        setEstadoData(data);
+        setEstadoCarga('mostrar_formulario');
+      } else {
+        setEstadoData(data);
+        setEstadoCarga('mostrar_estado');
+        // El backend recién marcó el rol como DRIVER — el usuario en memoria
+        // (AuthContext) todavía tiene el rol viejo desde el login, así que hay
+        // que refrescarlo para que el resto de la app (botón "Ser conductor",
+        // /dashboard mostrando el panel de conductor, etc.) lo note de una vez.
+        if (data.estado === 'APROBADO') refrescarUsuario?.();
+      }
+    } catch {
+      // Si falla la consulta, mostramos el formulario de todas formas
+      setEstadoCarga('mostrar_formulario');
+    }
+  };
+
   // Al cargar, consultar el estado de documentos del usuario
   useEffect(() => {
-    const consultarEstado = async () => {
-      if (!token) return;
-      try {
-        const res = await fetch(`${API_BASE_URL}/drivers/registration-status`, {
-          headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' }
-        });
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-
-        if (data.estado === 'SIN_DOCUMENTOS' || data.estado === 'RECHAZADO') {
-          setEstadoData(data);
-          setEstadoCarga('mostrar_formulario');
-        } else {
-          setEstadoData(data);
-          setEstadoCarga('mostrar_estado');
-        }
-      } catch {
-        // Si falla la consulta, mostramos el formulario de todas formas
-        setEstadoCarga('mostrar_formulario');
-      }
-    };
     consultarEstado();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Mientras el usuario está esperando con documentos en revisión, volvemos a
+  // preguntar cada 20s — si un admin lo aprueba en el medio, esta pantalla
+  // pasa sola a "Ya sos conductor" sin que haga falta cerrar sesión ni F5.
+  useEffect(() => {
+    if (estadoCarga !== 'mostrar_estado' || estadoData?.estado !== 'PENDIENTE') return;
+    const intervalo = setInterval(consultarEstado, 20000);
+    return () => clearInterval(intervalo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estadoCarga, estadoData?.estado]);
 
   const handleInputConductor = (e) => {
     const { name, value, type, files, checked } = e.target;
     if (errorEnvio) setErrorEnvio('');
+    if (type === 'file') {
+      const archivo = files[0];
+      // Valida apenas se elige o arrastra el archivo — no hace falta esperar
+      // a enviar todo el formulario para enterarse de que el tipo o el peso
+      // no sirven. Igual se guarda el archivo (con su error al lado) para
+      // que el usuario vea cuál fue el que intentó subir.
+      setErroresArchivo(prev => ({ ...prev, [name]: validarArchivoLocal(archivo) }));
+      setFormConductor(prev => ({ ...prev, [name]: archivo }));
+      return;
+    }
     setFormConductor(prev => ({
       ...prev,
-      [name]: type === 'file' ? files[0] : type === 'checkbox' ? checked : value
+      [name]: type === 'checkbox' ? checked : value
     }));
   };
 
   const enviarFormularioConductor = async (e) => {
     e.preventDefault();
+
+    const hayErroresDeArchivo = Object.values(erroresArchivo).some(Boolean);
+    if (hayErroresDeArchivo) {
+      setErrorEnvio('Corregí los archivos marcados en rojo antes de enviar la solicitud.');
+      return;
+    }
+
     setEnviando(true);
     setErrorEnvio('');
 
     const formData = new FormData();
     formData.append('age', formConductor.age);
-    formData.append('affiliated_company', formConductor.affiliated_company);
+    // Empresa afiliada: o un company_id de la lista, o nombre+NIT si el
+    // conductor escribió la suya porque no aparecía (ver más abajo en el backend
+    // el find-or-create por NIT en app/routers/drivers.py).
+    if (formConductor.affiliated_company === 'otra') {
+      formData.append('new_company_name', formConductor.nueva_empresa_nombre);
+      formData.append('new_company_nit', formConductor.nueva_empresa_nit);
+    } else {
+      formData.append('affiliated_company', formConductor.affiliated_company);
+    }
     formData.append('plate', formConductor.plate);
     formData.append('capacity', formConductor.capacity);
     // HU55 — comodidades opcionales del vehículo
@@ -344,9 +422,13 @@ const FormularioConductor = () => {
 
   // ── Progreso: el formulario es largo, conviene decir cuánto falta ──
   const documentos = ['doc_soat', 'doc_licencia', 'doc_tarjeta_operacion', 'doc_tecnomecanica', 'doc_seguros'];
-  const seccionPersonalLista = Boolean(formConductor.age && formConductor.affiliated_company);
+  const seccionPersonalLista = Boolean(formConductor.age && (
+    formConductor.affiliated_company === 'otra'
+      ? formConductor.nueva_empresa_nombre && formConductor.nueva_empresa_nit
+      : formConductor.affiliated_company
+  ));
   const seccionVehiculoLista = Boolean(formConductor.plate && formConductor.capacity);
-  const documentosCargados = documentos.filter(d => formConductor[d]).length;
+  const documentosCargados = documentos.filter(d => formConductor[d] && !erroresArchivo[d]).length;
   const seccionDocsLista = documentosCargados === documentos.length;
   const listas = [seccionPersonalLista, seccionVehiculoLista, seccionDocsLista].filter(Boolean).length;
 
@@ -436,9 +518,22 @@ const FormularioConductor = () => {
                     <option value="">Elegí tu empresa…</option>
                     <option value="1">Departour</option>
                     <option value="2">Transporte Real</option>
+                    <option value="otra">Mi empresa no está en la lista…</option>
                   </select>} />
+                {formConductor.affiliated_company === 'otra' && (
+                  <>
+                    <Campo etiqueta="Nombre de la empresa" hijo={
+                      <input type="text" name="nueva_empresa_nombre" className="fc-entrada"
+                        placeholder="Ej: Transportes El Progreso" value={formConductor.nueva_empresa_nombre}
+                        onChange={handleInputConductor} required style={estiloEntrada} />} />
+                    <Campo etiqueta="NIT de la empresa" hijo={
+                      <input type="text" name="nueva_empresa_nit" className="fc-entrada"
+                        placeholder="Ej: 900123456-1" value={formConductor.nueva_empresa_nit}
+                        onChange={handleInputConductor} required style={estiloEntrada} />} />
+                  </>
+                )}
                 <div style={{ gridColumn: 'span 2' }}>
-                  <DropZone label="Tu foto de perfil" name="profile_photo" onChange={handleInputConductor} file={formConductor.profile_photo} />
+                  <DropZone label="Tu foto de perfil" name="profile_photo" onChange={handleInputConductor} file={formConductor.profile_photo} error={erroresArchivo.profile_photo} />
                 </div>
               </div>
             </Seccion>
@@ -454,7 +549,7 @@ const FormularioConductor = () => {
                   <input type="number" name="capacity" className="fc-entrada" placeholder="Asientos disponibles"
                     value={formConductor.capacity} onChange={handleInputConductor} required min="1" max="44" style={estiloEntrada} />} />
                 <div style={{ gridColumn: 'span 2' }}>
-                  <DropZone label="Foto de tu vehículo" name="vehicle_photo" onChange={handleInputConductor} file={formConductor.vehicle_photo} />
+                  <DropZone label="Foto de tu vehículo" name="vehicle_photo" onChange={handleInputConductor} file={formConductor.vehicle_photo} error={erroresArchivo.vehicle_photo} />
                 </div>
               </div>
 
@@ -507,12 +602,12 @@ const FormularioConductor = () => {
             <Seccion n={3} titulo="Documentación reglamentaria" Ico={IconClipboard} completa={seccionDocsLista}
               descripcion={`En PDF o imagen. ${documentosCargados} de ${documentos.length} cargados.`}>
               <div className="fc-rejilla" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <DropZone label="SOAT vigente" name="doc_soat" Ico={IconEscudo} onChange={handleInputConductor} file={formConductor.doc_soat} />
-                <DropZone label="Licencia de conducción" name="doc_licencia" Ico={IconTarjeta} onChange={handleInputConductor} file={formConductor.doc_licencia} />
-                <DropZone label="Tarjeta de operación" name="doc_tarjeta_operacion" Ico={IconClipboard} onChange={handleInputConductor} file={formConductor.doc_tarjeta_operacion} />
-                <DropZone label="Revisión tecnomecánica" name="doc_tecnomecanica" Ico={IconLlave} onChange={handleInputConductor} file={formConductor.doc_tecnomecanica} />
+                <DropZone label="SOAT vigente" name="doc_soat" Ico={IconEscudo} onChange={handleInputConductor} file={formConductor.doc_soat} error={erroresArchivo.doc_soat} />
+                <DropZone label="Licencia de conducción" name="doc_licencia" Ico={IconTarjeta} onChange={handleInputConductor} file={formConductor.doc_licencia} error={erroresArchivo.doc_licencia} />
+                <DropZone label="Tarjeta de operación" name="doc_tarjeta_operacion" Ico={IconClipboard} onChange={handleInputConductor} file={formConductor.doc_tarjeta_operacion} error={erroresArchivo.doc_tarjeta_operacion} />
+                <DropZone label="Revisión tecnomecánica" name="doc_tecnomecanica" Ico={IconLlave} onChange={handleInputConductor} file={formConductor.doc_tecnomecanica} error={erroresArchivo.doc_tecnomecanica} />
                 <div style={{ gridColumn: 'span 2' }}>
-                  <DropZone label="Seguros (contractual y extracontractual)" name="doc_seguros" Ico={IconRecibo} onChange={handleInputConductor} file={formConductor.doc_seguros} />
+                  <DropZone label="Seguros (contractual y extracontractual)" name="doc_seguros" Ico={IconRecibo} onChange={handleInputConductor} file={formConductor.doc_seguros} error={erroresArchivo.doc_seguros} />
                 </div>
               </div>
             </Seccion>

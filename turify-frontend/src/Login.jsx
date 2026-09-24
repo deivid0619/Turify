@@ -1,7 +1,9 @@
 import API_BASE_URL from './api';
 import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { T, EstilosBase, Boton, Rotulo, TableroRuta, IconAlerta, IconOjo, IconOjoTachado,
          LogoWordmark, LogoMonograma, LogoBifurcacion } from './diseno';
+import LandingInfo from './LandingInfo';
 
 // Logo en uso. Alternativas: LogoMonograma | LogoBifurcacion
 const LOGO = LogoWordmark;
@@ -14,7 +16,7 @@ const COPY_POR_VISTA = {
   //   <>Tu ruta existe,<br /><span>aunque no esté en el mapa.</span></>
   //   <>Hasta la última<br /><span>vereda de Antioquia.</span></>
   //   <>Que salir de la vereda<br /><span>no sea una odisea.</span></>
-  viajar:   { frase: <>Movilidad para<br /><span>toda Antioquia.</span></> },
+  viajar:   { frase: <>Tu camino,<br /><span>con precio claro.</span></> },
   conducir: { frase: <>Caminos que otros<br /><span>no recorren.</span></> },
   quienes:  { frase: <>Hasta la última<br /><span>vereda de Antioquia.</span></> },
 };
@@ -83,6 +85,13 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
   const [captchaError, setCaptchaError] = useState(false);
   const captchaRef = useRef(null);
   const captchaWidgetId = useRef(null);
+  const googleBtnRef = useRef(null);
+  // App.jsx pasa un arrow function inline, así que la referencia cambia en
+  // cada render suyo — si entrara tal cual a las deps del efecto de Google,
+  // reinicializaría el SDK en cada render del padre, no solo al cambiar de
+  // pestaña. La guardamos en un ref y el efecto lee siempre la última.
+  const onLoginSuccessRef = useRef(onLoginSuccess);
+  useEffect(() => { onLoginSuccessRef.current = onLoginSuccess; });
 
   useEffect(() => {
     if (!requiereCaptcha || captchaWidgetId.current !== null) return;
@@ -115,6 +124,56 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
     intentarRenderizar();
     return () => { cancelado = true; };
   }, [requiereCaptcha]);
+
+  // Conexión con Google (Google Identity Services) — solo en la pestaña de
+  // pasajero: conducir sigue exigiendo el registro completo con documentos y
+  // vehículo, un botón de un click no reemplaza eso.
+  useEffect(() => {
+    if (vista !== 'viajar') return;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) return; // Sin Client ID configurado, simplemente no se muestra el botón.
+
+    const manejarCredencialGoogle = async (respuestaGoogle) => {
+      setIsLoading(true);
+      setErrorBackend('');
+      try {
+        const response = await fetch(`${API_BASE_URL}/users/login-google`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+          body: JSON.stringify({ credential: respuestaGoogle.credential }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          localStorage.setItem('token', data.access_token);
+          if (onLoginSuccessRef.current) onLoginSuccessRef.current(data.access_token);
+        } else {
+          const errorData = await response.json();
+          setErrorBackend(errorData.detail || 'No se pudo iniciar sesión con Google.');
+        }
+      } catch {
+        setErrorBackend('Error de conexión. Verifica que el backend esté activo.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    let cancelado = false;
+    const intentarRenderizar = () => {
+      if (cancelado) return;
+      if (window.google?.accounts?.id && googleBtnRef.current) {
+        window.google.accounts.id.initialize({ client_id: clientId, callback: manejarCredencialGoogle });
+        googleBtnRef.current.innerHTML = '';
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          theme: 'outline', size: 'large', shape: 'pill', text: 'continue_with',
+          width: googleBtnRef.current.offsetWidth || 340,
+        });
+      } else {
+        setTimeout(intentarRenderizar, 200);
+      }
+    };
+    intentarRenderizar();
+    return () => { cancelado = true; };
+  }, [vista]);
 
   const isFormValid = formData.email.includes('@') && formData.password.length > 0
     && (!requiereCaptcha || Boolean(captchaToken));
@@ -177,18 +236,31 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
 
   const estiloEtiqueta = { display: 'block', fontSize: '11.5px', fontWeight: 500, color: T.piedra, marginBottom: '6px' };
 
+  // CTA de la sección informativa de abajo: lleva al panel de "Conducir" del
+  // hero (arriba) en vez de duplicar un flujo de registro aparte.
+  // Scroll instantáneo, no "smooth": el cambio de pestaña altera el alto del
+  // hero (el panel de Conducir mide distinto al de Viajar) justo mientras
+  // animaría, y la animación se trababa a mitad de camino.
+  const irAConducirDesdeCTA = () => {
+    setVista('conducir');
+    window.scrollTo(0, 0);
+  };
+
   return (
     <>
       <EstilosBase />
       <style>{`
-        .login-raiz { display:flex; flex-direction:column; min-height:100vh; font-family:${T.ui}; background:${T.niebla}; }
-        .login-cuerpo { flex:1; display:flex; min-height:0; }
+        .login-raiz { font-family:${T.ui}; background:${T.niebla}; }
+        /* Alto fijo de una pantalla para el hero — lo que sigue (LandingInfo)
+           corre debajo en flujo normal, así toda la página es scrolleable en
+           vez de quedar todo encerrado en 100vh como antes. */
+        .login-cuerpo { height:100vh; display:flex; min-height:0; }
         .login-izq { flex:1.6 1 0; min-width:0; position:relative; overflow:hidden; background:${T.monte};
                      padding:44px clamp(48px, 6vw, 84px); display:flex; flex-direction:column; gap:34px; }
         .login-izq__centro { flex:1; display:flex; flex-direction:column; justify-content:center;
                              gap:26px; position:relative; min-height:0; }
-        .login-der { flex:0 0 400px; min-width:0; background:${T.papel}; display:flex; align-items:center;
-                     justify-content:center; padding:48px 40px; border-left:1px solid ${T.linea}; }
+        .login-der { flex:0 0 400px; min-width:0; background:${T.papel}; display:flex; flex-direction:column;
+                     align-items:center; justify-content:center; padding:48px 40px; border-left:1px solid ${T.linea}; }
         .login-forma { width:100%; max-width:340px; }
         .login-izq h1 span { color:${T.chiva}; }
         .login-pestana { font-family:${T.dato}; font-size:11px; font-weight:500; letter-spacing:.14em;
@@ -208,6 +280,7 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
           .login-izq { display:none; }
           .login-der { flex:1; border-left:none; padding:40px 24px; }
         }
+        @media (prefers-reduced-motion: reduce) { .login-fondo-animado { display:none; } }
       `}</style>
 
       <div className="login-raiz">
@@ -215,16 +288,22 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
 
           {/* ── Izquierda: monte + tablero ── */}
           <div className="login-izq">
-            {/* Topografía de montaña — curvas de nivel, no una foto de stock */}
-            <svg viewBox="0 0 400 440" preserveAspectRatio="none" aria-hidden="true"
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.18 }}>
-              <g fill="none" stroke="#86EFAC" strokeWidth="1">
-                <path d="M-10 320 C 60 290, 130 350, 200 315 S 340 265, 410 300" />
-                <path d="M-10 352 C 60 322, 130 384, 200 348 S 340 296, 410 332" />
-                <path d="M-10 288 C 60 256, 130 318, 200 282 S 340 232, 410 268" />
-                <path d="M-10 254 C 60 224, 130 284, 200 250 S 340 198, 410 236" />
-                <path d="M-10 220 C 60 192, 130 250, 200 216 S 340 164, 410 202" />
-                <path d="M-10 186 C 60 160, 130 216, 200 182 S 340 130, 410 168" />
+            {/* Cordillera con una ruta GPS recorriendo la cresta — combinación elegida
+                de las propuestas Altimetría + Trazo GPS, no una foto de stock. */}
+            <svg viewBox="0 0 360 460" preserveAspectRatio="none" aria-hidden="true"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+              <polygon points="-10,460 -10,350 50,318 110,344 170,296 230,332 290,300 370,326 370,460" fill="#86EFAC" opacity=".09" />
+              <polygon points="-10,460 -10,380 60,352 120,374 180,332 240,364 300,336 370,358 370,460" fill="#86EFAC" opacity=".15" />
+              <polygon points="-10,460 -10,408 70,388 130,404 190,372 250,396 310,376 370,392 370,460" fill="#86EFAC" opacity=".23" />
+              <g className="login-fondo-animado">
+                <path d="M-10 360 C 70 330, 130 358, 190 336 S 300 344, 380 330"
+                  fill="none" stroke="#E9A13B" strokeWidth="1.5" strokeDasharray="1 9" strokeLinecap="round" opacity=".65">
+                  <animate attributeName="stroke-dashoffset" from="40" to="0" dur="1.6s" repeatCount="indefinite" />
+                </path>
+                <circle r="3.5" fill="#E9A13B">
+                  <animateMotion dur="4.5s" repeatCount="indefinite"
+                    path="M-10 360 C 70 330, 130 358, 190 336 S 300 344, 380 330" />
+                </circle>
               </g>
             </svg>
 
@@ -266,8 +345,14 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
 
           {/* ── Derecha: papel + formulario ── */}
           <div className="login-der">
+            {/* mode="wait" porque los tres paneles miden distinto — que el que sale
+                termine de irse antes de que entre el siguiente evita el salto de alto
+                a mitad de la animación. */}
+            <AnimatePresence mode="wait">
             {vista === 'viajar' && (
-              <div className="login-forma">
+              <motion.div key="viajar" className="login-forma"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}>
                 <Rotulo style={{ marginBottom: '12px' }}>Bienvenido de nuevo</Rotulo>
                 <h2 style={{ fontFamily: T.display, fontWeight: 800, fontSize: '28px', letterSpacing: '-.02em', color: T.tinta, margin: '0 0 6px' }}>
                   Entrar
@@ -318,18 +403,6 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
                     )
                   )}
 
-                  {errorBackend && (
-                    <div style={{
-                      display: 'flex', alignItems: 'flex-start', gap: '8px',
-                      background: T.alertaSuave, border: `1px solid ${T.alertaLinea}`,
-                      borderRadius: T.rControl, padding: '10px 12px', marginBottom: '14px',
-                      color: T.alertaTexto, fontSize: '12.5px',
-                    }}>
-                      <IconAlerta size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
-                      <span>{errorBackend}</span>
-                    </div>
-                  )}
-
                   <Boton type="submit" ancho disabled={!isFormValid || isLoading}
                     variante={isFormValid && !isLoading ? 'primario' : 'inactivo'}
                     style={{ padding: '13px' }}>
@@ -343,14 +416,35 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
                   <span style={{ flex: 1, height: '1px', background: T.linea }} />
                 </div>
 
+                {/* Se oculta sola si falta VITE_GOOGLE_CLIENT_ID (ver useEffect) —
+                    el div igual queda montado para que Google tenga dónde pintar el botón. */}
+                <div ref={googleBtnRef} style={{
+                  display: 'flex', justifyContent: 'center', marginBottom: '14px',
+                  opacity: isLoading ? .5 : 1, pointerEvents: isLoading ? 'none' : 'auto',
+                }} />
+
+                {errorBackend && (
+                  <div style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '8px',
+                    background: T.alertaSuave, border: `1px solid ${T.alertaLinea}`,
+                    borderRadius: T.rControl, padding: '10px 12px', marginBottom: '14px',
+                    color: T.alertaTexto, fontSize: '12.5px',
+                  }}>
+                    <IconAlerta size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span>{errorBackend}</span>
+                  </div>
+                )}
+
                 <Boton type="button" variante="fantasma" ancho onClick={() => irARegistro('pasajero')}>
                   Crear cuenta
                 </Boton>
-              </div>
+              </motion.div>
             )}
 
             {vista === 'conducir' && (
-              <div className="login-forma">
+              <motion.div key="conducir" className="login-forma"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}>
                 <Rotulo style={{ marginBottom: '12px' }}>Trabajá con tu vehículo</Rotulo>
                 <h2 style={{ fontFamily: T.display, fontWeight: 800, fontSize: '28px', letterSpacing: '-.02em', color: T.tinta, margin: '0 0 6px' }}>
                   Conducí con Turify
@@ -375,11 +469,13 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
                 <p style={{ textAlign: 'center', fontSize: '13px', color: T.piedra, margin: '18px 0 0' }}>
                   ¿Ya tenés cuenta? <button type="button" className="login-enlace t-foco" onClick={() => setVista('viajar')}>Entrá acá</button>
                 </p>
-              </div>
+              </motion.div>
             )}
 
             {vista === 'quienes' && (
-              <div className="login-forma">
+              <motion.div key="quienes" className="login-forma"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}>
                 <Rotulo style={{ marginBottom: '12px' }}>Nuestra misión</Rotulo>
                 <h2 style={{ fontFamily: T.display, fontWeight: 800, fontSize: '28px', letterSpacing: '-.02em', color: T.tinta, margin: '0 0 6px' }}>
                   Quiénes somos
@@ -404,10 +500,24 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
                 <Boton type="button" variante="fantasma" ancho onClick={() => setVista('viajar')}>
                   Volver a entrar
                 </Boton>
-              </div>
+              </motion.div>
             )}
+            </AnimatePresence>
+
+            {/* Visible en las tres pestañas — no solo un adorno del panel oscuro,
+                que además se oculta en pantallas angostas (ver @media arriba). */}
+            <p style={{ textAlign: 'center', fontSize: '12px', color: T.piedraClara, margin: '28px 0 0' }}>
+              {/* rel="opener" a propósito (no noopener): target="_blank" es noopener por
+                  defecto en navegadores recientes salvo que se pida lo contrario — el botón
+                  "Cerrar" de /politicas necesita window.opener para cerrar la pestaña. */}
+              <a href="/politicas" target="_blank" rel="opener" style={{ color: 'inherit' }}>
+                Términos, privacidad y demás políticas
+              </a>
+            </p>
           </div>
         </div>
+
+        <LandingInfo onQuieroConducir={irAConducirDesdeCTA} />
       </div>
     </>
   );

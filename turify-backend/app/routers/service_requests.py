@@ -1,6 +1,7 @@
 import io
 import json
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+import logging
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -11,6 +12,11 @@ from app.database import get_db
 from app import models, schemas, security # Tu lógica de seguridad
 from ..security import get_current_user
 from app.audit import registrar_log
+from app.pricing.vehicle_categories import calcular_categoria, sugerir_categoria_para_pasajeros
+from app.pricing.features import PricingInput
+from app.pricing.service import obtener_precio_sugerido, registrar_resultado_viaje
+from app.pricing.peajes_antioquia import calcular_peajes_de_ruta
+from app.routers.drivers import get_supabase, upload_to_supabase
 
 router = APIRouter(prefix="/api/service-requests", tags=["Service Requests"])
 
@@ -55,6 +61,50 @@ def verificar_comodidades_disponibles(
     )
 
     return {"conductores_que_cumplen": total}
+
+
+# HU27 — peajes automáticos por ruta. El frontend ya trazó la ruta con
+# Google Directions y tiene el polyline decodificado; se lo manda a esto una
+# sola vez (justo después de trazar, junto con la heurística de tipo de vía)
+# para saber qué peajes conocidos toca — ver app/pricing/peajes_antioquia.py.
+@router.post("/calcular-peajes", response_model=schemas.CalcularPeajesResponse)
+def calcular_peajes_endpoint(
+    payload: schemas.CalcularPeajesRequest,
+    current_user: models.User = Depends(security.get_current_user),
+):
+    resultado = calcular_peajes_de_ruta([{"lat": p.lat, "lng": p.lng} for p in payload.puntos_ruta])
+    return resultado
+
+
+# HU28 — precio sugerido con desglose, ANTES de publicar el viaje. No crea
+# ningún registro: el frontend llama esto mientras el pasajero todavía está
+# llenando el formulario (después de trazar la ruta con Google Maps), para
+# mostrarle el precio sugerido y su desglose antes del botón "Confirmar y
+# Publicar Viaje".
+@router.post("/price-estimate", response_model=schemas.PriceEstimateResponse)
+def estimar_precio_sugerido(
+    payload: schemas.PriceEstimateRequest,
+    current_user: models.User = Depends(security.get_current_user),
+):
+    categoria_sugerida = sugerir_categoria_para_pasajeros(
+        payload.adults_count + payload.children_count
+    )
+    entrada_precio = PricingInput(
+        distancia_km=payload.distance_km,
+        categoria_vehiculo=categoria_sugerida["categoria"],
+        num_adultos=payload.adults_count,
+        num_ninos=payload.children_count,
+        num_infantes=payload.infants_count,
+        fecha_salida=payload.departure_time,
+        ida_y_vuelta=(payload.trip_type == schemas.TripType.ROUND_TRIP),
+        tolls_cost=payload.tolls_cost,
+        tiempo_espera_horas=payload.wait_time_hours,
+        num_dias=payload.num_days,
+        tipo_via=payload.tipo_via,
+        comodidades={"tiene_ac": payload.requiere_ac, "tiene_wifi": payload.requiere_wifi},
+    )
+    resultado = obtener_precio_sugerido(entrada_precio)
+    return resultado.to_dict()
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -105,6 +155,7 @@ def create_service_request(
             trip_type=trip_type_str,
             adults_count=request_data.adults_count,
             children_count=request_data.children_count,
+            infants_count=request_data.infants_count or 0,
             has_pets=request_data.has_pets,
             status="PENDING",
             # Épica 2 (HU25) — datos de ruta de Google Maps, para el motor de precio (Épica 12)
@@ -116,6 +167,10 @@ def create_service_request(
             tolls_count=request_data.tolls_count or 0,
             tolls_cost=request_data.tolls_cost or 0,
             tipo_via=request_data.tipo_via or "PAVIMENTADA",
+            # HU60 / HU29 — días que se necesita el vehículo y tiempo de espera
+            # estimado, ambos ya soportados por el motor de precio (Épica 12).
+            num_days=request_data.num_days or 1,
+            wait_time_hours=request_data.wait_time_hours or 0,
             # HU26 — búsqueda de conductores 100% automática: ya no la elige el
             # pasajero. El centro de búsqueda es siempre el origen del viaje, y el
             # radio guardado es amplio y fijo (RADIO_VISIBILIDAD_KM) para que la
@@ -143,7 +198,45 @@ def create_service_request(
                 if (request_data.tipo_servicio or "ECONOMICO").upper() in ("ECONOMICO", "ESTANDAR")
                 else "ECONOMICO",
         )
-        
+
+        # ── Motor de precio sugerido (ÉPICA 12 / HU29) ──────────────────────
+        # Se calcula acá, antes del commit, para que el viaje ya quede creado
+        # con su precio sugerido/desglose/min/max. Si Google Maps no pudo
+        # resolver la distancia (distance_km viene None), se deja sin precio
+        # sugerido — el pasajero igual puede publicar y negociar directamente.
+        if new_request.distance_km is not None:
+            categoria_sugerida = sugerir_categoria_para_pasajeros(
+                new_request.adults_count + new_request.children_count
+            )
+            entrada_precio = PricingInput(
+                distancia_km=float(new_request.distance_km),
+                categoria_vehiculo=categoria_sugerida["categoria"],
+                num_adultos=new_request.adults_count,
+                num_ninos=new_request.children_count,
+                num_infantes=new_request.infants_count or 0,
+                fecha_salida=new_request.departure_time,
+                ida_y_vuelta=(trip_type_str == "ROUND_TRIP"),
+                tolls_cost=float(new_request.tolls_cost or 0),
+                tiempo_espera_horas=float(new_request.wait_time_hours or 0),
+                num_dias=new_request.num_days or 1,
+                tipo_via=new_request.tipo_via or "PAVIMENTADA",
+                comodidades={
+                    "tiene_ac": bool(new_request.requiere_ac),
+                    "tiene_wifi": bool(new_request.requiere_wifi),
+                },
+            )
+            resultado_precio = obtener_precio_sugerido(entrada_precio)
+            new_request.suggested_price = resultado_precio.precio_sugerido
+            new_request.suggested_price_min = resultado_precio.precio_minimo
+            new_request.suggested_price_max = resultado_precio.precio_maximo
+            new_request.is_peak_hour = resultado_precio.es_nocturno
+            new_request.is_high_season = resultado_precio.es_temporada_alta
+            new_request.price_explanation = resultado_precio.explicacion
+            # ÉPICA 12 — solo tiene sentido "precio fijo" si de verdad hay un
+            # precio sugerido calculado (si no, el pasajero publica y negocia
+            # igual que siempre, sin importar qué haya pedido el frontend).
+            new_request.precio_fijo = bool(request_data.precio_fijo)
+
         db.add(new_request)
         db.commit()
         db.refresh(new_request)
@@ -340,6 +433,8 @@ def _serializar_service_request(sr) -> dict:
         "requiere_buen_audio": sr.requiere_buen_audio,
         "requiere_acepta_mascotas": sr.requiere_acepta_mascotas,
         "tipo_servicio": sr.tipo_servicio,
+        "precio_fijo": sr.precio_fijo,
+        "suggested_price": float(sr.suggested_price) if sr.suggested_price is not None else None,
     }
 
 
@@ -484,8 +579,16 @@ async def create_driver_offer(
         
     if service_request.status != 'PENDING':
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"No se pueden hacer ofertas a viajes cerrados. Estado actual: {service_request.status}"
+        )
+
+    # 2.1. ÉPICA 12 — el pasajero ya aceptó el precio sugerido al publicar:
+    #      no se negocia, solo se acepta o se deja pasar (ver /accept-fixed-price).
+    if service_request.precio_fijo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Este viaje tiene precio fijo — acéptalo al precio publicado, no se puede ofertar otro."
         )
 
     # 3. Un mismo conductor no puede tener dos ofertas activas para la misma
@@ -566,9 +669,104 @@ async def create_driver_offer(
     except Exception as e:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al guardar la oferta: {str(e)}"
         )
+
+
+# ÉPICA 12 — POST /api/service-requests/{request_id}/accept-fixed-price
+# Contraparte de create_driver_offer para viajes con precio_fijo=True: el
+# pasajero ya aceptó el precio sugerido al publicar, así que el conductor no
+# oferta ni negocia — solo acepta (o deja pasar). Aceptar salta directo a
+# ASSIGNED en un solo paso (ver accept_offer, que hace lo mismo pero
+# disparado por el pasajero cuando sí hubo negociación).
+@router.post("/{request_id}/accept-fixed-price", status_code=status.HTTP_201_CREATED)
+def aceptar_precio_fijo(
+    request_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if current_user.role != 'DRIVER':
+        raise HTTPException(status_code=403, detail="Solo los conductores pueden aceptar viajes.")
+
+    service_request = db.query(models.ServiceRequest).filter(
+        models.ServiceRequest.request_id == request_id
+    ).first()
+    if not service_request:
+        raise HTTPException(status_code=404, detail="La solicitud de viaje no existe.")
+
+    if not service_request.precio_fijo:
+        raise HTTPException(
+            status_code=400,
+            detail="Este viaje no tiene precio fijo — usa la oferta normal para negociar."
+        )
+    if service_request.status != 'PENDING':
+        raise HTTPException(
+            status_code=400,
+            detail=f"Este viaje ya no está disponible. Estado actual: {service_request.status}"
+        )
+
+    vehicle = db.query(models.Vehicle).filter(models.Vehicle.owner_id == current_user.user_id).first()
+    if not vehicle:
+        raise HTTPException(status_code=400, detail="No tienes un vehículo registrado para aceptar viajes.")
+
+    if service_request.tipo_servicio == "ESTANDAR":
+        match = _match_comodidades(db, current_user, service_request)
+        if not match["cumple_todas"]:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Este viaje es de servicio Estándar y tu vehículo no tiene: "
+                    + ", ".join(match["faltantes"]) + "."
+                )
+            )
+
+    nueva_oferta = models.DriverOffer(
+        request_id=request_id,
+        driver_id=current_user.user_id,
+        vehicle_id=vehicle.vehicle_id,
+        offered_price=service_request.suggested_price,
+        status='ACCEPTED',
+    )
+    db.add(nueva_oferta)
+    # Vuelve a chequear PENDING justo antes de asignar — si dos conductores
+    # aceptan casi al mismo tiempo, solo el primero en llegar acá gana.
+    reconsulta = db.query(models.ServiceRequest).filter(
+        models.ServiceRequest.request_id == request_id,
+        models.ServiceRequest.status == 'PENDING',
+    ).first()
+    if not reconsulta:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Otro conductor ya aceptó este viaje.")
+
+    service_request.status = 'ASSIGNED'
+    db.commit()
+    db.refresh(nueva_oferta)
+
+    registrar_log(
+        db, action="ACCEPT_FIXED_PRICE", user_id=current_user.user_id,
+        entity="ServiceRequest", entity_id=request_id,
+        detail=f"Conductor #{current_user.user_id} aceptó el precio fijo (${nueva_oferta.offered_price}) del viaje #{request_id}",
+        ip_address=request.client.host if request.client else None,
+    )
+
+    crear_notificacion(
+        db,
+        user_id=service_request.passenger_id,
+        title="¡Conductor encontrado!",
+        message=f"Un conductor aceptó tu viaje de {service_request.origin} → {service_request.destination} al precio publicado.",
+        tipo="TRIP_ACCEPTED",
+        offer_id=nueva_oferta.offer_id,
+    )
+
+    return {
+        "message": "¡Viaje aceptado! El pasajero ha sido notificado.",
+        "offer_id": nueva_oferta.offer_id,
+        "request_id": request_id,
+        "offered_price": float(nueva_oferta.offered_price),
+    }
+
 
 # SCRUM-77 — GET /api/service-requests/{request_id}/offers
 # El pasajero ve todas las ofertas de su viaje con datos del conductor
@@ -652,6 +850,12 @@ def get_driver_active_offers(
                 models.Rating.rater_id == current_user.user_id
             ).first() is not None
 
+        # FUEC — para que "Iniciar viaje" se pueda deshabilitar en el panel
+        # sin depender de que falle la petición al backend.
+        ocupantes = db.query(models.TripPassenger).filter(
+            models.TripPassenger.request_id == oferta.request_id
+        ).all() if viaje else []
+
         resultado.append({
             "offer_id": oferta.offer_id,
             "request_id": oferta.request_id,
@@ -669,6 +873,9 @@ def get_driver_active_offers(
             "destination_lat": float(viaje.destination_lat) if viaje and viaje.destination_lat is not None else None,
             "destination_lng": float(viaje.destination_lng) if viaje and viaje.destination_lng is not None else None,
             "ya_califico": ya_califico,
+            "fuec_cargado": bool(viaje.fuec_url) if viaje else False,
+            "ocupantes_registrados": len(ocupantes),
+            "tiene_representante": any(o.es_representante for o in ocupantes),
         })
 
     return resultado
@@ -794,6 +1001,10 @@ def get_assigned_requests(
             "destination_lat": float(v.destination_lat) if v.destination_lat is not None else None,
             "destination_lng": float(v.destination_lng) if v.destination_lng is not None else None,
             "ya_califico": ya_califico,
+            # El FUEC lo sube el conductor (ver POST /{request_id}/fuec) -- el
+            # pasajero (representante del viaje) tiene derecho a verlo, es lo
+            # que respalda que el viaje está cubierto por la empresa afiliada.
+            "fuec_url": v.fuec_url,
         })
 
     return resultado
@@ -1225,21 +1436,10 @@ def crear_notificacion(db, user_id: int, title: str, message: str, tipo: str, of
         print(f"[Notificación] Error: {e}")
 
 
-# HU55 — Categoría de vehículo (misma tabla de rangos que app/routers/drivers.py)
-_RANGOS_CATEGORIA_VEHICULO = [
-    (1, 4,   "SEDAN"),
-    (5, 10,  "VAN"),
-    (11, 19, "MICROBUS"),
-    (20, 35, "BUS"),
-    (36, 60, "BUS_GRANDE"),
-]
-
-
-def _categoria_vehiculo(capacidad: int) -> str:
-    for minimo, maximo, categoria in _RANGOS_CATEGORIA_VEHICULO:
-        if minimo <= capacidad <= maximo:
-            return categoria
-    return "BUS_GRANDE" if capacidad > 60 else "SEDAN"
+# HU55 — Categoría de vehículo. Vive en app/pricing/vehicle_categories.py
+# (única fuente de verdad); este alias corto se deja para no tocar el resto
+# de este archivo, que ya la llama como `_categoria_vehiculo(...)`.
+_categoria_vehiculo = calcular_categoria
 
 
 # HU46 — Calificaciones bidireccionales (SCRUM-194)
@@ -1358,11 +1558,36 @@ def resolve_counter_offer(
 # cancelar desde aquí — a esa altura hay un conductor comprometido y eso
 # necesitaría su propio flujo (no forma parte de este cambio).
 @router.patch("/{request_id}/cancel")
-def cancel_service_request(
+async def cancel_service_request(
     request_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user)
 ):
+    """
+    HU59 (SCRUM-211). Cancela una búsqueda PENDING (sin conductor asignado
+    todavía, siempre libre) o un viaje ya ASSIGNED (con penalización según la
+    anticipación, salvo fuerza mayor con evidencia). Lo puede llamar el
+    pasajero dueño del viaje o el conductor con la oferta ACCEPTED.
+
+    Se leen motivo/es_fuerza_mayor/evidencia como form-data a mano (en vez de
+    con Form(...)/File(...) declarados) para que el llamador simple que no
+    manda body (cancelar una búsqueda PENDING, sin penalización posible)
+    siga funcionando exactamente igual que antes.
+    """
+    motivo = None
+    es_fuerza_mayor = False
+    evidencia = None
+    try:
+        form = await request.form()
+        motivo = (form.get("motivo") or "").strip() or None
+        es_fuerza_mayor = str(form.get("es_fuerza_mayor", "")).lower() == "true"
+        archivo_form = form.get("evidencia")
+        if archivo_form is not None and getattr(archivo_form, "filename", None):
+            evidencia = archivo_form
+    except Exception:
+        pass
+
     viaje = db.query(models.ServiceRequest).filter(
         models.ServiceRequest.request_id == request_id
     ).first()
@@ -1370,47 +1595,128 @@ def cancel_service_request(
     if not viaje:
         raise HTTPException(status_code=404, detail="Viaje no encontrado.")
 
-    if viaje.passenger_id != current_user.user_id:
+    oferta_aceptada = db.query(models.DriverOffer).filter(
+        models.DriverOffer.request_id == request_id,
+        models.DriverOffer.status == 'ACCEPTED'
+    ).first()
+
+    es_pasajero = viaje.passenger_id == current_user.user_id
+    es_conductor = bool(oferta_aceptada) and oferta_aceptada.driver_id == current_user.user_id
+
+    if not es_pasajero and not es_conductor:
         raise HTTPException(status_code=403, detail="No tienes permiso para cancelar este viaje.")
 
-    if viaje.status != 'PENDING':
+    if viaje.status not in ('PENDING', 'ASSIGNED'):
         raise HTTPException(
             status_code=400,
-            detail=f"Solo puedes cancelar la búsqueda mientras el viaje está pendiente. Estado actual: {viaje.status}"
+            detail=f"Solo puedes cancelar un viaje pendiente o confirmado. Estado actual: {viaje.status}"
         )
 
-    viaje.status = 'CANCELLED'
+    if es_fuerza_mayor and not evidencia:
+        raise HTTPException(
+            status_code=400,
+            detail="Para reportar fuerza mayor debes adjuntar una evidencia (foto, certificado, etc.)."
+        )
 
-    # Cualquier oferta que ya hubieran enviado conductores para este viaje
-    # queda sin efecto — se avisa a cada conductor para que no siga esperando
-    # respuesta de una solicitud que ya no existe.
-    ofertas_activas = db.query(models.DriverOffer).filter(
-        models.DriverOffer.request_id == request_id,
-        models.DriverOffer.status.in_(['DRIVER_OFFERED', 'PASSENGER_COUNTER_OFFERED'])
-    ).all()
-    for oferta in ofertas_activas:
-        oferta.status = 'REJECTED'
+    evidencia_url = None
+    if evidencia:
+        supabase = get_supabase()
+        evidencia_url = await upload_to_supabase(
+            supabase, evidencia, "turify-documentos", f"trips/{request_id}/cancelacion",
+            db=db, current_user=current_user,
+        )
 
-    db.commit()
+    # Penalización (HU59): solo puede aplicarle al pasajero, y solo si ya
+    # había un conductor comprometido (ASSIGNED) — mientras está PENDING
+    # nadie comprometió nada todavía, así que cancelar siempre es libre.
+    penalty_pct = 0
+    penalty_amount = 0.0
+    if es_pasajero and viaje.status == 'ASSIGNED' and oferta_aceptada and not es_fuerza_mayor:
+        horas_restantes = (viaje.departure_time.replace(tzinfo=None) - datetime.now()).total_seconds() / 3600
+        if horas_restantes >= 24:
+            penalty_pct = 0
+        elif horas_restantes >= 2:
+            penalty_pct = 30
+        else:
+            penalty_pct = 50
+        penalty_amount = float(oferta_aceptada.offered_price) * penalty_pct / 100
 
-    for oferta in ofertas_activas:
+    viaje.cancelled_by = 'PASSENGER' if es_pasajero else 'DRIVER'
+    viaje.cancellation_reason = motivo
+    viaje.is_force_majeure = es_fuerza_mayor
+    viaje.force_majeure_evidence_url = evidencia_url
+    viaje.penalty_percentage = penalty_pct
+    viaje.penalty_amount = penalty_amount
+    viaje.cancelled_at = datetime.now()
+
+    if es_conductor:
+        # El conductor se retracta: el viaje vuelve a PENDING para que otro
+        # conductor lo pueda tomar, en vez de dejar al pasajero varado. El
+        # FUEC (si ya lo había subido) deja de servir -- lo expide la empresa
+        # de ESTE conductor, no la del que tome el viaje después.
+        viaje.status = 'PENDING'
+        viaje.fuec_url = None
+        oferta_aceptada.status = 'REJECTED'
+        if not es_fuerza_mayor:
+            current_user.cancelaciones_injustificadas = (current_user.cancelaciones_injustificadas or 0) + 1
+
+        db.commit()
+
         crear_notificacion(
             db,
-            user_id=oferta.driver_id,
-            title="Viaje cancelado por el pasajero",
-            message=f"El pasajero canceló la solicitud de {viaje.origin} → {viaje.destination}.",
-            tipo="TRIP_REJECTED",
-            offer_id=oferta.offer_id
+            user_id=viaje.passenger_id,
+            title="Tu conductor canceló el viaje",
+            message=f"El conductor no podrá cumplir el viaje de {viaje.origin} → {viaje.destination}. Seguimos buscando otro conductor.",
+            tipo="SYSTEM",
+            offer_id=oferta_aceptada.offer_id
         )
+    else:
+        viaje.status = 'CANCELLED'
+
+        # Cualquier oferta pendiente de respuesta queda sin efecto — se avisa
+        # a cada conductor para que no siga esperando una solicitud que ya no existe.
+        ofertas_activas = db.query(models.DriverOffer).filter(
+            models.DriverOffer.request_id == request_id,
+            models.DriverOffer.status.in_(['DRIVER_OFFERED', 'PASSENGER_COUNTER_OFFERED'])
+        ).all()
+        for oferta in ofertas_activas:
+            oferta.status = 'REJECTED'
+        if oferta_aceptada:
+            oferta_aceptada.status = 'REJECTED'
+
+        db.commit()
+
+        for oferta in ofertas_activas:
+            crear_notificacion(
+                db,
+                user_id=oferta.driver_id,
+                title="Viaje cancelado por el pasajero",
+                message=f"El pasajero canceló la solicitud de {viaje.origin} → {viaje.destination}.",
+                tipo="TRIP_REJECTED",
+                offer_id=oferta.offer_id
+            )
+        if oferta_aceptada:
+            detalle_penalizacion = f" Penalización: {penalty_pct}% (${penalty_amount:,.0f})." if penalty_amount > 0 else " Sin penalización."
+            crear_notificacion(
+                db,
+                user_id=oferta_aceptada.driver_id,
+                title="Viaje cancelado por el pasajero",
+                message=f"El pasajero canceló el viaje confirmado de {viaje.origin} → {viaje.destination}.{detalle_penalizacion}",
+                tipo="TRIP_REJECTED",
+                offer_id=oferta_aceptada.offer_id
+            )
 
     registrar_log(db, action="CANCEL_TRIP", user_id=current_user.user_id,
         entity="ServiceRequest", entity_id=viaje.request_id,
-        detail=f"Pasajero #{current_user.user_id} canceló la búsqueda del viaje #{request_id}")
+        detail=f"{'Pasajero' if es_pasajero else 'Conductor'} #{current_user.user_id} canceló el viaje #{request_id}"
+               + (f" — penalización {penalty_pct}%" if penalty_amount > 0 else ""))
 
     return {
-        "message": "Búsqueda cancelada.",
+        "message": "Viaje cancelado.",
         "request_id": viaje.request_id,
-        "status": "CANCELLED"
+        "status": viaje.status,
+        "penalty_percentage": penalty_pct,
+        "penalty_amount": penalty_amount,
     }
 
 
@@ -1442,6 +1748,27 @@ def start_trip(
 
     if not oferta_aceptada:
         raise HTTPException(status_code=403, detail="No eres el conductor asignado a este viaje.")
+
+    # Requisitos legales antes de arrancar: el FUEC (lo sube el conductor,
+    # expedido por su empresa afiliada) y los ocupantes registrados, con
+    # exactamente un representante del viaje entre ellos (ya lo garantiza
+    # TripPassengersCreate al registrarlos, se revalida acá por si acaso).
+    faltantes = []
+    if not viaje.fuec_url:
+        faltantes.append("el FUEC del viaje")
+    ocupantes = db.query(models.TripPassenger).filter(
+        models.TripPassenger.request_id == request_id
+    ).all()
+    if not ocupantes:
+        faltantes.append("los ocupantes del viaje")
+    elif not any(o.es_representante for o in ocupantes):
+        faltantes.append("el representante del viaje entre los ocupantes")
+
+    if faltantes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Antes de iniciar el viaje falta registrar: {', '.join(faltantes)}."
+        )
 
     viaje.status = 'IN_PROGRESS'
     db.commit()
@@ -1501,6 +1828,46 @@ def complete_trip(
     viaje.status = 'COMPLETED'
     db.commit()
 
+    # ÉPICA 12 (HU29) — cada viaje completado alimenta el historial real de
+    # precios: es lo que hace que, con el tiempo, el modelo de ML deje de
+    # depender del dataset sintético de arranque (ver
+    # app/pricing/service.py::MINIMO_MUESTRAS_REALES_PARA_ML). Un fallo acá no
+    # debe impedir que el viaje quede completado para el pasajero/conductor.
+    try:
+        vehiculo = db.query(models.Vehicle).filter(
+            models.Vehicle.vehicle_id == oferta_aceptada.vehicle_id
+        ).first()
+        if vehiculo is not None and viaje.distance_km is not None:
+            registrar_resultado_viaje(
+                db,
+                request_id=viaje.request_id,
+                vehicle_category=calcular_categoria(vehiculo.capacidad_real or vehiculo.capacity),
+                # OJO: se guarda la distancia/peajes TOTALES (ida + regreso del
+                # vehículo), no los de una sola vía — es lo que el motor de
+                # precio (app/pricing/features.py) usa desde sep-2026 para
+                # calcular, así que es lo que tiene que coincidir con
+                # final_price para que el modelo de ML entrene bien.
+                distance_km=float(viaje.distance_km) * 2,
+                suggested_price=float(viaje.suggested_price) if viaje.suggested_price is not None else float(oferta_aceptada.offered_price),
+                final_price=float(oferta_aceptada.offered_price),
+                tolls_cost=float(viaje.tolls_cost or 0) * 2,
+                wait_time_hours=float(viaje.wait_time_hours or 0),
+                num_days=viaje.num_days or 1,
+                is_peak_hour=bool(viaje.is_peak_hour),
+                is_high_season=bool(viaje.is_high_season),
+                tipo_via=viaje.tipo_via or "PAVIMENTADA",
+                has_ac=bool(vehiculo.tiene_ac),
+                has_wifi=bool(vehiculo.tiene_wifi),
+                num_passengers=viaje.adults_count + viaje.children_count,
+                origin_city=viaje.origin,
+                destination_city=viaje.destination,
+            )
+    except Exception:
+        db.rollback()
+        logging.getLogger("turify.pricing").exception(
+            "No se pudo registrar PriceHistory para el viaje #%s", viaje.request_id
+        )
+
     # Notificar al pasajero
     crear_notificacion(
         db,
@@ -1545,11 +1912,14 @@ def get_trip_status(
         "status": viaje.status,
         "origin": viaje.origin,
         "destination": viaje.destination,
-        "departure_time": viaje.departure_time.isoformat() if viaje.departure_time else None
+        "departure_time": viaje.departure_time.isoformat() if viaje.departure_time else None,
+        "fuec_cargado": bool(viaje.fuec_url),
     }
 
 # HU10 — POST /api/service-requests/{request_id}/passengers
-# Pasajero registra los ocupantes del viaje (FUEC simulado)
+# Pasajero registra los ocupantes del viaje (los datos que respaldan el FUEC
+# que expide la empresa afiliada -- el archivo del FUEC en sí lo sube el
+# conductor aparte, ver POST /{request_id}/fuec).
 @router.post("/{request_id}/passengers", status_code=201)
 def registrar_ocupantes(
     request_id: int,
@@ -1580,7 +1950,8 @@ def registrar_ocupantes(
             request_id=request_id,
             full_name=p.full_name,
             document_type=p.document_type,
-            document_number=p.document_number
+            document_number=p.document_number,
+            es_representante=p.es_representante,
         ))
 
     db.commit()
@@ -1634,10 +2005,59 @@ def get_ocupantes(
             "passenger_entry_id": o.passenger_entry_id,
             "full_name": o.full_name,
             "document_type": o.document_type,
-            "document_number": o.document_number
+            "document_number": o.document_number,
+            "es_representante": o.es_representante,
         }
         for o in ocupantes
     ]
+
+
+# El FUEC lo expide la empresa afiliada del conductor -- Turify no lo genera,
+# solo lo recibe como respaldo de que el viaje es legal antes de arrancar.
+# Junto con los ocupantes (arriba), es requisito obligatorio para iniciar el
+# viaje (ver start_trip).
+@router.post("/{request_id}/fuec", status_code=status.HTTP_201_CREATED)
+async def subir_fuec(
+    request_id: int,
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    if current_user.role != 'DRIVER':
+        raise HTTPException(status_code=403, detail="Solo el conductor puede subir el FUEC del viaje.")
+
+    viaje = db.query(models.ServiceRequest).filter(
+        models.ServiceRequest.request_id == request_id
+    ).first()
+    if not viaje:
+        raise HTTPException(status_code=404, detail="Viaje no encontrado.")
+
+    oferta_aceptada = db.query(models.DriverOffer).filter(
+        models.DriverOffer.request_id == request_id,
+        models.DriverOffer.driver_id == current_user.user_id,
+        models.DriverOffer.status == 'ACCEPTED'
+    ).first()
+    if not oferta_aceptada:
+        raise HTTPException(status_code=403, detail="No eres el conductor asignado a este viaje.")
+
+    if viaje.status not in ('ASSIGNED', 'IN_PROGRESS'):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Solo puedes subir el FUEC de un viaje confirmado. Estado actual: {viaje.status}"
+        )
+
+    supabase = get_supabase()
+    viaje.fuec_url = await upload_to_supabase(
+        supabase, archivo, "turify-documentos", f"trips/{request_id}/fuec",
+        db=db, current_user=current_user,
+    )
+    db.commit()
+
+    registrar_log(db, action="UPLOAD_FUEC", user_id=current_user.user_id,
+        entity="ServiceRequest", entity_id=request_id,
+        detail=f"FUEC cargado para viaje #{request_id}")
+
+    return {"message": "FUEC cargado correctamente.", "fuec_url": viaje.fuec_url}
 
 
 # ── HU46 — Calificaciones bidireccionales (SCRUM-194) ────────────────────────
