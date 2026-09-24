@@ -1093,7 +1093,14 @@ const PanelConductor = ({ onVerRuta }) => {
                   transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.04, ease: [0.23, 1, 0.32, 1] }}
                   style={{ border: `1px solid ${estaSeleccionada ? BRAND_GREEN : 'var(--t-linea)'}`, borderRadius: '12px', marginBottom: '12px', overflow: 'hidden', boxShadow: estaSeleccionada ? `0 0 0 2px ${BRAND_GREEN}33` : '0 1px 3px rgba(0,0,0,0.06)', transition: 'border-color 0.2s, box-shadow 0.2s' }}>
                   {/* Cuerpo clickeable → traza ruta SCRUM-77 */}
-                  <div onClick={() => handleClickTarjeta(sol)} style={{ padding: '14px', cursor: 'pointer', backgroundColor: estaSeleccionada ? 'var(--t-musgo)' : 'var(--t-papel)' }}>
+                  <div role="button" tabIndex={0} aria-pressed={estaSeleccionada}
+                    onClick={() => handleClickTarjeta(sol)}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return; // no robar Enter a los botones internos
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClickTarjeta(sol); }
+                    }}
+                    className="t-foco"
+                    style={{ padding: '14px', cursor: 'pointer', backgroundColor: estaSeleccionada ? 'var(--t-musgo)' : 'var(--t-papel)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
                       <div style={{ flex: 1 }}>
                         <TableroRuta origen={sol.origin} destino={sol.destination} size={11} />
