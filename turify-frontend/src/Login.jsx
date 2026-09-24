@@ -18,7 +18,7 @@ const COPY_POR_VISTA = {
   //   <>Que salir de la vereda<br /><span>no sea una odisea.</span></>
   viajar:   { frase: <>Tu camino,<br /><span>con precio claro.</span></> },
   conducir: { frase: <>Caminos que otros<br /><span>no recorren.</span></> },
-  quienes:  { frase: <>Hasta la última<br /><span>vereda de Antioquia.</span></> },
+  quienes:  { frase: <>Hasta la última<br /><span>vereda de tu municipio.</span></> },
 };
 // Rutas reales de Antioquia que rotan en el tablero de la izquierda.
 const RUTAS = [
