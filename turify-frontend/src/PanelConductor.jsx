@@ -4,7 +4,7 @@ import {
   IconReloj, IconVisto, IconEquis, IconBandera, IconAuto, IconCalendario,
   IconPersonas, IconPersona, IconRadar, IconPin, IconEstrella, IconClipboard,
   IconAlerta, IconCampana, IconPrecio, IconIntercambio, IconRecibo,
-  LogoWordmark, BotonTema, useTema, MAPA_OSCURO, MAPA_CLARO, FIJO, BotonCentrarMapa,
+  LogoWordmark, BotonTema, useTema, MAPA_VERDE, FIJO, BotonCentrarMapa,
 } from './diseno';
 
 const IconGirar   = (p) => <Icono {...p}><path d="M4 4v5h5" /><path d="M20 20v-5h-5" /><path d="M5.5 15A7.5 7.5 0 0 0 19 9.5" /><path d="M18.5 9A7.5 7.5 0 0 0 5 14.5" /></Icono>;
@@ -1534,7 +1534,7 @@ const PanelConductor = ({ onVerRuta }) => {
             center={ubicacionActual || centroDefaultAntioquia}
             zoom={ubicacionActual ? 12 : 9}
             onLoad={(mapa) => { mapaRef.current = mapa; }}
-            options={{ disableDefaultUI: true, zoomControl: true, styles: tema === 'oscuro' ? MAPA_OSCURO : MAPA_CLARO }}
+            options={{ disableDefaultUI: true, zoomControl: true, styles: MAPA_VERDE }}
           >
             {ubicacionActual && (
               <MarkerF position={ubicacionActual} title="Tu posición"
@@ -1556,15 +1556,19 @@ const PanelConductor = ({ onVerRuta }) => {
             {rutaConductor && (
               <>
                 <PolylineF path={rutaConductor.path} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
-                <MarkerF position={rutaConductor.origen} title="Origen"
-                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: FIJO.ruta, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
-                <MarkerF position={rutaConductor.destino} title="Destino"
-                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: FIJO.chiva, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
+                {/* Los peajes van ANTES que origen/destino a propósito: cuando un peaje
+                    cae muy cerca de una punta de la ruta (pasa seguido, ej. "Aburrá" junto
+                    al Túnel de Occidente), el pin más grande de origen/destino queda encima
+                    en vez de taparse por el más chico del peaje. */}
                 {peajesRutaConductor.map((peaje, i) => (
                   <MarkerF key={`peaje-${i}`} position={{ lat: peaje.lat, lng: peaje.lng }}
                     title={`Peaje: ${peaje.nombre} — $${Number(peaje.tarifa).toLocaleString()}`}
                     icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: FIJO.cielo, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
                 ))}
+                <MarkerF position={rutaConductor.origen} title="Origen"
+                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: FIJO.ruta, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
+                <MarkerF position={rutaConductor.destino} title="Destino"
+                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: FIJO.chiva, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
               </>
             )}
           </GoogleMap>

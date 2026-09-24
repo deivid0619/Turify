@@ -19,7 +19,7 @@ import {
   IconRadar, IconRecibo, IconEstrella, IconClipboard, IconEquis, IconFlecha,
   IconAlerta, IconGorro, IconPin, IconPersona,
   IconCampana, IconPrecio, IconIntercambio, IconIdea,
-  MarcaTurify, LogoWordmark, BotonTema, useTema, MAPA_OSCURO, MAPA_CLARO, FIJO, BotonCentrarMapa,
+  MarcaTurify, LogoWordmark, BotonTema, useTema, MAPA_VERDE, FIJO, BotonCentrarMapa,
 } from './diseno';
 
 // Librerias de Google Maps que necesitamos: 'places' para el autocompletar de InputDireccion,
@@ -1774,9 +1774,24 @@ const Dashboard = () => {
               zoom={datosMapa.origen ? 15 : 6}
               onLoad={onMapLoad}
               onClick={alTocarMapa}
-              options={{ disableDefaultUI: true, zoomControl: true, styles: tema === 'oscuro' ? MAPA_OSCURO : MAPA_CLARO,
+              options={{ disableDefaultUI: true, zoomControl: true, styles: MAPA_VERDE,
                          draggableCursor: marcandoEnMapa ? 'crosshair' : undefined }}
             >
+              {datosMapa.ruta.length > 0 && (
+                <PolylineF path={datosMapa.ruta} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
+              )}
+
+              {/* HU27 — peajes detectados en la ruta que se está armando, como pines
+                  propios (azul, para no confundirlos con origen/destino). Van ANTES que
+                  origen/destino a propósito: cuando un peaje cae muy cerca de una punta de
+                  la ruta (pasa seguido), el pin de origen/destino queda encima en vez de
+                  taparse por el del peaje — y sigue pudiéndose arrastrar. */}
+              {infoRuta?.datosParaPrecio?.peajes_detectados?.map((peaje, i) => (
+                <MarkerF key={`peaje-${i}`} position={{ lat: peaje.lat, lng: peaje.lng }}
+                  title={`Peaje: ${peaje.nombre} — $${Number(peaje.tarifa).toLocaleString()}`}
+                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: FIJO.cielo, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
+              ))}
+
               {datosMapa.origen && (
                 <MarkerF position={datosMapa.origen} title="Origen — arrástrame para ajustar"
                   draggable onDragEnd={(e) => alArrastrarPunto('origen', e)}
@@ -1787,17 +1802,6 @@ const Dashboard = () => {
                   draggable onDragEnd={(e) => alArrastrarPunto('destino', e)}
                   icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: FIJO.chiva, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2.5 }} />
               )}
-              {datosMapa.ruta.length > 0 && (
-                <PolylineF path={datosMapa.ruta} options={{ strokeColor: FIJO.ruta, strokeWeight: 4 }} />
-              )}
-
-              {/* HU27 — peajes detectados en la ruta que se está armando, como
-                  pines propios (azul, para no confundirlos con origen/destino). */}
-              {infoRuta?.datosParaPrecio?.peajes_detectados?.map((peaje, i) => (
-                <MarkerF key={`peaje-${i}`} position={{ lat: peaje.lat, lng: peaje.lng }}
-                  title={`Peaje: ${peaje.nombre} — $${Number(peaje.tarifa).toLocaleString()}`}
-                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: FIJO.cielo, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
-              ))}
 
               {/* HU43 — Seguimiento del viaje en curso, en el mapa grande.
                   No se repite el pin de origen: ya está el de la búsqueda que se esté

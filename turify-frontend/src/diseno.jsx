@@ -85,6 +85,73 @@ export const MAPA_CLARO = [
   { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  PROPUESTAS DE ESTILO PROPIO — tres direcciones distintas, todas en base clara,
+//  con la paleta real de la marca (ver FIJO / --t-* en index.css). Ninguna está
+//  en uso todavía; son para comparar antes de reemplazar MAPA_CLARO.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 1) VERDE TURIFY — la más "de marca": calles y agua con un tinte verde sutil,
+//    autopistas resaltadas en el verde de ruta, parques en el musgo de la app.
+export const MAPA_VERDE = [
+  { elementType: 'geometry', stylers: [{ color: '#F1F2ED' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#6B7A72' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#FFFFFF' }] },
+  { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#E6F1E8' }] },
+  { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#146B36' }] },
+  { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#FFFFFF' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#E2E4DC' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#DCEBDF' }] },
+  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#B7D9BE' }] },
+  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#146B36' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#CFE3E0' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#7B9490' }] },
+  { featureType: 'administrative', elementType: 'labels.text.fill', stylers: [{ color: '#3A4A42' }] },
+  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
+];
+
+// 2) PAPEL — casi monocromo, muy poco color: deja que la ruta verde y los pines
+//    propios sean lo único que llama la atención en el mapa.
+export const MAPA_PAPEL = [
+  { elementType: 'geometry', stylers: [{ color: '#FBFAF7' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#9AA79F' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#FFFFFF' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#EFEEE7' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#B7BEB4' }] },
+  { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#F3F1E9' }] },
+  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#E4E0D0' }] },
+  { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#F4F5EF' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#E7ECE6' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#B7BEB4' }] },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#E2E4DC' }] },
+];
+
+// 3) CONTRASTE — moderno y minimal: base casi blanca, calles en gris muy claro,
+//    y el verde solo aparece en parques/naturaleza como acento puntual.
+export const MAPA_CONTRASTE = [
+  { elementType: 'geometry', stylers: [{ color: '#FFFFFF' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#8C9A93' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#FFFFFF' }, { weight: 3 }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#EDEEE8' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#DDE0D8' }] },
+  { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#FFFFFF' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#D6ECDB' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#D9E4E2' }] },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#E2E4DC' }] },
+  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
+];
+
 export const FUENTES_URL =
   "https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap";
 
