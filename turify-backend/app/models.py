@@ -52,6 +52,11 @@ class User(Base):
     # RUNT del conductor (experiencia declarada verificada). Es independiente del
     # rol DRIVER/documentos obligatorios de registro — el RUNT es opcional y posterior.
     conductor_verificado = Column(Boolean, default=False)
+    # HU59 — cuántas veces este conductor canceló un viaje ya ASSIGNED sin
+    # justificar fuerza mayor. Es la "penalización en su calificación" del
+    # criterio de aceptación: un contador aparte de rating_avg, porque Rating
+    # exige un viaje COMPLETED y una cancelación nunca llega a serlo.
+    cancelaciones_injustificadas = Column(Integer, nullable=False, default=0)
     created_at          = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     company     = relationship("AffiliatedCompany", back_populates="users")
@@ -202,6 +207,17 @@ class ServiceRequest(Base):
     # (True) en vez de eligiendo negociar manualmente (False). Si es True, el
     # conductor no puede ofertar otro precio: solo aceptar o dejarlo pasar.
     precio_fijo         = Column(Boolean, default=False)
+    # HU59 — registro de cómo se canceló el viaje (SCRUM-211). penalty_amount
+    # es lo que corresponde según la anticipación, calculado sobre el precio
+    # ya aceptado -- Turify todavía no cobra nada automáticamente (no hay
+    # pasarela de pago integrada), es el registro contractual de lo debido.
+    cancelled_by         = Column(Enum('PASSENGER', 'DRIVER', name='cancelled_by_type'))
+    cancellation_reason  = Column(Text)
+    is_force_majeure     = Column(Boolean, default=False)
+    force_majeure_evidence_url = Column(Text)
+    penalty_percentage   = Column(Numeric(5, 2))
+    penalty_amount       = Column(Numeric(10, 2))
+    cancelled_at          = Column(TIMESTAMP(timezone=True))
     created_at          = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 

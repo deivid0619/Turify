@@ -1558,11 +1558,36 @@ def resolve_counter_offer(
 # cancelar desde aquí — a esa altura hay un conductor comprometido y eso
 # necesitaría su propio flujo (no forma parte de este cambio).
 @router.patch("/{request_id}/cancel")
-def cancel_service_request(
+async def cancel_service_request(
     request_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user)
 ):
+    """
+    HU59 (SCRUM-211). Cancela una búsqueda PENDING (sin conductor asignado
+    todavía, siempre libre) o un viaje ya ASSIGNED (con penalización según la
+    anticipación, salvo fuerza mayor con evidencia). Lo puede llamar el
+    pasajero dueño del viaje o el conductor con la oferta ACCEPTED.
+
+    Se leen motivo/es_fuerza_mayor/evidencia como form-data a mano (en vez de
+    con Form(...)/File(...) declarados) para que el llamador simple que no
+    manda body (cancelar una búsqueda PENDING, sin penalización posible)
+    siga funcionando exactamente igual que antes.
+    """
+    motivo = None
+    es_fuerza_mayor = False
+    evidencia = None
+    try:
+        form = await request.form()
+        motivo = (form.get("motivo") or "").strip() or None
+        es_fuerza_mayor = str(form.get("es_fuerza_mayor", "")).lower() == "true"
+        archivo_form = form.get("evidencia")
+        if archivo_form is not None and getattr(archivo_form, "filename", None):
+            evidencia = archivo_form
+    except Exception:
+        pass
+
     viaje = db.query(models.ServiceRequest).filter(
         models.ServiceRequest.request_id == request_id
     ).first()
@@ -1570,47 +1595,128 @@ def cancel_service_request(
     if not viaje:
         raise HTTPException(status_code=404, detail="Viaje no encontrado.")
 
-    if viaje.passenger_id != current_user.user_id:
+    oferta_aceptada = db.query(models.DriverOffer).filter(
+        models.DriverOffer.request_id == request_id,
+        models.DriverOffer.status == 'ACCEPTED'
+    ).first()
+
+    es_pasajero = viaje.passenger_id == current_user.user_id
+    es_conductor = bool(oferta_aceptada) and oferta_aceptada.driver_id == current_user.user_id
+
+    if not es_pasajero and not es_conductor:
         raise HTTPException(status_code=403, detail="No tienes permiso para cancelar este viaje.")
 
-    if viaje.status != 'PENDING':
+    if viaje.status not in ('PENDING', 'ASSIGNED'):
         raise HTTPException(
             status_code=400,
-            detail=f"Solo puedes cancelar la búsqueda mientras el viaje está pendiente. Estado actual: {viaje.status}"
+            detail=f"Solo puedes cancelar un viaje pendiente o confirmado. Estado actual: {viaje.status}"
         )
 
-    viaje.status = 'CANCELLED'
+    if es_fuerza_mayor and not evidencia:
+        raise HTTPException(
+            status_code=400,
+            detail="Para reportar fuerza mayor debes adjuntar una evidencia (foto, certificado, etc.)."
+        )
 
-    # Cualquier oferta que ya hubieran enviado conductores para este viaje
-    # queda sin efecto — se avisa a cada conductor para que no siga esperando
-    # respuesta de una solicitud que ya no existe.
-    ofertas_activas = db.query(models.DriverOffer).filter(
-        models.DriverOffer.request_id == request_id,
-        models.DriverOffer.status.in_(['DRIVER_OFFERED', 'PASSENGER_COUNTER_OFFERED'])
-    ).all()
-    for oferta in ofertas_activas:
-        oferta.status = 'REJECTED'
+    evidencia_url = None
+    if evidencia:
+        supabase = get_supabase()
+        evidencia_url = await upload_to_supabase(
+            supabase, evidencia, "turify-documentos", f"trips/{request_id}/cancelacion",
+            db=db, current_user=current_user,
+        )
 
-    db.commit()
+    # Penalización (HU59): solo puede aplicarle al pasajero, y solo si ya
+    # había un conductor comprometido (ASSIGNED) — mientras está PENDING
+    # nadie comprometió nada todavía, así que cancelar siempre es libre.
+    penalty_pct = 0
+    penalty_amount = 0.0
+    if es_pasajero and viaje.status == 'ASSIGNED' and oferta_aceptada and not es_fuerza_mayor:
+        horas_restantes = (viaje.departure_time.replace(tzinfo=None) - datetime.now()).total_seconds() / 3600
+        if horas_restantes >= 24:
+            penalty_pct = 0
+        elif horas_restantes >= 2:
+            penalty_pct = 30
+        else:
+            penalty_pct = 50
+        penalty_amount = float(oferta_aceptada.offered_price) * penalty_pct / 100
 
-    for oferta in ofertas_activas:
+    viaje.cancelled_by = 'PASSENGER' if es_pasajero else 'DRIVER'
+    viaje.cancellation_reason = motivo
+    viaje.is_force_majeure = es_fuerza_mayor
+    viaje.force_majeure_evidence_url = evidencia_url
+    viaje.penalty_percentage = penalty_pct
+    viaje.penalty_amount = penalty_amount
+    viaje.cancelled_at = datetime.now()
+
+    if es_conductor:
+        # El conductor se retracta: el viaje vuelve a PENDING para que otro
+        # conductor lo pueda tomar, en vez de dejar al pasajero varado. El
+        # FUEC (si ya lo había subido) deja de servir -- lo expide la empresa
+        # de ESTE conductor, no la del que tome el viaje después.
+        viaje.status = 'PENDING'
+        viaje.fuec_url = None
+        oferta_aceptada.status = 'REJECTED'
+        if not es_fuerza_mayor:
+            current_user.cancelaciones_injustificadas = (current_user.cancelaciones_injustificadas or 0) + 1
+
+        db.commit()
+
         crear_notificacion(
             db,
-            user_id=oferta.driver_id,
-            title="Viaje cancelado por el pasajero",
-            message=f"El pasajero canceló la solicitud de {viaje.origin} → {viaje.destination}.",
-            tipo="TRIP_REJECTED",
-            offer_id=oferta.offer_id
+            user_id=viaje.passenger_id,
+            title="Tu conductor canceló el viaje",
+            message=f"El conductor no podrá cumplir el viaje de {viaje.origin} → {viaje.destination}. Seguimos buscando otro conductor.",
+            tipo="SYSTEM",
+            offer_id=oferta_aceptada.offer_id
         )
+    else:
+        viaje.status = 'CANCELLED'
+
+        # Cualquier oferta pendiente de respuesta queda sin efecto — se avisa
+        # a cada conductor para que no siga esperando una solicitud que ya no existe.
+        ofertas_activas = db.query(models.DriverOffer).filter(
+            models.DriverOffer.request_id == request_id,
+            models.DriverOffer.status.in_(['DRIVER_OFFERED', 'PASSENGER_COUNTER_OFFERED'])
+        ).all()
+        for oferta in ofertas_activas:
+            oferta.status = 'REJECTED'
+        if oferta_aceptada:
+            oferta_aceptada.status = 'REJECTED'
+
+        db.commit()
+
+        for oferta in ofertas_activas:
+            crear_notificacion(
+                db,
+                user_id=oferta.driver_id,
+                title="Viaje cancelado por el pasajero",
+                message=f"El pasajero canceló la solicitud de {viaje.origin} → {viaje.destination}.",
+                tipo="TRIP_REJECTED",
+                offer_id=oferta.offer_id
+            )
+        if oferta_aceptada:
+            detalle_penalizacion = f" Penalización: {penalty_pct}% (${penalty_amount:,.0f})." if penalty_amount > 0 else " Sin penalización."
+            crear_notificacion(
+                db,
+                user_id=oferta_aceptada.driver_id,
+                title="Viaje cancelado por el pasajero",
+                message=f"El pasajero canceló el viaje confirmado de {viaje.origin} → {viaje.destination}.{detalle_penalizacion}",
+                tipo="TRIP_REJECTED",
+                offer_id=oferta_aceptada.offer_id
+            )
 
     registrar_log(db, action="CANCEL_TRIP", user_id=current_user.user_id,
         entity="ServiceRequest", entity_id=viaje.request_id,
-        detail=f"Pasajero #{current_user.user_id} canceló la búsqueda del viaje #{request_id}")
+        detail=f"{'Pasajero' if es_pasajero else 'Conductor'} #{current_user.user_id} canceló el viaje #{request_id}"
+               + (f" — penalización {penalty_pct}%" if penalty_amount > 0 else ""))
 
     return {
-        "message": "Búsqueda cancelada.",
+        "message": "Viaje cancelado.",
         "request_id": viaje.request_id,
-        "status": "CANCELLED"
+        "status": viaje.status,
+        "penalty_percentage": penalty_pct,
+        "penalty_amount": penalty_amount,
     }
 
 

@@ -223,31 +223,40 @@ const Politicas = () => {
           {/* 3. CANCELACIONES */}
           <Seccion id="cancelaciones" numero={3} titulo="Política de Cancelaciones y Penalizaciones">
             <P>
-              Esta sección corresponde a <b>HU59 (SCRUM-211)</b> en el backlog de Jira, todavía sin implementar en
-              el producto — se deja redactada como base para cuando se construya.
+              Corresponde a <b>HU59 (SCRUM-211)</b> en el backlog de Jira.
             </P>
             <Tabla
-              encabezados={['Momento', 'Quién cancela', 'Regla propuesta']}
+              encabezados={['Momento', 'Quién cancela', 'Regla']}
               filas={[
-                ['Antes de aceptar una oferta', 'Pasajero', 'Cancelación libre, sin penalización'],
+                ['Antes de aceptar una oferta', 'Pasajero', 'Cancelación libre, sin penalización — todavía nadie comprometió un vehículo'],
                 ['Antes de aceptar una oferta', 'Conductor', 'Puede retirar su oferta libremente'],
-                ['Oferta aceptada, viaje aún no iniciado', 'Pasajero', 'Libre hasta cierto tiempo antes de la salida (ej. 2 horas); después, afecta su calificación como pasajero'],
-                ['Oferta aceptada, viaje aún no iniciado', 'Conductor', 'Debe avisar lo antes posible; cancelaciones frecuentes o de último momento afectan su calificación y pueden derivar en suspensión temporal'],
-                ['Viaje ya iniciado (IN_PROGRESS)', 'Ninguna de las dos partes', 'No es cancelable por la app — se resuelve directamente entre pasajero y conductor; casos de fuerza mayor (accidente, emergencia médica) se documentan aparte y no cuentan como incumplimiento'],
+                ['Oferta aceptada, 24 horas o más antes de la salida', 'Pasajero', 'Cancelación libre, sin penalización'],
+                ['Oferta aceptada, entre 24 y 2 horas antes de la salida', 'Pasajero', '30% de penalización sobre el precio acordado'],
+                ['Oferta aceptada, menos de 2 horas antes de la salida (o no presentación)', 'Pasajero', '50% de penalización sobre el precio acordado'],
+                ['Oferta aceptada, viaje aún no iniciado', 'Conductor', 'Sin penalización económica al pasajero — pero si no fue por fuerza mayor, queda registrado como cancelación injustificada contra su confiabilidad como conductor. El viaje vuelve a quedar disponible para que otro conductor lo tome.'],
+                ['Viaje ya iniciado (IN_PROGRESS)', 'Ninguna de las dos partes', 'No es cancelable por la app — se resuelve directamente entre pasajero y conductor'],
               ]}
             />
 
             <Sub>3.1 Fuerza mayor</Sub>
             <P>
               Condiciones climáticas severas, cierres de vía, emergencias médicas o de seguridad no se penalizan,
-              pero deben poder documentarse (por ejemplo, con un motivo obligatorio al cancelar).
+              siempre que se documenten con un motivo y una evidencia (foto, certificado, reporte, etc.) al momento
+              de cancelar.
             </P>
 
-            <Sub>3.2 Reincidencia</Sub>
+            <Sub>3.2 Sobre el cobro de la penalización</Sub>
             <P>
-              Un número alto de cancelaciones tardías en un periodo (a definir, ej. 3 en 30 días) puede derivar en
-              restricciones temporales para publicar viajes o recibir solicitudes, previa notificación al
-              usuario.
+              Turify todavía no procesa pagos dentro de la plataforma (ver Épica 6 en el backlog) — el monto de la
+              penalización se calcula y se muestra en el momento de cancelar, como referencia de lo que corresponde
+              según esta política, pero no se cobra automáticamente.
+            </P>
+
+            <Sub>3.3 Reincidencia</Sub>
+            <P>
+              Un número alto de cancelaciones tardías o injustificadas en un periodo (a definir, ej. 3 en 30 días)
+              puede derivar en restricciones temporales para publicar viajes o recibir solicitudes, previa
+              notificación al usuario. Todavía sin implementar.
             </P>
           </Seccion>
 

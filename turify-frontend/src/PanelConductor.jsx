@@ -498,6 +498,16 @@ const PanelConductor = ({ onVerRuta }) => {
   const [gestionandoViaje, setGestionandoViaje] = useState(null); // request_id en proceso
   const [aceptandoPrecioFijo, setAceptandoPrecioFijo] = useState(null); // request_id en proceso
 
+  // HU59 — Cancelar un viaje ya ASSIGNED (SCRUM-211). A diferencia del
+  // pasajero, al conductor no le aplica un % sobre el precio -- el criterio
+  // de aceptación es "penalización en su calificación": si cancela sin
+  // fuerza mayor, sube el contador cancelaciones_injustificadas del usuario.
+  const [modalCancelarViaje, setModalCancelarViaje] = useState(null); // el viaje completo, no solo el id
+  const [motivoCancelacion, setMotivoCancelacion] = useState('');
+  const [fuerzaMayorCancelacion, setFuerzaMayorCancelacion] = useState(false);
+  const [evidenciaCancelacion, setEvidenciaCancelacion] = useState(null);
+  const [enviandoCancelacion, setEnviandoCancelacion] = useState(false);
+
   // FUEC — el archivo lo expide la empresa afiliada y lo sube el conductor acá
   // (ver POST /{request_id}/fuec). Un solo input oculto reutilizado por todas
   // las tarjetas: abrirSelectorFuec guarda para cuál viaje es antes de abrir
@@ -577,6 +587,44 @@ const PanelConductor = ({ onVerRuta }) => {
       toast.error(`Error: ${e.message}`);
     } finally {
       setGestionandoViaje(null);
+    }
+  };
+
+  const abrirModalCancelarViaje = (viaje) => {
+    setMotivoCancelacion('');
+    setFuerzaMayorCancelacion(false);
+    setEvidenciaCancelacion(null);
+    setModalCancelarViaje(viaje);
+  };
+
+  const confirmarCancelacionViaje = async () => {
+    if (!modalCancelarViaje) return;
+    if (fuerzaMayorCancelacion && !evidenciaCancelacion) {
+      toast.error('Adjunta una evidencia (foto, certificado, etc.) para reportar fuerza mayor.');
+      return;
+    }
+    setEnviandoCancelacion(true);
+    try {
+      const formData = new FormData();
+      if (motivoCancelacion.trim()) formData.append('motivo', motivoCancelacion.trim());
+      formData.append('es_fuerza_mayor', fuerzaMayorCancelacion ? 'true' : 'false');
+      if (evidenciaCancelacion) formData.append('evidencia', evidenciaCancelacion);
+
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${modalCancelarViaje.request_id}/cancel`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'No se pudo cancelar el viaje.');
+
+      toast.success('Viaje cancelado. Volvió a quedar disponible para otro conductor.');
+      setModalCancelarViaje(null);
+      cargarViajesActivos();
+    } catch (error) {
+      toast.error(`Error: ${error.message}`);
+    } finally {
+      setEnviandoCancelacion(false);
     }
   };
 
@@ -1226,6 +1274,22 @@ const PanelConductor = ({ onVerRuta }) => {
                     );
                   })()}
 
+                  {/* Cancelar viaje — HU59 (SCRUM-211). Solo mientras está
+                      ASSIGNED: una vez IN_PROGRESS ya recogiste al pasajero,
+                      no es cancelable por la app. Cancelar sin fuerza mayor
+                      queda registrado y afecta tu confiabilidad. */}
+                  {esAceptado && estadoViaje === 'ASSIGNED' && (
+                    <button
+                      onClick={() => abrirModalCancelarViaje(viaje)}
+                      style={{
+                        marginTop: '8px', width: '100%', padding: '9px',
+                        background: 'var(--t-alerta-suave)', border: '1px solid var(--t-alerta-linea)', borderRadius: '8px',
+                        color: 'var(--t-alerta-texto)', fontSize: '13px', fontWeight: '700', cursor: 'pointer'
+                      }}>
+                      <IconEquis size={14} />Cancelar viaje
+                    </button>
+                  )}
+
                   {esAceptado && estadoViaje === 'IN_PROGRESS' && (
                     <div style={{ marginTop: '10px' }}>
                       <div style={{ backgroundColor: 'var(--t-cielo-suave)', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '13px', color: 'var(--t-cielo-texto)', fontWeight: '600' }}>
@@ -1752,6 +1816,68 @@ const PanelConductor = ({ onVerRuta }) => {
                 <button onClick={enviarCalificacion} disabled={enviandoCalificacion || estrellasCalificar < 1}
                   style={{ flex: 1, background: (enviandoCalificacion || estrellasCalificar < 1) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: (enviandoCalificacion || estrellasCalificar < 1) ? 'not-allowed' : 'pointer' }}>
                   {enviandoCalificacion ? 'Enviando...' : 'Enviar calificación'}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL CANCELAR VIAJE — HU59 (SCRUM-211) */}
+      <AnimatePresence>
+        {modalCancelarViaje && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => !enviandoCancelacion && setModalCancelarViaje(null)}
+              style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
+            <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
+              style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '380px', maxWidth: '92vw', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+              <h3 style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px', fontFamily: T.display, fontWeight: 800, letterSpacing: '-.01em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <IconAlerta size={17} color="var(--t-alerta-linea)" />Cancelar viaje
+              </h3>
+              <p style={{ margin: '0 0 14px', color: 'var(--t-piedra)', fontSize: '14px' }}>
+                {modalCancelarViaje.origin} → {modalCancelarViaje.destination}
+              </p>
+
+              {!fuerzaMayorCancelacion && (
+                <div style={{ padding: '10px 12px', borderRadius: '8px', marginBottom: '14px', background: 'var(--t-alerta-suave)', border: '1px solid var(--t-alerta-linea)' }}>
+                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'var(--t-alerta-texto)' }}>Esto queda registrado como cancelación</p>
+                  <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>
+                    Sin fuerza mayor, afecta tu confiabilidad como conductor. El pasajero no queda varado: el viaje vuelve a quedar disponible para otro conductor.
+                  </p>
+                </div>
+              )}
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--t-tinta)', marginBottom: '10px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={fuerzaMayorCancelacion}
+                  onChange={e => setFuerzaMayorCancelacion(e.target.checked)} />
+                Fue por fuerza mayor (accidente, falla mecánica, clima extremo, etc.)
+              </label>
+
+              {fuerzaMayorCancelacion && (
+                <div style={{ marginBottom: '10px' }}>
+                  <p style={{ margin: '0 0 6px', fontSize: '12px', color: 'var(--t-piedra)' }}>
+                    No afecta tu confiabilidad si adjuntas una evidencia (foto, reporte, certificado, etc.).
+                  </p>
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    onChange={e => setEvidenciaCancelacion(e.target.files?.[0] || null)}
+                    style={{ fontSize: '12.5px', width: '100%' }} />
+                </div>
+              )}
+
+              <textarea value={motivoCancelacion} onChange={e => setMotivoCancelacion(e.target.value)}
+                placeholder={fuerzaMayorCancelacion ? 'Cuéntanos qué pasó (obligatorio)' : 'Motivo (opcional)'} rows={2}
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', outline: 'none', resize: 'none', fontFamily: 'inherit', marginBottom: '16px' }} />
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={() => setModalCancelarViaje(null)} disabled={enviandoCancelacion}
+                  style={{ flex: 1, background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>
+                  Volver
+                </button>
+                <button onClick={confirmarCancelacionViaje}
+                  disabled={enviandoCancelacion || (fuerzaMayorCancelacion && (!evidenciaCancelacion || !motivoCancelacion.trim()))}
+                  style={{ flex: 1, background: enviandoCancelacion ? 'var(--t-piedra-clara)' : 'var(--t-alerta-linea)', color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: enviandoCancelacion ? 'not-allowed' : 'pointer' }}>
+                  {enviandoCancelacion ? 'Cancelando…' : 'Sí, cancelar viaje'}
                 </button>
               </div>
             </motion.div>
