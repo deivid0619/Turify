@@ -59,6 +59,16 @@ const PanelConductor = ({ onVerRuta }) => {
   const [peajesRutaConductor, setPeajesRutaConductor] = useState([]);
   const [notificaciones, setNotificaciones] = useState([]);
   const [mostrarNotifPanel, setMostrarNotifPanel] = useState(false);
+  // Campana animada: solo se sacude cuando el número de no-leídas SUBE (llega
+  // algo nuevo), no en cada refresco ni al abrir el panel — si animara siempre
+  // que hay pendientes, se sacudiría sin parar mientras alguien no las lea.
+  const [campanaSacudida, setCampanaSacudida] = useState(false);
+  const noLeidasPrevRef = useRef(0);
+  useEffect(() => {
+    const noLeidas = notificaciones.filter(n => !n.is_read).length;
+    if (noLeidas > noLeidasPrevRef.current) setCampanaSacudida(true);
+    noLeidasPrevRef.current = noLeidas;
+  }, [notificaciones]);
   // HU37 — el conductor accede a "Mis Docs" (subir RUNT) desde el drawer de perfil,
   // que antes solo se abría desde el Dashboard del pasajero.
   const [mostrarPerfil, setMostrarPerfil] = useState(false);
@@ -855,12 +865,22 @@ const PanelConductor = ({ onVerRuta }) => {
             {/* Campana de notificaciones */}
             <button onClick={() => setMostrarNotifPanel(true)} title="Notificaciones" className="t-foco"
               style={{ position: 'relative', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: `1px solid ${T.monteLinea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <IconCampana size={15} color="rgba(234,242,236,.8)" />
-              {notificaciones.filter(n => !n.is_read).length > 0 && (
-                <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: T.alerta, color: '#fff', borderRadius: '50%', minWidth: '16px', height: '16px', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${T.monte}`, padding: '0 3px' }}>
-                  {notificaciones.filter(n => !n.is_read).length}
-                </span>
-              )}
+              <motion.span
+                animate={campanaSacudida ? { rotate: [0, -14, 11, -8, 5, -2, 0] } : { rotate: 0 }}
+                transition={{ duration: 0.5, ease: 'easeInOut' }}
+                onAnimationComplete={() => setCampanaSacudida(false)}
+                style={{ display: 'inline-flex', transformOrigin: '50% 20%' }}>
+                <IconCampana size={15} color="rgba(234,242,236,.8)" />
+              </motion.span>
+              <AnimatePresence>
+                {notificaciones.filter(n => !n.is_read).length > 0 && (
+                  <motion.span initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.6, opacity: 0 }}
+                    transition={{ type: 'spring', duration: 0.4, bounce: 0.3 }}
+                    style={{ position: 'absolute', top: '-4px', right: '-4px', background: T.alerta, color: '#fff', borderRadius: '50%', minWidth: '16px', height: '16px', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${T.monte}`, padding: '0 3px' }}>
+                    {notificaciones.filter(n => !n.is_read).length}
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </button>
           </div>
         </div>
@@ -1066,13 +1086,14 @@ const PanelConductor = ({ onVerRuta }) => {
               </motion.div>
             )}
             {/* TARJETAS */}
-            {!cargando && solicitudesFiltradas.map((sol) => {
+            {!cargando && solicitudesFiltradas.map((sol, index) => {
               const estaSeleccionada = tarjetaRutaId === sol.request_id;
               return (
                 <motion.div key={sol.request_id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                  style={{ border: `1px solid ${estaSeleccionada ? BRAND_GREEN : 'var(--t-linea)'}`, borderRadius: '12px', marginBottom: '12px', overflow: 'hidden', boxShadow: estaSeleccionada ? `0 0 0 2px ${BRAND_GREEN}33` : '0 1px 3px rgba(0,0,0,0.06)', transition: 'all 0.2s' }}>
+                  transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.04, ease: [0.23, 1, 0.32, 1] }}
+                  style={{ border: `1px solid ${estaSeleccionada ? BRAND_GREEN : 'var(--t-linea)'}`, borderRadius: '12px', marginBottom: '12px', overflow: 'hidden', boxShadow: estaSeleccionada ? `0 0 0 2px ${BRAND_GREEN}33` : '0 1px 3px rgba(0,0,0,0.06)', transition: 'border-color 0.2s, box-shadow 0.2s' }}>
                   {/* Cuerpo clickeable → traza ruta SCRUM-77 */}
-                  <div onClick={() => handleClickTarjeta(sol)} style={{ padding: '14px', cursor: 'pointer', backgroundColor: estaSeleccionada ? 'var(--t-musgo)' : '#fff' }}>
+                  <div onClick={() => handleClickTarjeta(sol)} style={{ padding: '14px', cursor: 'pointer', backgroundColor: estaSeleccionada ? 'var(--t-musgo)' : 'var(--t-papel)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
                       <div style={{ flex: 1 }}>
                         <TableroRuta origen={sol.origin} destino={sol.destination} size={11} />
@@ -1157,7 +1178,7 @@ const PanelConductor = ({ onVerRuta }) => {
               </motion.div>
             )}
 
-            {viajesActivos.map((viaje) => {
+            {viajesActivos.map((viaje, index) => {
               const esContraoferta = viaje.status === 'PASSENGER_COUNTER_OFFERED';
               const esAceptado = viaje.status === 'ACCEPTED';
               const esRechazado = viaje.status === 'REJECTED';
@@ -1179,8 +1200,9 @@ const PanelConductor = ({ onVerRuta }) => {
 
               return (
                 <motion.div key={viaje.offer_id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.04, ease: [0.23, 1, 0.32, 1] }}
                   style={{ border: `1px solid ${esContraoferta ? '#3b82f6' : 'var(--t-linea)'}`, borderRadius: '12px', padding: '14px', marginBottom: '12px', overflow: 'hidden',
-                    boxShadow: esContraoferta ? '0 0 0 2px #3b82f633' : 'none', transition: 'all 0.2s' }}>
+                    boxShadow: esContraoferta ? '0 0 0 2px #3b82f633' : 'none' }}>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '8px' }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
@@ -1703,7 +1725,7 @@ const PanelConductor = ({ onVerRuta }) => {
                   return (
                     <div key={notif.notification_id}
                       onClick={() => !notif.is_read && marcarLeida(notif.notification_id)}
-                      style={{ backgroundColor: notif.is_read ? '#fff' : cfg.bg, borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', border: `1px solid ${notif.is_read ? 'var(--t-linea)' : cfg.color + '33'}`, cursor: notif.is_read ? 'default' : 'pointer', transition: 'all 0.2s' }}>
+                      style={{ backgroundColor: notif.is_read ? 'var(--t-papel)' : cfg.bg, borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', border: `1px solid ${notif.is_read ? 'var(--t-linea)' : cfg.color + '33'}`, cursor: notif.is_read ? 'default' : 'pointer', transition: 'all 0.2s' }}>
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                         <span style={{ flexShrink: 0, width: '28px', height: '28px', borderRadius: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: notif.is_read ? T.niebla2 : 'rgba(255,255,255,.16)', color: notif.is_read ? T.piedraClara : cfg.color }}>
                           <cfg.Ico size={15} />

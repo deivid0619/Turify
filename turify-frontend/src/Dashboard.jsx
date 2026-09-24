@@ -246,6 +246,16 @@ const Dashboard = () => {
   const [viajeSeleccionado, setViajeSeleccionado] = useState(null);
   const [notificaciones, setNotificaciones] = useState([]);
   const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
+  // Campana animada: solo se sacude cuando el número de no-leídas SUBE (llega
+  // algo nuevo), no en cada refresco ni al abrir el panel — si animara siempre
+  // que hay pendientes, se sacudiría sin parar mientras alguien no las lea.
+  const [campanaSacudida, setCampanaSacudida] = useState(false);
+  const noLeidasPrevRef = useRef(0);
+  useEffect(() => {
+    const noLeidas = notificaciones.filter(n => !n.is_read).length;
+    if (noLeidas > noLeidasPrevRef.current) setCampanaSacudida(true);
+    noLeidasPrevRef.current = noLeidas;
+  }, [notificaciones]);
   const [mostrarPerfil, setMostrarPerfil] = useState(false);
   const [modalFuec, setModalFuec] = useState(null); // request_id del viaje a registrar
   // HU46 — Calificaciones bidireccionales
@@ -1646,12 +1656,19 @@ const Dashboard = () => {
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
               onClick={() => { setMostrarNotificaciones(true); }}
               style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '35px', height: '35px', borderRadius: '50%', background: 'var(--t-papel)', border: '1px solid var(--t-linea)' }}>
-              <Icono size={17} color="var(--t-piedra)">
-                <path d="M18 15.5V11a6 6 0 1 0-12 0v4.5L4.5 18h15L18 15.5Z" /><path d="M10 20.5a2.2 2.2 0 0 0 4 0" />
-              </Icono>
+              <motion.span
+                animate={campanaSacudida ? { rotate: [0, -14, 11, -8, 5, -2, 0] } : { rotate: 0 }}
+                transition={{ duration: 0.5, ease: 'easeInOut' }}
+                onAnimationComplete={() => setCampanaSacudida(false)}
+                style={{ display: 'inline-flex', transformOrigin: '50% 20%' }}>
+                <Icono size={17} color="var(--t-piedra)">
+                  <path d="M18 15.5V11a6 6 0 1 0-12 0v4.5L4.5 18h15L18 15.5Z" /><path d="M10 20.5a2.2 2.2 0 0 0 4 0" />
+                </Icono>
+              </motion.span>
               <AnimatePresence>
                 {notificaciones.filter(n => !n.is_read).length > 0 && (
-                  <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
+                  <motion.span initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.6, opacity: 0 }}
+                    transition={{ type: 'spring', duration: 0.4, bounce: 0.3 }}
                     style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#C2410C', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '12px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '2px solid #fff' }}>
                     {notificaciones.filter(n => !n.is_read).length}
                   </motion.span>
@@ -1703,16 +1720,21 @@ const Dashboard = () => {
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', width: '100%' }}>
-              <SelectorFechaHora
-                label="Salida"
-                value={busqueda.departure_time}
-                onChange={val => setBusqueda(prev => ({ ...prev, departure_time: val }))}
-                placeholder="Fecha y hora de salida"
-                required
-              />
+              {/* flex:1 + minWidth:0 en las dos — sin esto "Salida" queda con su
+                  ancho natural mientras "Regreso" (con flexShrink:0) queda con el
+                  suyo, y como los textos no miden lo mismo las tarjetas no calzan. */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <SelectorFechaHora
+                  label="Salida"
+                  value={busqueda.departure_time}
+                  onChange={val => setBusqueda(prev => ({ ...prev, departure_time: val }))}
+                  placeholder="Fecha y hora de salida"
+                  required
+                />
+              </div>
               <AnimatePresence>
                 {tipoViaje === 'redondo' && (
-                  <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} style={{ flexShrink: 0 }}>
+                  <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} style={{ flex: 1, minWidth: 0 }}>
                     <SelectorFechaHora
                       label="Regreso"
                       value={busqueda.return_time}
@@ -1936,7 +1958,9 @@ const Dashboard = () => {
                     manual (contraoferta) sigue existiendo más adelante, pero ya no es
                     el punto de partida — este precio sí lo es. */}
                 {(cargandoPrecio || precioSugerido) && (
-                  <div style={{ textAlign: 'left', margin: '0 0 14px', padding: '14px 16px', background: 'rgba(22,163,74,0.07)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '12px' }}>
+                  <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
+                    style={{ textAlign: 'left', margin: '0 0 14px', padding: '14px 16px', background: 'rgba(22,163,74,0.07)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
                       <IconPrecio size={13} color={BRAND_GREEN} />
                       <span style={{ fontFamily: T.dato, fontSize: '10.5px', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--t-piedra)' }}>
@@ -1949,7 +1973,7 @@ const Dashboard = () => {
                     ) : (
                       <>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
-                          <span style={{ fontFamily: T.display, fontSize: '28px', fontWeight: 800, color: BRAND_GREEN, opacity: cargandoPrecio ? 0.55 : 1 }}>
+                          <span style={{ fontFamily: T.dato, fontSize: '28px', fontWeight: 600, color: BRAND_GREEN, opacity: cargandoPrecio ? 0.55 : 1 }}>
                             ${Number(precioSugerido.precio_sugerido).toLocaleString('es-CO')}
                           </span>
                           <span style={{ fontSize: '12.5px', color: 'var(--t-piedra)' }}>
@@ -2001,7 +2025,7 @@ const Dashboard = () => {
                         )}
                       </>
                     )}
-                  </div>
+                  </motion.div>
                 )}
 
                 {/* HU55.1 — Estándar / Premium */}
@@ -2228,10 +2252,12 @@ const Dashboard = () => {
                     <p style={{ margin: 0, fontSize: '14px', color: 'var(--t-piedra)', lineHeight: '1.5' }}>Busca una ruta en el mapa y<br/>publica tu primer viaje.</p>
                   </div>
                 )}
-                {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.map((viaje) => {
+                {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.map((viaje, index) => {
                   const avisoSinOfertas = viaje.ofertas.length === 0 && minutosTranscurridos(viaje.created_at) >= MINUTOS_AVISO_SIN_OFERTAS;
                   return (
-                  <div key={viaje.id} onClick={() => setViajeSeleccionado(viaje)} className="viaje-pasaje" style={{ cursor: 'pointer', padding: '13px 16px' }}>
+                  <motion.div key={viaje.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.04, ease: [0.23, 1, 0.32, 1] }}
+                    onClick={() => setViajeSeleccionado(viaje)} className="viaje-pasaje" style={{ cursor: 'pointer', padding: '13px 16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                       <TableroRuta origen={viaje.origin} destino={viaje.destination} size={11} style={{ flex: 1 }} />
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, marginLeft: '8px', color: viaje.ofertas.length > 0 ? BRAND_GREEN : 'var(--t-chiva-texto)', fontSize: '12px', fontWeight: '700' }}>
@@ -2288,7 +2314,7 @@ const Dashboard = () => {
                         </button>
                       </div>
                     )}
-                  </div>
+                  </motion.div>
                   );
                 })}
 
@@ -2315,7 +2341,7 @@ const Dashboard = () => {
                 )}
 
                 {!viajeSeleccionado && (pestanaViajes === 'confirmados' || pestanaViajes === 'completados') &&
-                  (pestanaViajes === 'completados' ? viajesCompletadosOrdenados : viajesActivosConfirmados).map((viaje) => {
+                  (pestanaViajes === 'completados' ? viajesCompletadosOrdenados : viajesActivosConfirmados).map((viaje, index) => {
                   const cfgEstadoViaje = {
                     ASSIGNED:    { color: BRAND_GREEN, badgeBg: 'var(--t-musgo)', badgeColor: 'var(--t-musgo-texto)', Icono: IconVisto, badgeLabel: 'Confirmado', info: 'El conductor está listo para recogerte.' },
                     IN_PROGRESS: { color: 'var(--t-cielo)',   badgeBg: 'var(--t-cielo-suave)', badgeColor: '#1e40af', Icono: IconAuto,  badgeLabel: 'En camino',   info: '¡Tu conductor está en camino!' },
@@ -2325,7 +2351,9 @@ const Dashboard = () => {
                   const esEnCurso = viaje.trip_status === 'IN_PROGRESS';
 
                   return (
-                    <div key={viaje.id} className="viaje-pasaje">
+                    <motion.div key={viaje.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.04, ease: [0.23, 1, 0.32, 1] }}
+                      className="viaje-pasaje">
                       <div style={{ padding: '16px 18px 14px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                           <span style={{ fontSize: '12.5px', color: 'var(--t-piedra-clara)' }}>{viaje.fechaCreacion}</span>
@@ -2522,7 +2550,7 @@ const Dashboard = () => {
                         </button>
                       )}
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 })}
 
@@ -2537,8 +2565,10 @@ const Dashboard = () => {
                           </div>
                         );
                       }
-                      return viajeActualizado.ofertas.map(oferta => (
-                        <div key={oferta.id} style={{ border: '1px solid var(--t-linea)', borderRadius: '14px', padding: '16px', marginBottom: '14px', background: 'var(--t-papel)', boxShadow: '0 1px 2px rgba(15,23,42,0.04)' }}>
+                      return viajeActualizado.ofertas.map((oferta, index) => (
+                        <motion.div key={oferta.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.04, ease: [0.23, 1, 0.32, 1] }}
+                          style={{ border: '1px solid var(--t-linea)', borderRadius: '14px', padding: '16px', marginBottom: '14px', background: 'var(--t-papel)', boxShadow: '0 1px 2px rgba(15,23,42,0.04)' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px' }}>
                             <div onClick={() => abrirPerfilConductor(oferta.driverId)}
                               style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', minWidth: 0 }}
@@ -2559,7 +2589,7 @@ const Dashboard = () => {
                                 <div style={{ fontSize: '12.5px', color: 'var(--t-piedra)', marginTop: '1px' }}>{oferta.vehiculo}</div>
                               </div>
                             </div>
-                            <div style={{ fontWeight: '800', fontSize: '17px', color: BRAND_GREEN, flexShrink: 0, fontFamily: T.display }}>${oferta.precio.toLocaleString()}</div>
+                            <div style={{ fontWeight: '600', fontSize: '17px', color: BRAND_GREEN, flexShrink: 0, fontFamily: T.dato }}>${oferta.precio.toLocaleString()}</div>
                           </div>
 
                           {oferta.comodidades && (
@@ -2614,7 +2644,7 @@ const Dashboard = () => {
                                 : <IconEquis size={14} />}
                             </button>
                           </div>
-                        </div>
+                        </motion.div>
                       ));
                     })()}
                   </div>

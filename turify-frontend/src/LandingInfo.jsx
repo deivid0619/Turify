@@ -1,5 +1,6 @@
 import { T, Boton, TableroRuta, IconMapa, IconPrecio, IconVisto, IconEscudo, IconDocumento,
          IconTarjeta, IconAuto, IconPin, IconRecibo, LogoWordmark } from './diseno';
+import { motion } from 'framer-motion';
 
 const BRAND_GREEN = 'var(--t-ruta)';
 
@@ -66,12 +67,16 @@ const LandingInfo = ({ onQuieroConducir }) => {
           saben qué hace falta antes de salir.</p>
         <div className="li-grid-pasos">
           {PASOS.map((p, i) => (
-            <div key={i} className="li-paso">
+            <motion.div key={i} className="li-paso"
+              initial={{ clipPath: 'inset(0 0 100% 0)' }}
+              whileInView={{ clipPath: 'inset(0 0 0% 0)' }}
+              viewport={{ once: true, margin: '-100px' }}
+              transition={{ duration: 0.6, delay: i * 0.06, ease: [0.77, 0, 0.175, 1] }}>
               <div className="li-paso-ico"><p.Ico size={20} /></div>
               <span className="li-paso-num">0{i + 1}</span>
               <h3 className="li-paso-titulo">{p.titulo}</h3>
               <p className="li-paso-texto">{p.texto}</p>
-            </div>
+            </motion.div>
           ))}
         </div>
       </section>
@@ -85,9 +90,13 @@ const LandingInfo = ({ onQuieroConducir }) => {
             demás — fincas, veredas y corregimientos que necesitan transporte especial para moverse.</p>
           <div className="li-rutas-grid">
             {RUTAS_COBERTURA.map(([origen, destino], i) => (
-              <div key={i} className="li-ruta-tarjeta">
+              <motion.div key={i} className="li-ruta-tarjeta"
+                initial={{ clipPath: 'inset(0 0 100% 0)' }}
+                whileInView={{ clipPath: 'inset(0 0 0% 0)' }}
+                viewport={{ once: true, margin: '-100px' }}
+                transition={{ duration: 0.6, delay: Math.min(i, 6) * 0.05, ease: [0.77, 0, 0.175, 1] }}>
                 <TableroRuta origen={origen} destino={destino} size={13} />
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
@@ -102,10 +111,14 @@ const LandingInfo = ({ onQuieroConducir }) => {
           básico esté al día.</p>
         <div className="li-doc-grid">
           {DOCUMENTOS.map((d, i) => (
-            <div key={i} className="li-doc">
+            <motion.div key={i} className="li-doc"
+              initial={{ clipPath: 'inset(0 0 100% 0)' }}
+              whileInView={{ clipPath: 'inset(0 0 0% 0)' }}
+              viewport={{ once: true, margin: '-100px' }}
+              transition={{ duration: 0.6, delay: i * 0.06, ease: [0.77, 0, 0.175, 1] }}>
               <d.Ico size={22} color={BRAND_GREEN} />
               <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--t-tinta)', lineHeight: 1.4 }}>{d.label}</span>
-            </div>
+            </motion.div>
           ))}
         </div>
       </section>

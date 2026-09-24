@@ -1,5 +1,6 @@
 import API_BASE_URL from './api';
 import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { T, EstilosBase, Boton, Rotulo, TableroRuta, IconAlerta, IconOjo, IconOjoTachado,
          LogoWordmark, LogoMonograma, LogoBifurcacion } from './diseno';
 import LandingInfo from './LandingInfo';
@@ -15,7 +16,7 @@ const COPY_POR_VISTA = {
   //   <>Tu ruta existe,<br /><span>aunque no esté en el mapa.</span></>
   //   <>Hasta la última<br /><span>vereda de Antioquia.</span></>
   //   <>Que salir de la vereda<br /><span>no sea una odisea.</span></>
-  viajar:   { frase: <>Movilidad para<br /><span>toda Antioquia.</span></> },
+  viajar:   { frase: <>Tu camino,<br /><span>con precio claro.</span></> },
   conducir: { frase: <>Caminos que otros<br /><span>no recorren.</span></> },
   quienes:  { frase: <>Hasta la última<br /><span>vereda de Antioquia.</span></> },
 };
@@ -344,8 +345,14 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
 
           {/* ── Derecha: papel + formulario ── */}
           <div className="login-der">
+            {/* mode="wait" porque los tres paneles miden distinto — que el que sale
+                termine de irse antes de que entre el siguiente evita el salto de alto
+                a mitad de la animación. */}
+            <AnimatePresence mode="wait">
             {vista === 'viajar' && (
-              <div className="login-forma">
+              <motion.div key="viajar" className="login-forma"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}>
                 <Rotulo style={{ marginBottom: '12px' }}>Bienvenido de nuevo</Rotulo>
                 <h2 style={{ fontFamily: T.display, fontWeight: 800, fontSize: '28px', letterSpacing: '-.02em', color: T.tinta, margin: '0 0 6px' }}>
                   Entrar
@@ -431,11 +438,13 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
                 <Boton type="button" variante="fantasma" ancho onClick={() => irARegistro('pasajero')}>
                   Crear cuenta
                 </Boton>
-              </div>
+              </motion.div>
             )}
 
             {vista === 'conducir' && (
-              <div className="login-forma">
+              <motion.div key="conducir" className="login-forma"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}>
                 <Rotulo style={{ marginBottom: '12px' }}>Trabajá con tu vehículo</Rotulo>
                 <h2 style={{ fontFamily: T.display, fontWeight: 800, fontSize: '28px', letterSpacing: '-.02em', color: T.tinta, margin: '0 0 6px' }}>
                   Conducí con Turify
@@ -460,11 +469,13 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
                 <p style={{ textAlign: 'center', fontSize: '13px', color: T.piedra, margin: '18px 0 0' }}>
                   ¿Ya tenés cuenta? <button type="button" className="login-enlace t-foco" onClick={() => setVista('viajar')}>Entrá acá</button>
                 </p>
-              </div>
+              </motion.div>
             )}
 
             {vista === 'quienes' && (
-              <div className="login-forma">
+              <motion.div key="quienes" className="login-forma"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}>
                 <Rotulo style={{ marginBottom: '12px' }}>Nuestra misión</Rotulo>
                 <h2 style={{ fontFamily: T.display, fontWeight: 800, fontSize: '28px', letterSpacing: '-.02em', color: T.tinta, margin: '0 0 6px' }}>
                   Quiénes somos
@@ -489,8 +500,9 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
                 <Boton type="button" variante="fantasma" ancho onClick={() => setVista('viajar')}>
                   Volver a entrar
                 </Boton>
-              </div>
+              </motion.div>
             )}
+            </AnimatePresence>
 
             {/* Visible en las tres pestañas — no solo un adorno del panel oscuro,
                 que además se oculta en pantallas angostas (ver @media arriba). */}
