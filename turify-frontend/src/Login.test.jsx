@@ -85,10 +85,9 @@ describe('Login', () => {
 
   it('permite alternar a la pestaña "Conducir"', () => {
     render(<Login />);
-    const tabConducir = screen.getByRole('button', { name: /conducir/i });
+    // Nombre exacto: la landing también tiene "Empezar a conducir".
+    const tabConducir = screen.getByRole('button', { name: /^conducir$/i });
     fireEvent.click(tabConducir);
-    // El copy de la izquierda cambia de "Movilidad para toda Antioquia" a algo
-    // relacionado con conducir — comprobamos que la pestaña quedó marcada activa.
     expect(tabConducir.className).toMatch(/login-pestana-on/);
   });
 });
