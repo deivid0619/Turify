@@ -1001,6 +1001,10 @@ def get_assigned_requests(
             "destination_lat": float(v.destination_lat) if v.destination_lat is not None else None,
             "destination_lng": float(v.destination_lng) if v.destination_lng is not None else None,
             "ya_califico": ya_califico,
+            # El FUEC lo sube el conductor (ver POST /{request_id}/fuec) -- el
+            # pasajero (representante del viaje) tiene derecho a verlo, es lo
+            # que respalda que el viaje está cubierto por la empresa afiliada.
+            "fuec_url": v.fuec_url,
         })
 
     return resultado

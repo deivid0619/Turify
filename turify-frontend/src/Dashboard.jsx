@@ -1048,6 +1048,8 @@ const Dashboard = () => {
             destination_lng: v.destination_lng ?? null,
             // HU46 — calificaciones
             ya_califico: v.ya_califico || false,
+            // El conductor lo sube (ver PanelConductor.jsx); acá solo se muestra si ya existe.
+            fuec_url: v.fuec_url || null,
           })));
         }
       } catch {}
@@ -2377,6 +2379,22 @@ const Dashboard = () => {
                           {fuecEnviado[viaje.id] ? <IconVisto size={13} /> : <IconClipboard size={13} />}
                           {fuecEnviado[viaje.id] ? 'Ocupantes registrados — Actualizar' : 'Registrar ocupantes del viaje'}
                         </button>
+                      )}
+
+                      {/* Ver FUEC — lo sube el conductor (empresa afiliada), el
+                          representante del viaje tiene derecho a verlo. Mientras no
+                          esté cargado no hay nada que mostrar, no se anuncia como
+                          "pendiente" acá para no duplicar el aviso que ya ve el
+                          conductor en su panel. */}
+                      {viaje.fuec_url && (
+                        <a href={viaje.fuec_url} target="_blank" rel="opener"
+                          style={{
+                            marginTop: '8px', width: '100%', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                            background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.3)', borderRadius: '8px',
+                            color: 'var(--t-cielo-texto)', fontSize: '13px', fontWeight: '700', textDecoration: 'none', boxSizing: 'border-box',
+                          }}>
+                          <IconRecibo size={13} />Ver FUEC del viaje
+                        </a>
                       )}
 
                       {/* Botón calificar — HU46 (SCRUM-194) */}

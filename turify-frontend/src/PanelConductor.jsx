@@ -498,6 +498,41 @@ const PanelConductor = ({ onVerRuta }) => {
   const [gestionandoViaje, setGestionandoViaje] = useState(null); // request_id en proceso
   const [aceptandoPrecioFijo, setAceptandoPrecioFijo] = useState(null); // request_id en proceso
 
+  // FUEC — el archivo lo expide la empresa afiliada y lo sube el conductor acá
+  // (ver POST /{request_id}/fuec). Un solo input oculto reutilizado por todas
+  // las tarjetas: abrirSelectorFuec guarda para cuál viaje es antes de abrir
+  // el selector de archivos del sistema operativo.
+  const [subiendoFuec, setSubiendoFuec] = useState(null); // request_id en proceso
+  const fuecInputRef = useRef(null);
+  const fuecTargetIdRef = useRef(null);
+
+  const abrirSelectorFuec = (requestId) => {
+    fuecTargetIdRef.current = requestId;
+    fuecInputRef.current?.click();
+  };
+
+  const subirFuec = async (archivo) => {
+    const requestId = fuecTargetIdRef.current;
+    if (!requestId || !archivo) return;
+    setSubiendoFuec(requestId);
+    try {
+      const formData = new FormData();
+      formData.append('archivo', archivo);
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${requestId}/fuec`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        body: formData,
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+      toast.success('FUEC cargado correctamente.');
+      cargarViajesActivos();
+    } catch (e) {
+      toast.error(`Error: ${e.message}`);
+    } finally {
+      setSubiendoFuec(null);
+    }
+  };
+
   // ÉPICA 12 — contraparte de enviarOferta para viajes con precio_fijo=True:
   // no hay negociación, aceptar salta directo a ASSIGNED (ver
   // POST /{id}/accept-fixed-price en el backend).
@@ -1147,19 +1182,49 @@ const PanelConductor = ({ onVerRuta }) => {
                     </button>
                   )}
 
-                  {esAceptado && estadoViaje === 'ASSIGNED' && (
-                    <div style={{ marginTop: '10px' }}>
-                      <div style={{ backgroundColor: 'var(--t-musgo)', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '13px', color: 'var(--t-musgo-texto)', fontWeight: '600' }}>
-                        <IconVisto size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Viaje confirmado. Cuando recojas al pasajero, iniciá el viaje.
-                      </div>
-                      <motion.button whileTap={{ scale: 0.96 }}
-                        onClick={() => gestionarViaje(viaje.request_id, 'start')}
-                        disabled={gestionandoViaje === viaje.request_id + 'start'}
-                        style={{ width: '100%', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
-                        {gestionandoViaje === viaje.request_id + 'start' ? '...' : <><IconAuto size={15} />Iniciar viaje</>}
-                      </motion.button>
-                    </div>
+                  {/* FUEC — lo expide la empresa afiliada, lo sube el conductor acá.
+                      Requisito obligatorio para iniciar el viaje (ver start_trip). */}
+                  {esAceptado && (estadoViaje === 'ASSIGNED' || estadoViaje === 'IN_PROGRESS') && (
+                    <button
+                      onClick={() => abrirSelectorFuec(viaje.request_id)}
+                      disabled={subiendoFuec === viaje.request_id}
+                      style={{
+                        marginTop: '8px', width: '100%', padding: '9px',
+                        background: viaje.fuec_cargado ? 'var(--t-musgo)' : 'var(--t-papel)',
+                        border: `1px solid ${viaje.fuec_cargado ? 'var(--t-ruta)' : 'var(--t-linea)'}`,
+                        borderRadius: '8px', color: viaje.fuec_cargado ? 'var(--t-musgo-texto)' : 'var(--t-piedra)',
+                        fontSize: '13px', fontWeight: '700',
+                        cursor: subiendoFuec === viaje.request_id ? 'not-allowed' : 'pointer',
+                      }}>
+                      <IconRecibo size={15} />
+                      {subiendoFuec === viaje.request_id
+                        ? 'Subiendo…'
+                        : viaje.fuec_cargado ? 'FUEC cargado — cambiar archivo' : 'Subir FUEC del viaje'}
+                    </button>
                   )}
+
+                  {esAceptado && estadoViaje === 'ASSIGNED' && (() => {
+                    const faltantes = [];
+                    if (!viaje.fuec_cargado) faltantes.push('el FUEC del viaje');
+                    if (!viaje.ocupantes_registrados) faltantes.push('los ocupantes del viaje');
+                    else if (!viaje.tiene_representante) faltantes.push('el representante entre los ocupantes');
+                    const puedeIniciar = faltantes.length === 0;
+                    return (
+                      <div style={{ marginTop: '10px' }}>
+                        <div style={{ backgroundColor: puedeIniciar ? 'var(--t-musgo)' : 'var(--t-chiva-suave)', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '13px', color: puedeIniciar ? 'var(--t-musgo-texto)' : 'var(--t-chiva-texto)', fontWeight: '600' }}>
+                          {puedeIniciar
+                            ? <><IconVisto size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Viaje confirmado. Cuando recojas al pasajero, iniciá el viaje.</>
+                            : <><IconAlerta size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Antes de iniciar falta: {faltantes.join(', ')}.</>}
+                        </div>
+                        <motion.button whileTap={{ scale: 0.96 }}
+                          onClick={() => gestionarViaje(viaje.request_id, 'start')}
+                          disabled={gestionandoViaje === viaje.request_id + 'start' || !puedeIniciar}
+                          style={{ width: '100%', background: puedeIniciar ? '#2563eb' : 'var(--t-piedra-clara)', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '14px', cursor: puedeIniciar ? 'pointer' : 'not-allowed' }}>
+                          {gestionandoViaje === viaje.request_id + 'start' ? '...' : <><IconAuto size={15} />Iniciar viaje</>}
+                        </motion.button>
+                      </div>
+                    );
+                  })()}
 
                   {esAceptado && estadoViaje === 'IN_PROGRESS' && (
                     <div style={{ marginTop: '10px' }}>
@@ -1692,6 +1757,15 @@ const PanelConductor = ({ onVerRuta }) => {
 
     <PerfilDrawer abierto={mostrarPerfil} onCerrar={() => setMostrarPerfil(false)} />
     <ToastContainer toasts={toasts} onRemove={removeToast} />
+    {/* Input oculto compartido por todas las tarjetas — ver abrirSelectorFuec */}
+    <input ref={fuecInputRef} type="file"
+      accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+      style={{ display: 'none' }}
+      onChange={(e) => {
+        const archivo = e.target.files?.[0];
+        e.target.value = ''; // permite volver a elegir el mismo archivo si hace falta
+        if (archivo) subirFuec(archivo);
+      }} />
     </>
   );
 };
