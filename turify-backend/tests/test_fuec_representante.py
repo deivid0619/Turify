@@ -63,6 +63,72 @@ def _ocupante(representante=False, tipo='CC', numero='1001234567', nombre='Ocupa
     }
 
 
+# ── SCRUM-255: la lista se congela 48 h antes de la salida ──────────────────
+
+def _viaje_asignado_con_salida(client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers, horas):
+    pasajero = crear_pasajero()
+    conductor, _vehiculo = crear_conductor_con_vehiculo()
+    salida = datetime.now(timezone.utc) + timedelta(hours=horas)
+    viaje = _publicar_viaje(client, pasajero, auth_headers, departure_time=salida.isoformat()).json()
+    oferta = client.post(
+        f"/api/service-requests/{viaje['request_id']}/offers",
+        json={"offered_price": 85000},
+        headers=auth_headers(conductor),
+    ).json()
+    client.patch(f"/api/service-requests/offers/{oferta['offer_id']}/accept", headers=auth_headers(pasajero))
+    return pasajero, conductor, viaje
+
+
+def test_ocupantes_se_pueden_cambiar_con_mas_de_48h(
+    client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers
+):
+    pasajero, _c, viaje = _viaje_asignado_con_salida(
+        client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers, horas=72
+    )
+    url = f"/api/service-requests/{viaje['request_id']}/passengers"
+    assert client.post(url, json={"passengers": [_ocupante(representante=True)]}, headers=auth_headers(pasajero)).status_code == 201
+
+    respuesta = client.post(url, json={"passengers": [
+        _ocupante(representante=True), _ocupante(numero='1003333333', nombre='Otro Ocupante'),
+    ]}, headers=auth_headers(pasajero))
+    assert respuesta.status_code == 201
+
+
+def test_ocupantes_no_se_pueden_cambiar_con_menos_de_48h(
+    client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers
+):
+    pasajero, _c, viaje = _viaje_asignado_con_salida(
+        client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers, horas=10
+    )
+    url = f"/api/service-requests/{viaje['request_id']}/passengers"
+    # Primer registro: permitido aunque falten menos de 48 h (si no, nunca podría iniciar).
+    assert client.post(url, json={"passengers": [_ocupante(representante=True)]}, headers=auth_headers(pasajero)).status_code == 201
+
+    respuesta = client.post(url, json={"passengers": [
+        _ocupante(representante=True), _ocupante(numero='1003333333', nombre='Otro Ocupante'),
+    ]}, headers=auth_headers(pasajero))
+    assert respuesta.status_code == 400
+    assert "48 horas" in respuesta.json()["detail"]
+
+
+def test_ocupantes_no_se_pueden_cambiar_con_el_viaje_en_curso(
+    client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers, db_session
+):
+    pasajero, _c, viaje = _viaje_asignado_con_salida(
+        client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers, horas=72
+    )
+    registro = db_session.get(models.ServiceRequest, viaje['request_id'])
+    registro.status = 'IN_PROGRESS'
+    db_session.commit()
+
+    respuesta = client.post(
+        f"/api/service-requests/{viaje['request_id']}/passengers",
+        json={"passengers": [_ocupante(representante=True)]},
+        headers=auth_headers(pasajero),
+    )
+    assert respuesta.status_code == 400
+
+
 # ── Registrar ocupantes: el representante del viaje ─────────────────────────
 
 def test_registrar_ocupantes_exitoso_con_representante(

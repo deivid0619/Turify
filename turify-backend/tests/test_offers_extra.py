@@ -198,6 +198,21 @@ def test_cancelar_viaje_ya_cancelado_falla(client, crear_pasajero, auth_headers)
 
 # ── Radar del conductor (/pending) ───────────────────────────────────────
 
+def test_radar_no_muestra_viajes_con_salida_vencida(client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers, db_session):
+    from app import models
+    pasajero = crear_pasajero()
+    conductor, _v = crear_conductor_con_vehiculo()
+    vigente = _publicar_viaje(client, pasajero, auth_headers).json()
+    vencido = _publicar_viaje(client, pasajero, auth_headers).json()
+    fila = db_session.get(models.ServiceRequest, vencido["request_id"])
+    fila.departure_time = datetime.now(timezone.utc) - timedelta(days=1)
+    db_session.commit()
+
+    ids = [v["request_id"] for v in client.get("/api/service-requests/pending", headers=auth_headers(conductor)).json()]
+
+    assert vigente["request_id"] in ids
+    assert vencido["request_id"] not in ids
+
 def test_pending_pasajero_ve_solo_sus_viajes(client, crear_pasajero, auth_headers):
     pasajero = crear_pasajero()
     otro = crear_pasajero(email="otro.pending@example.com")

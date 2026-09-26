@@ -4,3 +4,5 @@
 -r requirements.txt
 pytest==8.3.4
 pytest-cov==6.0.0
+# scripts/importar_tarifas_ministerio.py (se corre una vez al año con la planilla nueva)
+pypdf==5.1.0

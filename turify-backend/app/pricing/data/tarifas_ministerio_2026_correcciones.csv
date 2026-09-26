@@ -1,0 +1,31 @@
+destino,campo,valor_original,valor_corregido,motivo
+BOQUERON,ida 16 PX,4444675,444468,le sobraba un dígito
+CERETÉ,ida 30-42 PX,561433,5614330,le faltaba un dígito
+ENVIGADO,ida 12 PX,1871442,187144,le sobraba un dígito
+NEIVA,ida 22-25 PX,54154855,5415486,le sobraba un dígito
+NEIVA,ida 30-42 PX,60111890,6011189,le sobraba un dígito
+SANTIAGO,ida 30-42 PX,0,1182694,celda vacía o en 0: estimada con el resto de la fila
+SOGAMOSO,ida 19 PX,4163959,6319408,no cuadraba con el resto de la fila: estimada
+ITAGUI,ida 30-42 PX,339199,421728,vehículo más grande salía más barato que uno más pequeño: acercada
+LA VIRGINIA,ida 14 PX,1438671,1707011,vehículo más grande salía más barato que uno más pequeño: acercada
+PINTADA,ida 22-25 PX,912328,1105299,vehículo más grande salía más barato que uno más pequeño: acercada
+PINTADA,ida 30-42 PX,1012684,1234368,vehículo más grande salía más barato que uno más pequeño: acercada
+BOQUERON,ida y vuelta 16 PX,6329306,632931,no cuadraba con la ida (la planilla usa ida × 1.424)
+CERETÉ,ida y vuelta 30-42 PX,729862,7298629,no cuadraba con la ida (la planilla usa ida × 1.300)
+ENVIGADO,ida y vuelta 12 PX,2664971,266497,no cuadraba con la ida (la planilla usa ida × 1.424)
+ITAGUI,ida y vuelta 30-42 PX,440959,548246,no cuadraba con la ida (la planilla usa ida × 1.300)
+LA VIRGINIA,ida y vuelta 14 PX,2048696,2430818,no cuadraba con la ida (la planilla usa ida × 1.424)
+NEIVA,ida y vuelta 22-25 PX,70401312,7040132,no cuadraba con la ida (la planilla usa ida × 1.300)
+NEIVA,ida y vuelta 30-42 PX,78145456,7814546,no cuadraba con la ida (la planilla usa ida × 1.300)
+PINTADA,ida y vuelta 22-25 PX,1186026,1436889,no cuadraba con la ida (la planilla usa ida × 1.300)
+PINTADA,ida y vuelta 30-42 PX,1316489,1604678,no cuadraba con la ida (la planilla usa ida × 1.300)
+SANTIAGO,ida y vuelta 30-42 PX,0,1537502,no cuadraba con la ida (la planilla usa ida × 1.300)
+SOGAMOSO,ida y vuelta 19 PX,5413146,8215231,no cuadraba con la ida (la planilla usa ida × 1.300)
+AGUADAS (CALDAS),km,276,126,los precios de toda la fila corresponden a otra distancia: km estimados según el precio
+BOYACÁ,km,,842,sin km en la planilla: estimados según el precio
+ECUADOR (QUITO),km,,1599,sin km en la planilla: estimados según el precio
+EJE CAFETERO,km,,508,sin km en la planilla: estimados según el precio
+MAGANGUÉ,km,,561,sin km en la planilla: estimados según el precio
+PUERTO BOYACA,km,,179,sin km en la planilla: estimados según el precio
+"VUELTA ORIENTE (El retiro,La Ceja.Rionegro, El carmen, M)",km,,84,sin km en la planilla: estimados según el precio
+"VUELTA ORIENTE (Med, Marinilla, El peñol, Guatape)",km,,65,sin km en la planilla: estimados según el precio

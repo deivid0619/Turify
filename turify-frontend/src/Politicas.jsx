@@ -88,7 +88,7 @@ const Politicas = () => {
           <h1 style={{ fontFamily: T.display, fontWeight: 800, fontSize: 'clamp(28px, 4vw, 38px)', letterSpacing: '-.02em', color: 'var(--t-tinta)', margin: '0 0 6px' }}>
             Políticas legales
           </h1>
-          <p style={{ margin: '0 0 24px', fontSize: '13px', color: 'var(--t-piedra-clara)' }}>Última actualización: 18 de septiembre de 2026</p>
+          <p style={{ margin: '0 0 24px', fontSize: '13px', color: 'var(--t-piedra-clara)' }}>Última actualización: 23 de septiembre de 2026</p>
 
           {/* AVISO DE BORRADOR — se quita cuando un abogado lo revise */}
           <div style={{ display: 'flex', gap: '10px', background: 'var(--t-chiva-suave)', border: '1px solid var(--t-chiva-linea)', borderRadius: '10px', padding: '14px 16px', marginBottom: '28px' }}>
@@ -136,7 +136,7 @@ const Politicas = () => {
               'El pasajero publica origen, destino, fecha y número de ocupantes.',
               <>Turify muestra un <b>precio sugerido de referencia</b> (calculado por un motor de reglas y un modelo de aprendizaje automático) — no es un precio fijo ni obligatorio.</>,
               'Los conductores cercanos envían ofertas; pasajero y conductor pueden contraofertar hasta llegar a un acuerdo.',
-              <>Antes de iniciar el viaje, el conductor debe cargar el <b>FUEC (Formato Único de Extracto de Contrato)</b> expedido por su empresa afiliada, y el pasajero debe registrar los datos de todos los ocupantes, señalando cuál de ellos es el representante del viaje (el mismo pasajero que lo solicitó, siempre mayor de edad) para que la empresa afiliada lo use al diligenciar el FUEC. Ninguna de las dos partes puede iniciar el viaje sin completar ambos requisitos.</>,
+              <>Antes de iniciar el viaje, el conductor debe cargar el <b>FUEC (Formato Único de Extracto de Contrato)</b> expedido por su empresa afiliada, y el pasajero debe registrar los datos de todos los ocupantes, señalando cuál de ellos es el representante del viaje (el mismo pasajero que lo solicitó, siempre mayor de edad) para que la empresa afiliada lo use al diligenciar el FUEC. Ninguna de las dos partes puede iniciar el viaje sin completar ambos requisitos. Por los seguros del viaje, la lista de ocupantes solo se puede modificar hasta 48 horas antes de la salida; si el viaje se confirma con menos anticipación, se registra una sola vez.</>,
             ]} />
 
             <Sub>1.3 Responsabilidad</Sub>
@@ -156,7 +156,16 @@ const Politicas = () => {
               seguridad inminente.
             </P>
 
-            <Sub>1.5 Ley aplicable</Sub>
+            <Sub>1.5 Viajar con mascotas</Sub>
+            <P>
+              Las mascotas se declaran al publicar el viaje y deben viajar en guacal o transportadora adecuada,
+              con correa y con su carné de vacunación al día, conforme a la normativa vigente sobre transporte
+              de animales de compañía. Cada conductor indica en su perfil si su vehículo acepta mascotas y si
+              cobra un cargo adicional. Si la mascota se presenta sin guacal, el conductor puede negarse a
+              transportarla sin que eso cuente como incumplimiento suyo.
+            </P>
+
+            <Sub>1.6 Ley aplicable</Sub>
             <P>
               Estos términos se rigen por las leyes de la República de Colombia. Cualquier controversia se
               someterá a la jurisdicción de los jueces colombianos.

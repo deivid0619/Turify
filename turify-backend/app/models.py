@@ -72,6 +72,7 @@ class Document(Base):
     document_type       = Column(Enum(
         'SOAT', 'Licencia de Conduccion', 'Tarjeta de operacion',
         'Tecnomecanica', 'Seguros Contractual y extracontractual', 'RUNT',
+        'Cedula frente', 'Cedula reverso',  # SCRUM-252
         name='doc_type'
     ), nullable=False)
     file_url            = Column(Text, nullable=False)
@@ -104,6 +105,9 @@ class Vehicle(Base):
     capacidad_real          = Column(Integer)
     vehicle_year            = Column(Integer)
     photo_url               = Column(Text)
+    # SCRUM-253 — fotos reales que ve el pasajero: [{"tipo", "url", "subida"}],
+    # una por tipo (ver TIPOS_FOTO_VEHICULO en routers/drivers.py).
+    fotos                   = Column(JSONB, nullable=False, default=list)
     # Tarifas personalizadas (Épica 4)
     tarifa_km_base          = Column(Numeric(10, 2))
     tarifa_espera_hora      = Column(Numeric(10, 2))

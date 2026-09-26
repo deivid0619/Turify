@@ -180,6 +180,20 @@ const PerfilConductorPagina = () => {
                   </span>
                 ))}
               </div>
+
+              {/* SCRUM-253 — fotos reales del vehículo */}
+              {datos.vehiculo.fotos?.length > 0 && (
+                <>
+                  <span style={{ display: 'block', fontSize: '12px', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--t-piedra-clara)', margin: '24px 0 12px' }}>Fotos del vehículo</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px' }}>
+                    {datos.vehiculo.fotos.map((url, i) => (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="t-foco" style={{ display: 'block', borderRadius: '10px', overflow: 'hidden', aspectRatio: '4 / 3', background: 'var(--t-niebla)' }}>
+                        <img src={url} alt={`Foto ${i + 1} del vehículo`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      </a>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

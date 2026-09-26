@@ -24,6 +24,7 @@ from .ml_model import ModeloPrecioSugerido
 from .resultado import ComponentePrecio, ResultadoPrecio
 from .rules_engine import calcular_precio_reglas
 from .synthetic_data import generar_dataset_sintetico
+from .tarifas_referencia import factor_ida_y_vuelta
 
 logger = logging.getLogger("turify.pricing")
 
@@ -116,6 +117,34 @@ def _escalar_desglose(regla: ResultadoPrecio, nuevo_total: float) -> list[Compon
     return [ComponentePrecio(c.concepto, c.monto * factor) for c in regla.desglose]
 
 
+def aplica_ida_y_vuelta(ida_y_vuelta: bool, num_dias: int) -> bool:
+    """El recargo de ida y vuelta es solo para viajes de un día: los de varios
+    días ya se cobran por día (HU60)."""
+    return bool(ida_y_vuelta) and (num_dias or 1) <= 1
+
+
+def _aplicar_ida_y_vuelta(base: ResultadoPrecio, datos: PricingInput) -> ResultadoPrecio:
+    """SCRUM-256 — el precio de solo ida ya incluye que el vehículo vuelve
+    (distancia y peajes ×2); en ida y vuelta además vuelve con pasajeros, y se
+    cobra con la proporción de la planilla del Ministerio."""
+    if not aplica_ida_y_vuelta(datos.ida_y_vuelta, datos.num_dias):
+        return base
+    factor = factor_ida_y_vuelta(datos.num_pasajeros)
+    porcentaje = round((factor - 1) * 100)
+    recargo = base.precio_sugerido * (factor - 1)
+    total = base.precio_sugerido + recargo
+    return replace(
+        base,
+        precio_sugerido=total,
+        precio_minimo=total * k.FACTOR_PRECIO_MINIMO,
+        precio_maximo=total * k.FACTOR_PRECIO_MAXIMO,
+        precio_por_persona=total / max(datos.num_pasajeros, 1),
+        desglose=[*base.desglose, ComponentePrecio(f"Ida y vuelta: regreso con pasajeros (+{porcentaje}%)", recargo)],
+        explicacion=(f"{base.explicacion} Ida y vuelta: +{porcentaje}% sobre el precio de solo ida, "
+                     f"según la tabla de tarifas del Ministerio."),
+    )
+
+
 def obtener_precio_sugerido(datos: PricingInput, forzar_reentrenamiento: bool = False) -> ResultadoPrecio:
     """Punto de entrada principal: precio sugerido para un viaje.
 
@@ -124,19 +153,30 @@ def obtener_precio_sugerido(datos: PricingInput, forzar_reentrenamiento: bool = 
     modelo todavía está en cold start (dataset sintético) o su predicción se
     desvía demasiado de lo razonable, se acota contra la fórmula de reglas
     para que nunca se sugiera un precio absurdo.
+
+    Fórmula y modelo calculan el precio de SOLO IDA (el modelo no conoce el
+    tipo de viaje y el historial se guarda en esa misma unidad, ver
+    registrar_resultado_viaje); el recargo de ida y vuelta se aplica al final.
     """
-    regla = calcular_precio_reglas(datos)
+    solo_ida = replace(datos, ida_y_vuelta=False)
+    regla = calcular_precio_reglas(solo_ida)
+
+    # SCRUM-257 — la tarifa exacta de la planilla para ese destino es la
+    # referencia oficial: el modelo (que no conoce destinos) no la corrige.
+    if regla.fuente.startswith("REFERENCIA"):
+        return _aplicar_ida_y_vuelta(regla, datos)
+
     modelo, fuente = _obtener_modelo(forzar_reentrenamiento)
 
     if modelo is None:
-        return regla
+        return _aplicar_ida_y_vuelta(regla, datos)
 
-    f = construir_features(datos)
+    f = construir_features(solo_ida)
     try:
-        prediccion_ml = modelo.predict_one(datos, f)
+        prediccion_ml = modelo.predict_one(solo_ida, f)
     except Exception:
         logger.exception("Predicción del modelo de ML falló; se usa la fórmula de reglas.")
-        return regla
+        return _aplicar_ida_y_vuelta(regla, datos)
 
     # Banda de seguridad: con dataset sintético (que sale de la propia fórmula
     # de reglas) cualquier desviación grande es ruido de sobreajuste, no
@@ -153,7 +193,7 @@ def obtener_precio_sugerido(datos: PricingInput, forzar_reentrenamiento: bool = 
         f"({'entrenado con historial real de viajes' if fuente == 'REAL' else 'en calibración inicial, sin historial real suficiente todavía'})."
     )
 
-    return replace(
+    return _aplicar_ida_y_vuelta(replace(
         regla,
         precio_sugerido=precio_final,
         precio_minimo=precio_final * k.FACTOR_PRECIO_MINIMO,
@@ -162,7 +202,7 @@ def obtener_precio_sugerido(datos: PricingInput, forzar_reentrenamiento: bool = 
         fuente=f"ML ({fuente.lower()})",
         desglose=desglose_ajustado,
         explicacion=explicacion,
-    )
+    ), datos)
 
 
 def registrar_resultado_viaje(
@@ -184,6 +224,7 @@ def registrar_resultado_viaje(
     num_passengers: int,
     origin_city: str | None = None,
     destination_city: str | None = None,
+    ida_y_vuelta: bool = False,
 ) -> models.PriceHistory:
     """Guarda el resultado real de un viaje completado en `PriceHistory`, con
     la sesión normal de la request (la política RLS de INSERT permite a
@@ -192,7 +233,14 @@ def registrar_resultado_viaje(
     que el histórico real crece solo, viaje a viaje, hasta superar
     `MINIMO_MUESTRAS_REALES_PARA_ML` y que el modelo deje de depender del
     dataset sintético.
+
+    Los precios se guardan en unidades de SOLO IDA (el modelo no conoce el
+    tipo de viaje): a un ida y vuelta se le quita el recargo de SCRUM-256.
     """
+    if aplica_ida_y_vuelta(ida_y_vuelta, num_days):
+        factor = factor_ida_y_vuelta(num_passengers)
+        suggested_price /= factor
+        final_price /= factor
     fila = models.PriceHistory(
         request_id=request_id,
         vehicle_category=vehicle_category,

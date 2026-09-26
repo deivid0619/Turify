@@ -180,6 +180,8 @@ async def register_driver_info(
     doc_tarjeta_operacion: UploadFile = File(...),
     doc_tecnomecanica: UploadFile = File(...),
     doc_seguros: UploadFile = File(...),
+    doc_cedula_frente: UploadFile = File(...),   # SCRUM-252
+    doc_cedula_reverso: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
@@ -279,6 +281,8 @@ async def register_driver_info(
             ("Tarjeta de operacion",                    doc_tarjeta_operacion, "tarjeta_operacion"),
             ("Tecnomecanica",                           doc_tecnomecanica,     "tecnomecanica"),
             ("Seguros Contractual y extracontractual",  doc_seguros,           "seguros"),
+            ("Cedula frente",                           doc_cedula_frente,     "cedula_frente"),
+            ("Cedula reverso",                          doc_cedula_reverso,    "cedula_reverso"),
         ]
 
         for doc_type, file_obj, nombre_clave in docs_to_save:
@@ -320,7 +324,7 @@ async def register_driver_info(
             user_id=current_user.user_id,
             entity="User",
             entity_id=current_user.user_id,
-            detail="Conductor envió sus documentos de registro (5 documentos obligatorios).",
+            detail="Conductor envió sus documentos de registro (7 documentos obligatorios, incluida la cédula por ambos lados).",
             ip_address=request.client.host if request.client else None,
         )
 
@@ -417,6 +421,64 @@ async def upload_runt(
     }
 
 
+# SCRUM-252 — conductores registrados antes de que se pidiera la cédula: la
+# suben aparte, sin repetir todo el registro, y pasa por la misma revisión.
+@router.post("/upload-cedula")
+async def upload_cedula(
+    request: Request,
+    doc_cedula_frente: UploadFile = File(...),
+    doc_cedula_reverso: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if current_user.role != "DRIVER":
+        raise HTTPException(status_code=403, detail="Solo los conductores pueden subir la cédula por aquí.")
+
+    lados = (("Cedula frente", doc_cedula_frente, "cedula_frente"),
+             ("Cedula reverso", doc_cedula_reverso, "cedula_reverso"))
+    previos = {
+        d.document_type: d
+        for d in db.query(models.Document).filter(
+            models.Document.user_id == current_user.user_id,
+            models.Document.document_type.in_([tipo for tipo, _, _ in lados]),
+        ).all()
+    }
+    if any(d.verification_status in ("PENDING", "APPROVED") for d in previos.values()):
+        raise HTTPException(
+            status_code=400,
+            detail="Tu cédula ya fue enviada. Espera la revisión del administrador, o a que sea rechazada para volver a enviarla."
+        )
+
+    supabase = get_supabase()
+    base_path = f"drivers/{current_user.user_id}"
+    for tipo, archivo, clave in lados:
+        url = await upload_to_supabase(
+            supabase, archivo, "turify-documentos", f"{base_path}/{clave}",
+            db=db, current_user=current_user,
+        )
+        previo = previos.get(tipo)
+        if previo:  # era rechazada
+            previo.file_url = url
+            previo.verification_status = "PENDING"
+            previo.ai_extracted_data = None
+            previo.ai_confidence = None
+            previo.ai_observations = None
+        else:
+            db.add(models.Document(user_id=current_user.user_id, document_type=tipo,
+                                   file_url=url, verification_status="PENDING"))
+    db.commit()
+
+    registrar_log(
+        db,
+        action="UPLOAD_CEDULA",
+        user_id=current_user.user_id,
+        entity="Document",
+        detail="Conductor envió su cédula por ambos lados.",
+        ip_address=request.client.host if request.client else None,
+    )
+    return {"status": "success", "message": "Cédula enviada. El administrador la revisará pronto."}
+
+
 @router.get("/my-documents", response_model=List[schemas.DocumentResponse])
 def get_my_documents(
     db: Session = Depends(get_db),
@@ -499,6 +561,58 @@ def update_driver_location(
 
 
 # ── HU55 — Comodidades, capacidad real y tarifas del vehículo (SCRUM-207) ───
+# ── SCRUM-253 — fotos reales del vehículo ───────────────────────────────────
+# Una foto por tipo; con al menos MINIMO_FOTOS_VEHICULO el pasajero ya tiene
+# una idea real del vehículo (la de frente debe mostrar la placa).
+TIPOS_FOTO_VEHICULO = {
+    "EXTERIOR_FRENTE": "Frente (con la placa visible)",
+    "EXTERIOR_LATERAL": "Lateral",
+    "INTERIOR": "Interior (sillas)",
+    "MALETERO": "Maletero",
+}
+MINIMO_FOTOS_VEHICULO = 3
+
+
+def fotos_publicas_vehiculo(vehiculo: models.Vehicle | None) -> list[str]:
+    """URLs que ve el pasajero, en el orden de TIPOS_FOTO_VEHICULO. Si el
+    conductor todavía no subió ninguna, se muestra la foto del registro."""
+    if not vehiculo:
+        return []
+    por_tipo = {f.get("tipo"): f.get("url") for f in (vehiculo.fotos or [])}
+    urls = [por_tipo[t] for t in TIPOS_FOTO_VEHICULO if por_tipo.get(t)]
+    if not urls and vehiculo.photo_url:
+        urls = [vehiculo.photo_url]
+    return urls
+
+
+@router.post("/vehicle/photos")
+async def subir_foto_vehiculo(
+    tipo: str = Form(...),
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if current_user.role != "DRIVER":
+        raise HTTPException(status_code=403, detail="Solo los conductores pueden subir fotos de su vehículo.")
+    if tipo not in TIPOS_FOTO_VEHICULO:
+        raise HTTPException(status_code=400, detail=f"Tipo de foto no válido. Usa uno de: {', '.join(TIPOS_FOTO_VEHICULO)}.")
+
+    vehiculo = db.query(models.Vehicle).filter(models.Vehicle.owner_id == current_user.user_id).first()
+    if not vehiculo:
+        raise HTTPException(status_code=404, detail="Aún no tienes un vehículo registrado.")
+
+    url = await upload_to_supabase(
+        get_supabase(), archivo, "turify-fotos", f"drivers/{current_user.user_id}/vehicle/{tipo.lower()}",
+        db=db, current_user=current_user,
+    )
+    # Lista nueva (no mutar la existente): si no, SQLAlchemy no detecta el cambio del JSONB.
+    otras = [f for f in (vehiculo.fotos or []) if f.get("tipo") != tipo]
+    vehiculo.fotos = otras + [{"tipo": tipo, "url": url, "subida": datetime.now(timezone.utc).isoformat()}]
+    db.commit()
+    db.refresh(vehiculo)
+    return {"fotos": vehiculo.fotos, "minimo": MINIMO_FOTOS_VEHICULO}
+
+
 @router.get("/vehicle", response_model=schemas.VehicleSettingsResponse)
 def get_my_vehicle(
     db: Session = Depends(get_db),
@@ -541,6 +655,10 @@ def get_my_vehicle(
         "acepta_mascotas": vehiculo.acepta_mascotas,
         "cargo_mascota": float(vehiculo.cargo_mascota) if vehiculo.cargo_mascota is not None else None,
         "acepta_menores_2_anos": vehiculo.acepta_menores_2_anos,
+        "fotos": vehiculo.fotos or [],
+        "foto_registro": vehiculo.photo_url,
+        "tipos_foto": TIPOS_FOTO_VEHICULO,
+        "minimo_fotos": MINIMO_FOTOS_VEHICULO,
     }
 
 
@@ -714,6 +832,7 @@ def get_driver_public_profile(
             "tiene_tv": vehiculo.tiene_tv,
             "tiene_buen_audio": vehiculo.tiene_buen_audio,
             "acepta_mascotas": vehiculo.acepta_mascotas,
+            "fotos": fotos_publicas_vehiculo(vehiculo),  # SCRUM-253
         }
 
     empresa = None

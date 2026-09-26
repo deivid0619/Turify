@@ -66,6 +66,25 @@ def test_crear_viaje_ida_y_vuelta_exige_fecha_regreso(client, crear_pasajero, au
     assert respuesta.status_code == 422
 
 
+# SCRUM-254 — mascotas solo en guacal o transportadora.
+def test_crear_viaje_con_mascota_sin_confirmar_guacal_falla(client, crear_pasajero, auth_headers):
+    pasajero = crear_pasajero()
+
+    respuesta = _publicar_viaje(client, pasajero, auth_headers, has_pets=True)
+
+    assert respuesta.status_code == 400
+    assert "guacal" in respuesta.json()["detail"]
+
+
+def test_crear_viaje_con_mascota_en_guacal(client, crear_pasajero, auth_headers):
+    pasajero = crear_pasajero()
+
+    respuesta = _publicar_viaje(client, pasajero, auth_headers, has_pets=True, mascotas_en_guacal=True)
+
+    assert respuesta.status_code == 201
+    assert respuesta.json()["has_pets"] is True
+
+
 # ── Enviar oferta ──────────────────────────────────────────────────────────────────────
 
 def test_enviar_oferta_exitoso(client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers):

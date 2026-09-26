@@ -18,6 +18,8 @@ const ETIQUETA_DOCUMENTO = {
   'Tecnomecanica': 'Revisión Tecnomecánica',
   'Seguros Contractual y extracontractual': 'Seguros (Contractual y Extracontractual)',
   'RUNT': 'RUNT (experiencia)',
+  'Cedula frente': 'Cédula (frente)',
+  'Cedula reverso': 'Cédula (reverso)',
 };
 
 const ICONO_DOCUMENTO = {
@@ -27,6 +29,8 @@ const ICONO_DOCUMENTO = {
   'Tecnomecanica': IconLlave,
   'Seguros Contractual y extracontractual': IconRecibo,
   'RUNT': IconGorro,
+  'Cedula frente': IconTarjeta,
+  'Cedula reverso': IconTarjeta,
 };
 
 // Cada tipo de documento tiene su icono; si llega uno desconocido, va el clip.
