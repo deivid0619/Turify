@@ -234,6 +234,38 @@ def test_obtener_precio_sugerido_usa_ml_o_reglas_pero_nunca_falla():
     assert resultado.fuente in ("REGLAS", "ML (sintetico)")
 
 
+# ── SCRUM-256: ida y vuelta, con la proporción de la planilla del Ministerio ─
+
+def test_factor_ida_y_vuelta_sale_de_la_planilla():
+    from app.pricing.tarifas_referencia import factor_ida_y_vuelta
+
+    assert factor_ida_y_vuelta(16) == pytest.approx(1.424, abs=0.005)
+    assert factor_ida_y_vuelta(4) == factor_ida_y_vuelta(16)  # sedán/van: como los pequeños
+    assert factor_ida_y_vuelta(20) == pytest.approx(1.30, abs=0.005)
+
+
+@pytest.mark.parametrize("pasajeros,categoria", [(4, "SEDAN"), (16, "MICROBUS"), (24, "BUS")])
+def test_ida_y_vuelta_cuesta_mas_que_solo_ida(pasajeros, categoria):
+    from app.pricing.service import obtener_precio_sugerido
+    from app.pricing.tarifas_referencia import factor_ida_y_vuelta
+
+    ida = obtener_precio_sugerido(_entrada_base(num_adultos=pasajeros, categoria_vehiculo=categoria))
+    ida_y_vuelta = obtener_precio_sugerido(_entrada_base(num_adultos=pasajeros, categoria_vehiculo=categoria, ida_y_vuelta=True))
+
+    assert ida_y_vuelta.precio_sugerido == pytest.approx(ida.precio_sugerido * factor_ida_y_vuelta(pasajeros))
+    assert "Ida y vuelta" in ida_y_vuelta.desglose[-1].concepto
+    assert sum(c.monto for c in ida_y_vuelta.desglose) == pytest.approx(ida_y_vuelta.precio_sugerido)
+
+
+def test_ida_y_vuelta_de_varios_dias_no_lleva_recargo():
+    """Los viajes de varios días ya se cobran por día (HU60)."""
+    from app.pricing.service import obtener_precio_sugerido
+
+    ida = obtener_precio_sugerido(_entrada_base(num_dias=3))
+    ida_y_vuelta = obtener_precio_sugerido(_entrada_base(num_dias=3, ida_y_vuelta=True))
+    assert ida_y_vuelta.precio_sugerido == pytest.approx(ida.precio_sugerido)
+
+
 # ── Endpoint HTTP ────────────────────────────────────────────────────────────
 
 def test_endpoint_price_estimate(client, crear_pasajero, auth_headers):

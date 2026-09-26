@@ -33,11 +33,9 @@ class PricingInput:
     # Menores de 2 años no cuentan como pasajero (HU29) — se reciben aparte
     # únicamente para no perder el dato, no afectan capacidad ni precio.
     num_infantes: int = 0
-    # Ya NO cambia el cálculo (ver `construir_features`: el vehículo siempre
-    # se cobra ida+vuelta, lo haya pedido el pasajero o no — el conductor
-    # tiene que volver igual). Se conserva el campo por si más adelante se
-    # agrega la excepción de "el conductor ya tiene otro pasajero de
-    # regreso y no cobra el tramo vacío" (decisión pendiente, no HU29).
+    # No cambia estas features (el vehículo siempre se cobra ida+vuelta, el
+    # conductor tiene que volver igual): el recargo de que el regreso sea
+    # CON pasajeros se aplica al final, en service.py (SCRUM-256).
     ida_y_vuelta: bool = False
     tolls_cost: float = 0.0
     tiempo_espera_horas: float = 0.0
@@ -45,6 +43,10 @@ class PricingInput:
     tipo_via: str = "PAVIMENTADA"
     km_paradas_intermedias: float = 0.0
     comodidades: dict = field(default_factory=dict)
+    # SCRUM-257 — direcciones como las da Google Maps, para reconocer si el
+    # viaje es un destino de la planilla de tarifas del Ministerio.
+    origen: str | None = None
+    destino: str | None = None
 
     tarifa_km_base_override: float | None = None
     tarifa_espera_hora_override: float | None = None
