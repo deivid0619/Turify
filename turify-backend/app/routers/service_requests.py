@@ -16,9 +16,11 @@ from app.pricing.vehicle_categories import calcular_categoria, sugerir_categoria
 from app.pricing.features import PricingInput
 from app.pricing.service import obtener_precio_sugerido, registrar_resultado_viaje
 from app.pricing.peajes_antioquia import calcular_peajes_de_ruta
-from app.routers.drivers import get_supabase, upload_to_supabase
+from app.routers.drivers import get_supabase, upload_to_supabase, fotos_publicas_vehiculo
 
 router = APIRouter(prefix="/api/service-requests", tags=["Service Requests"])
+
+HORAS_LIMITE_CAMBIO_OCUPANTES = 48
 
 from datetime import datetime
 from fastapi import HTTPException, status, Depends
@@ -102,6 +104,8 @@ def estimar_precio_sugerido(
         num_dias=payload.num_days,
         tipo_via=payload.tipo_via,
         comodidades={"tiene_ac": payload.requiere_ac, "tiene_wifi": payload.requiere_wifi},
+        origen=payload.origin,
+        destino=payload.destination,
     )
     resultado = obtener_precio_sugerido(entrada_precio)
     return resultado.to_dict()
@@ -142,6 +146,13 @@ def create_service_request(
     else:
         # Si es ONE_WAY, forzamos return_time a None
         request_data.return_time = None
+
+    # 3. SCRUM-254 — las mascotas solo viajan en guacal o transportadora.
+    if request_data.has_pets and not request_data.mascotas_en_guacal:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Para viajar con mascotas debes confirmar que irán en guacal o transportadora."
+        )
 
     # --- FIN DE VALIDACIONES ---
 
@@ -224,6 +235,8 @@ def create_service_request(
                     "tiene_ac": bool(new_request.requiere_ac),
                     "tiene_wifi": bool(new_request.requiere_wifi),
                 },
+                origen=new_request.origin,
+                destino=new_request.destination,
             )
             resultado_precio = obtener_precio_sugerido(entrada_precio)
             new_request.suggested_price = resultado_precio.precio_sugerido
@@ -258,6 +271,7 @@ def create_service_request(
                 "destino": request_data.destination,
                 "tipo_servicio": new_request.tipo_servicio,
                 "comodidades_pedidas": comodidades_pedidas_trip,
+                "mascotas_en_guacal": bool(request_data.has_pets and request_data.mascotas_en_guacal),
             }, ensure_ascii=False),
             ip_address=request.client.host if request.client else None,
         )
@@ -453,8 +467,12 @@ def get_pending_requests(
         query = db.query(models.ServiceRequest).filter(models.ServiceRequest.status == "PENDING")
         
         # Filtro inteligente por rol: Si no es conductor, filtramos por su ID
-        if current_user.role != "DRIVER": 
+        if current_user.role != "DRIVER":
             query = query.filter(models.ServiceRequest.passenger_id == current_user.user_id)
+        else:
+            # Al radar solo llegan viajes que todavía no han salido: una
+            # solicitud con la hora de salida ya pasada nunca se va a hacer.
+            query = query.filter(models.ServiceRequest.departure_time > func.now())
             
         pending_requests = query.order_by(models.ServiceRequest.created_at.desc()).all()
 
@@ -1005,6 +1023,10 @@ def get_assigned_requests(
             # pasajero (representante del viaje) tiene derecho a verlo, es lo
             # que respalda que el viaje está cubierto por la empresa afiliada.
             "fuec_url": v.fuec_url,
+            # SCRUM-255 — para bloquear la edición a menos de 48 h si ya hay lista.
+            "ocupantes_registrados": db.query(models.TripPassenger).filter(
+                models.TripPassenger.request_id == v.request_id
+            ).count(),
         })
 
     return resultado
@@ -1195,6 +1217,8 @@ def get_offers_for_request(
             # HU38 — badge de conductor verificado (RUNT aprobado), visible en la oferta
             "driver_verificado": bool(conductor.conductor_verificado) if conductor else False,
             "vehicle_id": oferta.vehicle_id,
+            # SCRUM-253 — el pasajero ve el vehículo real antes de aceptar
+            "vehiculo_fotos": fotos_publicas_vehiculo(vehiculo),
             "offered_price": float(oferta.offered_price),
             "status": oferta.status,
             "created_at": oferta.created_at.isoformat() if oferta.created_at else None,
@@ -1861,6 +1885,7 @@ def complete_trip(
                 num_passengers=viaje.adults_count + viaje.children_count,
                 origin_city=viaje.origin,
                 destination_city=viaje.destination,
+                ida_y_vuelta=(viaje.trip_type == 'ROUND_TRIP'),
             )
     except Exception:
         db.rollback()
@@ -1937,8 +1962,23 @@ def registrar_ocupantes(
     if viaje.passenger_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Solo el pasajero del viaje puede registrar ocupantes.")
 
-    if viaje.status not in ['ASSIGNED', 'IN_PROGRESS']:
-        raise HTTPException(status_code=400, detail=f"Solo puedes registrar ocupantes en viajes confirmados. Estado actual: {viaje.status}")
+    # SCRUM-255 — con el viaje en curso la lista ya no se toca.
+    if viaje.status != 'ASSIGNED':
+        raise HTTPException(status_code=400, detail=f"Solo puedes registrar ocupantes en viajes confirmados que no hayan iniciado. Estado actual: {viaje.status}")
+
+    # SCRUM-255 — por los seguros del viaje (el FUEC y la póliza salen con esta
+    # lista), a menos de 48 h de la salida ya no se puede cambiar. Si el viaje
+    # se confirmó con menos de 48 h y aún no hay ocupantes, se permite
+    # registrarlos una vez: sin ellos el viaje nunca podría iniciar.
+    horas_para_salida = (viaje.departure_time.replace(tzinfo=None) - datetime.now()).total_seconds() / 3600
+    ya_registrados = db.query(models.TripPassenger).filter(
+        models.TripPassenger.request_id == request_id
+    ).count() > 0
+    if horas_para_salida < HORAS_LIMITE_CAMBIO_OCUPANTES and ya_registrados:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Por los seguros del viaje, los ocupantes no se pueden cambiar a menos de {HORAS_LIMITE_CAMBIO_OCUPANTES} horas de la salida."
+        )
 
     # Eliminar registros previos si el pasajero actualiza la lista
     db.query(models.TripPassenger).filter(

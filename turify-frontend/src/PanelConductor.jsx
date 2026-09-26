@@ -26,6 +26,27 @@ import API_BASE_URL from './api';
 // cargado en vez de inyectarlo de nuevo (evita warnings de "google maps already loaded").
 const GOOGLE_MAPS_LIBRARIES = ['places', 'geometry'];
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+// Pines del radar: dos solicitudes a menos de RADIO_GRUPO_PX en pantalla (con el
+// zoom actual) se dibujan como un solo pin con el número de solicitudes. Desde
+// ZOOM_MAX_AGRUPAR ya no se separan más: son de la misma cuadra.
+const RADIO_GRUPO_PX = 28;
+const ZOOM_MAX_AGRUPAR = 18;
+function agruparPorCercania(solicitudes, zoom) {
+  const grupos = [];
+  for (const sol of solicitudes) {
+    const metrosPorPx = 156543.03392 * Math.cos(sol.origin_lat * Math.PI / 180) / Math.pow(2, zoom);
+    const radioMetros = RADIO_GRUPO_PX * metrosPorPx;
+    const grupo = grupos.find(g => {
+      const dLat = (g.lat - sol.origin_lat) * 111320;
+      const dLng = (g.lng - sol.origin_lng) * 111320 * Math.cos(sol.origin_lat * Math.PI / 180);
+      return Math.hypot(dLat, dLng) <= radioMetros;
+    });
+    if (grupo) grupo.solicitudes.push(sol);
+    else grupos.push({ clave: `sol-${sol.request_id}`, lat: sol.origin_lat, lng: sol.origin_lng, solicitudes: [sol] });
+  }
+  return grupos;
+}
 const mapContainerStyle = { width: '100%', height: '100%' };
 const centroDefaultAntioquia = { lat: 6.2442, lng: -75.5812 }; // Medellín
 
@@ -83,6 +104,7 @@ const PanelConductor = ({ onVerRuta }) => {
   // Referencia al mapa: hace falta para centrarlo sin pelear con la prop `center`,
   // que si se fuerza en cada render impide que el conductor lo mueva a mano.
   const mapaRef = useRef(null);
+  const [zoomMapa, setZoomMapa] = useState(9);
 
   const centrarEnMiUbicacion = useCallback(() => {
     if (!mapaRef.current) return;
@@ -408,9 +430,47 @@ const PanelConductor = ({ onVerRuta }) => {
     }
   };
 
+  // También al entrar al panel (no solo en la pestaña Vehículo): el aviso de
+  // fotos del vehículo (SCRUM-253) necesita saber cuántas tiene.
   useEffect(() => {
-    if (token && pestanaActiva === 'vehiculo') cargarVehiculo();
+    if (token && (pestanaActiva === 'vehiculo' || vehiculo === null)) cargarVehiculo();
   }, [token, pestanaActiva]);
+
+  // SCRUM-253 — fotos reales del vehículo, una por tipo; el pasajero las ve
+  // antes de aceptar la oferta. Un solo input oculto para todas.
+  const [subiendoFotoTipo, setSubiendoFotoTipo] = useState(null);
+  const fotoVehiculoInputRef = useRef(null);
+  const fotoVehiculoTipoRef = useRef(null);
+
+  const elegirFotoVehiculo = (tipo) => {
+    fotoVehiculoTipoRef.current = tipo;
+    fotoVehiculoInputRef.current?.click();
+  };
+
+  const subirFotoVehiculo = async (archivo) => {
+    const tipo = fotoVehiculoTipoRef.current;
+    if (!tipo || !archivo) return;
+    setSubiendoFotoTipo(tipo);
+    try {
+      const formData = new FormData();
+      formData.append('tipo', tipo);
+      formData.append('archivo', archivo);
+      const res = await fetch(`${API_BASE_URL}/drivers/vehicle/photos`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'No se pudo subir la foto.');
+      setVehiculo(v => (v ? { ...v, fotos: data.fotos } : v));
+      setFormVehiculo(v => (v ? { ...v, fotos: data.fotos } : v));
+      toast.success('Foto del vehículo actualizada.');
+    } catch (e) {
+      toast.error(`Error: ${e.message}`);
+    } finally {
+      setSubiendoFotoTipo(null);
+    }
+  };
 
   const guardarVehiculo = async () => {
     setGuardandoVehiculo(true);
@@ -525,6 +585,53 @@ const PanelConductor = ({ onVerRuta }) => {
   const [subiendoFuec, setSubiendoFuec] = useState(null); // request_id en proceso
   const fuecInputRef = useRef(null);
   const fuecTargetIdRef = useRef(null);
+
+  // SCRUM-252 — conductores registrados antes de que se pidiera la cédula:
+  // se les muestra un aviso para subirla por ambos lados.
+  const [estadoCedula, setEstadoCedula] = useState(null); // null | 'FALTA' | 'RECHAZADA' | 'EN_REVISION' | 'OK'
+  const [cedula, setCedula] = useState({ frente: null, reverso: null });
+  const [enviandoCedula, setEnviandoCedula] = useState(false);
+  const cedulaInputRefs = { frente: useRef(null), reverso: useRef(null) };
+
+  const cargarEstadoCedula = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/drivers/my-documents`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+      });
+      if (!res.ok) return;
+      const docs = (await res.json()).filter(d => d.document_type === 'Cedula frente' || d.document_type === 'Cedula reverso');
+      if (docs.some(d => d.verification_status === 'REJECTED')) setEstadoCedula('RECHAZADA');
+      else if (docs.length < 2) setEstadoCedula('FALTA');
+      else if (docs.every(d => d.verification_status === 'APPROVED')) setEstadoCedula('OK');
+      else setEstadoCedula('EN_REVISION');
+    } catch { /* sin conexión: no se muestra el aviso */ }
+  };
+
+  useEffect(() => { if (token) cargarEstadoCedula(); }, [token]);
+
+  const enviarCedula = async () => {
+    if (!cedula.frente || !cedula.reverso) return;
+    setEnviandoCedula(true);
+    try {
+      const formData = new FormData();
+      formData.append('doc_cedula_frente', cedula.frente);
+      formData.append('doc_cedula_reverso', cedula.reverso);
+      const res = await fetch(`${API_BASE_URL}/drivers/upload-cedula`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'No se pudo enviar la cédula.');
+      toast.success(data.message || 'Cédula enviada.');
+      setCedula({ frente: null, reverso: null });
+      cargarEstadoCedula();
+    } catch (e) {
+      toast.error(`Error: ${e.message}`);
+    } finally {
+      setEnviandoCedula(false);
+    }
+  };
 
   const abrirSelectorFuec = (requestId) => {
     fuecTargetIdRef.current = requestId;
@@ -803,8 +910,23 @@ const PanelConductor = ({ onVerRuta }) => {
   });
   const filtrosActivos = filtros.tipo !== 'todos' || filtros.pasajeros !== 'todos' || filtros.mascotas;
 
-  // HU06 — solicitudes con coordenadas, para pintarlas como pines en el mapa
-  const solicitudesConUbicacion = solicitudesDisponibles.filter(sol => sol.origin_lat != null && sol.origin_lng != null);
+  // HU06 — solicitudes con coordenadas, para pintarlas como pines en el mapa.
+  // Salen de la lista YA filtrada: el mapa y la lista muestran lo mismo.
+  const solicitudesConUbicacion = solicitudesFiltradas.filter(sol => sol.origin_lat != null && sol.origin_lng != null);
+  const gruposEnMapa = agruparPorCercania(solicitudesConUbicacion, zoomMapa);
+
+  // Un pin con varias solicitudes: si todavía se puede acercar, se acerca para
+  // separarlas; si ya salen de la misma cuadra, se abre la de salida más próxima.
+  const alTocarGrupo = (grupo) => {
+    if (grupo.solicitudes.length > 1 && zoomMapa < ZOOM_MAX_AGRUPAR && mapaRef.current) {
+      mapaRef.current.panTo({ lat: grupo.lat, lng: grupo.lng });
+      mapaRef.current.setZoom(Math.min(zoomMapa + 3, ZOOM_MAX_AGRUPAR));
+      return;
+    }
+    const sol = [...grupo.solicitudes].sort((a, b) => new Date(a.departure_time) - new Date(b.departure_time))[0];
+    if (sol.precio_fijo) handleClickTarjeta(sol);
+    else { setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); }
+  };
 
   return (
     <>
@@ -906,6 +1028,56 @@ const PanelConductor = ({ onVerRuta }) => {
         </div>
       </div>
 
+      {/* SCRUM-252 — aviso para subir la cédula (conductores registrados antes) */}
+      {(estadoCedula === 'FALTA' || estadoCedula === 'RECHAZADA') && (
+        <div style={{ margin: '0 20px 14px', padding: '12px 14px', borderRadius: T.rControl, background: 'rgba(233,161,59,0.12)', border: '1px solid rgba(233,161,59,0.45)', fontFamily: T.ui }}>
+          <p style={{ margin: 0, fontSize: '13.5px', fontWeight: 700, color: '#EAF2EC', display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <IconAlerta size={14} color={T.chiva} />
+            {estadoCedula === 'RECHAZADA' ? 'Tu cédula fue rechazada: vuelve a subirla' : 'Completa tu registro: sube tu cédula'}
+          </p>
+          <p style={{ margin: '4px 0 10px', fontSize: '12.5px', color: 'rgba(234,242,236,.7)' }}>
+            Pedimos la foto de tu cédula por ambos lados. El administrador la revisa igual que tus otros documentos.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {[['frente', 'Frente'], ['reverso', 'Reverso']].map(([lado, etiqueta]) => (
+              <button key={lado} type="button" className="t-foco" onClick={() => cedulaInputRefs[lado].current?.click()}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px', borderRadius: T.rControl, cursor: 'pointer', fontSize: '12.5px', fontWeight: 700, fontFamily: T.ui,
+                         background: cedula[lado] ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)',
+                         border: `1px solid ${cedula[lado] ? 'rgba(34,197,94,0.5)' : T.monteLinea}`, color: '#EAF2EC' }}>
+                {cedula[lado] ? <IconVisto size={13} /> : <IconRecibo size={13} />}
+                {etiqueta}{cedula[lado] ? ' cargado' : ''}
+              </button>
+            ))}
+            {['frente', 'reverso'].map(lado => (
+              <input key={lado} ref={cedulaInputRefs[lado]} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" style={{ display: 'none' }}
+                onChange={(e) => { const archivo = e.target.files?.[0] || null; e.target.value = ''; setCedula(c => ({ ...c, [lado]: archivo })); }} />
+            ))}
+            <button type="button" className="t-foco" onClick={enviarCedula} disabled={enviandoCedula || !cedula.frente || !cedula.reverso}
+              style={{ padding: '8px 14px', borderRadius: T.rControl, border: 'none', fontSize: '12.5px', fontWeight: 700, fontFamily: T.ui,
+                       cursor: (enviandoCedula || !cedula.frente || !cedula.reverso) ? 'not-allowed' : 'pointer',
+                       background: (cedula.frente && cedula.reverso) ? BRAND_GREEN : 'rgba(255,255,255,0.12)', color: '#fff' }}>
+              {enviandoCedula ? 'Enviando…' : 'Enviar cédula'}
+            </button>
+          </div>
+        </div>
+      )}
+      {/* SCRUM-253 — recordatorio de fotos reales del vehículo */}
+      {vehiculo && pestanaActiva !== 'vehiculo' && (vehiculo.fotos || []).length < (vehiculo.minimo_fotos || 3) && (
+        <div style={{ margin: '0 20px 14px', padding: '10px 14px', borderRadius: T.rControl, background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.monteLinea}`,
+                      display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '8px', fontFamily: T.ui }}>
+          <span style={{ fontSize: '12.5px', color: 'rgba(234,242,236,.8)' }}>
+            Sube fotos reales de tu vehículo ({(vehiculo.fotos || []).length} de {vehiculo.minimo_fotos || 3}): los pasajeros las ven antes de aceptar tu oferta.
+          </span>
+          <button type="button" className="t-foco" onClick={() => setPestanaActiva('vehiculo')}
+            style={{ padding: '6px 12px', borderRadius: T.rControl, border: 'none', background: BRAND_GREEN, color: '#fff', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: T.ui }}>
+            Subir fotos
+          </button>
+        </div>
+      )}
+      {estadoCedula === 'EN_REVISION' && (
+        <p style={{ margin: '0 20px 12px', fontSize: '12.5px', color: 'rgba(234,242,236,.7)', fontFamily: T.ui }}>Tu cédula está en revisión.</p>
+      )}
+
       {/* PESTAÑAS */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '0 20px 16px' }}>
         {[{ id: 'radar', Ico: IconRadar, label: 'Radar', count: solicitudesDisponibles.length }, { id: 'activos', Ico: IconClipboard, label: 'Ofertas', count: viajesActivos.length }, { id: 'historial', Ico: IconCalendario, label: 'Historial', count: 0 }, { id: 'ganancias', Ico: IconGrafico, label: 'Ganancias', count: 0 }, { id: 'vehiculo', Ico: IconAuto, label: 'Vehículo', count: 0 }].map(tab => (
@@ -939,7 +1111,7 @@ const PanelConductor = ({ onVerRuta }) => {
               <div>
                 <p style={{ margin: 0, fontWeight: 700, fontSize: '14px', color: T.tinta, display: 'flex', alignItems: 'flex-start', gap: '7px' }}><IconPin size={14} style={{ flexShrink: 0, marginTop: '2px' }} />{solicitudModal.origin}</p>
                 <p style={{ margin: '2px 0', fontWeight: '700', fontSize: '14px', color: BRAND_GREEN }}>→ {solicitudModal.destination}</p>
-                <p style={{ margin: '4px 0 0', fontSize: '12px', color: T.piedra, display: 'flex', alignItems: 'center', gap: '6px' }}><IconPersonas size={13} />{(solicitudModal.adults_count || 1) + (solicitudModal.children_count || 0)} pasajero(s){solicitudModal.has_pets && <> · <IconMascota size={12} /></>}</p>
+                <p style={{ margin: '4px 0 0', fontSize: '12px', color: T.piedra, display: 'flex', alignItems: 'center', gap: '6px' }}><IconPersonas size={13} />{(solicitudModal.adults_count || 1) + (solicitudModal.children_count || 0)} pasajero(s){solicitudModal.has_pets && <> · <IconMascota size={12} />mascota en guacal</>}</p>
               </div>
               <button onClick={() => { setSolicitudModal(null); setPrecio(''); setErrorPrecio(''); }}
                 style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--t-piedra-clara)' }}>×</button>
@@ -1126,7 +1298,7 @@ const PanelConductor = ({ onVerRuta }) => {
                     )}
                     <div style={{ fontSize: '13px', color: 'var(--t-piedra)', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconCalendario size={12} />{formatearFecha(sol.departure_time)}</span>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconPersonas size={12} />{(sol.adults_count || 1) + (sol.children_count || 0)} pasajero(s){sol.has_pets && <IconMascota size={12} />}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconPersonas size={12} />{(sol.adults_count || 1) + (sol.children_count || 0)} pasajero(s){sol.has_pets && <><IconMascota size={12} />en guacal</>}</span>
                     </div>
                     {/* HU55.1 — filtro exclusivo: si esta tarjeta te aparece en el radar es
                         porque tu vehículo ya cumple TODO lo que pidió el pasajero (si es
@@ -1535,6 +1707,33 @@ const PanelConductor = ({ onVerRuta }) => {
                   </p>
                 </div>
 
+                {/* SCRUM-253 — fotos reales del vehículo */}
+                <div style={{ marginBottom: '16px' }}>
+                  <p style={{ margin: '0 0 3px', fontSize: '13px', fontWeight: 700, color: 'var(--t-tinta)' }}>Fotos reales del vehículo</p>
+                  <p style={{ margin: '0 0 10px', fontSize: '12.5px', color: 'var(--t-piedra)' }}>
+                    Los pasajeros las ven antes de aceptar tu oferta. Sube mínimo {formVehiculo.minimo_fotos || 3}; la de frente con la placa visible.
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
+                    {Object.entries(formVehiculo.tipos_foto || {}).map(([tipo, etiqueta]) => {
+                      const foto = (formVehiculo.fotos || []).find(f => f.tipo === tipo);
+                      return (
+                        <button key={tipo} type="button" className="t-foco" onClick={() => elegirFotoVehiculo(tipo)} disabled={!!subiendoFotoTipo}
+                          aria-label={foto ? `Cambiar foto: ${etiqueta}` : `Subir foto: ${etiqueta}`}
+                          style={{ position: 'relative', aspectRatio: '4 / 3', borderRadius: '10px', overflow: 'hidden', padding: '8px',
+                                   cursor: subiendoFotoTipo ? 'default' : 'pointer', fontFamily: T.ui,
+                                   border: `1px ${foto ? 'solid' : 'dashed'} var(--t-linea)`, background: 'var(--t-niebla)',
+                                   display: 'flex', alignItems: foto ? 'flex-end' : 'center', justifyContent: foto ? 'flex-start' : 'center' }}>
+                          {foto && <img src={foto.url} alt={etiqueta} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+                          <span style={{ position: 'relative', fontSize: '11.5px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', textAlign: 'left',
+                                         background: foto ? 'rgba(0,0,0,0.6)' : 'transparent', color: foto ? '#fff' : 'var(--t-piedra)' }}>
+                            {subiendoFotoTipo === tipo ? 'Subiendo…' : foto ? `${etiqueta} · cambiar` : `+ ${etiqueta}`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div style={{ marginBottom: '14px' }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--t-tinta)', marginBottom: '5px' }}>Capacidad real (pasajeros)</label>
                   <input type="number" min="1" max="60" value={formVehiculo.capacidad_real ?? ''}
@@ -1626,24 +1825,34 @@ const PanelConductor = ({ onVerRuta }) => {
             mapContainerStyle={mapContainerStyle}
             center={ubicacionActual || centroDefaultAntioquia}
             zoom={ubicacionActual ? 12 : 9}
-            onLoad={(mapa) => { mapaRef.current = mapa; }}
+            onLoad={(mapa) => { mapaRef.current = mapa; setZoomMapa(mapa.getZoom()); }}
+            onZoomChanged={() => { if (mapaRef.current) setZoomMapa(mapaRef.current.getZoom()); }}
             options={{ disableDefaultUI: true, zoomControl: true, styles: MAPA_VERDE }}
           >
+            {/* Solicitudes: las que salen a pocos metros entre sí se juntan en un solo
+                pin con el número adentro, en vez de apilarse y verse como una sola. */}
+            {gruposEnMapa.map(grupo => {
+              const varias = grupo.solicitudes.length > 1;
+              const sol = grupo.solicitudes[0];
+              return (
+                <MarkerF key={grupo.clave} position={{ lat: grupo.lat, lng: grupo.lng }} zIndex={10}
+                  title={varias
+                    ? `${grupo.solicitudes.length} solicitudes salen de esta zona`
+                    : sol.precio_fijo
+                      ? `${sol.origin} → ${sol.destination} — precio fijo $${Number(sol.suggested_price).toLocaleString('es-CO')}`
+                      : `${sol.origin} → ${sol.destination}`}
+                  onClick={() => alTocarGrupo(grupo)}
+                  label={varias ? { text: String(grupo.solicitudes.length), color: '#fff', fontSize: '11px', fontWeight: '700' } : undefined}
+                  icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: varias ? 11 : 7, fillColor: '#f59e0b', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
+              );
+            })}
+
+            {/* Tu posición va encima de todo: si hay una solicitud en tu misma cuadra,
+                el pin de ella no te tapa. */}
             {ubicacionActual && (
-              <MarkerF position={ubicacionActual} title="Tu posición"
+              <MarkerF position={ubicacionActual} title="Tu posición" zIndex={50}
                 icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: FIJO.ruta, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 }} />
             )}
-
-            {solicitudesConUbicacion.map(sol => (
-              <MarkerF key={sol.request_id} position={{ lat: sol.origin_lat, lng: sol.origin_lng }}
-                title={sol.precio_fijo
-                  ? `${sol.origin} → ${sol.destination} — precio fijo $${Number(sol.suggested_price).toLocaleString('es-CO')}`
-                  : `${sol.origin} → ${sol.destination}`}
-                onClick={() => sol.precio_fijo
-                  ? handleClickTarjeta(sol)
-                  : (() => { setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); })()}
-                icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: '#f59e0b', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
-            ))}
 
             {/* Ruta trazada del viaje seleccionado (botón "ver ruta" de la tarjeta) */}
             {rutaConductor && (
@@ -1916,6 +2125,14 @@ const PanelConductor = ({ onVerRuta }) => {
 
     <PerfilDrawer abierto={mostrarPerfil} onCerrar={() => setMostrarPerfil(false)} />
     <ToastContainer toasts={toasts} onRemove={removeToast} />
+    {/* Input oculto para las fotos del vehículo — ver elegirFotoVehiculo */}
+    <input ref={fotoVehiculoInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+      style={{ display: 'none' }}
+      onChange={(e) => {
+        const archivo = e.target.files?.[0];
+        e.target.value = '';
+        if (archivo) subirFotoVehiculo(archivo);
+      }} />
     {/* Input oculto compartido por todas las tarjetas — ver abrirSelectorFuec */}
     <input ref={fuecInputRef} type="file"
       accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"

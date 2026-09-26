@@ -128,7 +128,7 @@ const Dashboard = () => {
   const [tipoViaje, setTipoViaje] = useState('ida');
   const [busqueda, setBusqueda] = useState({ origen: '', destino: '', departure_time: '', return_time: '' });
   const [mostrarPasajeros, setMostrarPasajeros] = useState(false);
-  const [pasajeros, setPasajeros] = useState({ adultos: 1, ninos: 0, mascotas: false });
+  const [pasajeros, setPasajeros] = useState({ adultos: 1, ninos: 0, mascotas: false, mascotasEnGuacal: false });
   // HU60 — viajes de varios días (tarifa_dia + km extra) y tiempo de espera
   // por hora (HU29): la fórmula de precio ya los sabía calcular, pero hasta
   // ahora no había forma de indicarlos al publicar un viaje real.
@@ -276,6 +276,8 @@ const Dashboard = () => {
   const [fuerzaMayorCancelacion, setFuerzaMayorCancelacion] = useState(false);
   const [evidenciaCancelacion, setEvidenciaCancelacion] = useState(null);
   const [enviandoCancelacion, setEnviandoCancelacion] = useState(false);
+  // SCRUM-253 — galería de fotos del vehículo de una oferta: { fotos, conductor }
+  const [galeriaVehiculo, setGaleriaVehiculo] = useState(null);
   const [errorDireccion, setErrorDireccion] = useState(null);
   const coordsBuffer = useRef({});
 
@@ -624,6 +626,9 @@ const Dashboard = () => {
           requiere_wifi: comodidadesFiltro.tiene_wifi,
           num_days: numDias,
           wait_time_hours: tiempoEsperaHoras,
+          // SCRUM-257 — para usar la tarifa del Ministerio si el destino está en la planilla.
+          origin: busqueda.origen,
+          destination: busqueda.destino,
         }),
       });
       if (!res.ok) { setPrecioSugerido(null); return; }
@@ -633,7 +638,7 @@ const Dashboard = () => {
     } finally {
       setCargandoPrecio(false);
     }
-  }, [infoRuta, busqueda.departure_time, tipoViaje, pasajeros.adultos, pasajeros.ninos, comodidadesFiltro.tiene_ac, comodidadesFiltro.tiene_wifi, numDias, tiempoEsperaHoras, token]);
+  }, [infoRuta, busqueda.origen, busqueda.destino, busqueda.departure_time, tipoViaje, pasajeros.adultos, pasajeros.ninos, comodidadesFiltro.tiene_ac, comodidadesFiltro.tiene_wifi, numDias, tiempoEsperaHoras, token]);
 
   useEffect(() => { actualizarPrecioSugerido(); }, [actualizarPrecioSugerido]);
 
@@ -644,7 +649,19 @@ const Dashboard = () => {
   const comodidadesAlgunaMarcada = () =>
     Object.entries(comodidadesFiltro).some(([, marcada]) => marcada);
 
+  // SCRUM-254 — con mascotas, el pasajero tiene que confirmar el guacal antes
+  // de publicar (el backend también lo exige).
+  const faltaConfirmarGuacal = () => {
+    if (pasajeros.mascotas && !pasajeros.mascotasEnGuacal) {
+      setMostrarPasajeros(true);
+      toast.warning('Confirma que tu mascota viajará en guacal o transportadora.');
+      return true;
+    }
+    return false;
+  };
+
   const intentarPublicar = async (usarPrecioFijo) => {
+    if (faltaConfirmarGuacal()) return;
     if (tipoServicio !== 'ESTANDAR' || !comodidadesAlgunaMarcada()) {
       crearViaje(usarPrecioFijo);
       return;
@@ -684,6 +701,7 @@ const Dashboard = () => {
 
   const crearViaje = async (usarPrecioFijo) => {
     if (!token) { toast.warning('Debes iniciar sesión para publicar un viaje.'); return; }
+    if (faltaConfirmarGuacal()) return;
     setEnviandoSolicitud(true);
     try {
       const payload = {
@@ -692,6 +710,7 @@ const Dashboard = () => {
         return_time: tipoViaje === 'redondo' ? busqueda.return_time : null,
         trip_type: tipoViaje === 'redondo' ? 'ROUND_TRIP' : 'ONE_WAY',
         adults_count: pasajeros.adultos, children_count: pasajeros.ninos, has_pets: pasajeros.mascotas,
+        mascotas_en_guacal: pasajeros.mascotas && pasajeros.mascotasEnGuacal,
         num_days: numDias, wait_time_hours: tiempoEsperaHoras,
         // ÉPICA 12 — true: el pasajero acepta el precio sugerido tal cual, el
         // conductor solo puede aceptarlo (no ofertar otro). false: publica
@@ -1020,7 +1039,9 @@ const Dashboard = () => {
               estado: o.status,
               // HU55 — comodidades y categoría del vehículo, y si es un buen ajuste para el grupo
               comodidades: o.comodidades || null,
-              recomendado: !!o.recomendado
+              recomendado: !!o.recomendado,
+              // SCRUM-253 — fotos reales del vehículo
+              fotosVehiculo: o.vehiculo_fotos || []
             }));
           }
         } catch {}
@@ -1069,6 +1090,7 @@ const Dashboard = () => {
             ya_califico: v.ya_califico || false,
             // El conductor lo sube (ver PanelConductor.jsx); acá solo se muestra si ya existe.
             fuec_url: v.fuec_url || null,
+            ocupantes_registrados: v.ocupantes_registrados || 0,
           })));
         }
       } catch {}
@@ -1212,6 +1234,8 @@ const Dashboard = () => {
         adults_count: d.adults_count,
         children_count: d.children_count,
         has_pets: d.has_pets,
+        // Ya lo confirmó al publicar el viaje original (SCRUM-254).
+        mascotas_en_guacal: !!d.has_pets,
         origin_lat: d.origin_lat,
         origin_lng: d.origin_lng,
         destination_lat: d.destination_lat,
@@ -1769,8 +1793,25 @@ const Dashboard = () => {
                         <div style={{ fontWeight: 'bold', fontSize: '16px', color: 'var(--t-tinta)' }}>Mascotas</div>
                         <div style={{ fontSize: '14px', color: 'var(--t-piedra)', marginTop: '2px' }}>¿Traes mascota?</div>
                       </div>
-                      <input type="checkbox" checked={pasajeros.mascotas} onChange={(e) => setPasajeros(prev => ({ ...prev, mascotas: e.target.checked }))} style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: BRAND_GREEN }} />
+                      <input type="checkbox" checked={pasajeros.mascotas} onChange={(e) => setPasajeros(prev => ({ ...prev, mascotas: e.target.checked, mascotasEnGuacal: e.target.checked && prev.mascotasEnGuacal }))} style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: BRAND_GREEN }} />
                     </div>
+                    {/* SCRUM-254 — obligatorio para poder publicar con mascotas */}
+                    {pasajeros.mascotas && (
+                      <label htmlFor="mascotas-en-guacal"
+                        style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '12px', margin: '10px 0 0', borderRadius: '10px', cursor: 'pointer',
+                                 background: pasajeros.mascotasEnGuacal ? 'var(--t-musgo)' : 'var(--t-chiva-suave)',
+                                 border: `1px solid ${pasajeros.mascotasEnGuacal ? 'var(--t-ruta)' : 'var(--t-chiva)'}` }}>
+                        <input id="mascotas-en-guacal" type="checkbox" checked={pasajeros.mascotasEnGuacal}
+                          onChange={(e) => setPasajeros(prev => ({ ...prev, mascotasEnGuacal: e.target.checked }))}
+                          style={{ width: '18px', height: '18px', marginTop: '1px', flexShrink: 0, cursor: 'pointer', accentColor: BRAND_GREEN }} />
+                        <span>
+                          <span style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, color: 'var(--t-tinta)' }}>Viajará en guacal o transportadora</span>
+                          <span style={{ display: 'block', fontSize: '12px', color: 'var(--t-piedra)', marginTop: '2px' }}>
+                            Obligatorio para viajar con mascotas. Lleva también su carné de vacunación.
+                          </span>
+                        </span>
+                      </label>
+                    )}
                     {totalAsientos >= 44 && <p style={{ color: '#d97706', fontSize: '13px', marginTop: '10px', textAlign: 'center' }}>Límite máximo alcanzado.</p>}
 
                     {/* HU60 — días que se necesita el vehículo (viajes de varios días,
@@ -2465,22 +2506,41 @@ const Dashboard = () => {
                           </p>
                         )}
 
-                      {/* Botón FUEC */}
-                      {(viaje.trip_status === 'ASSIGNED' || viaje.trip_status === 'IN_PROGRESS') && (
-                        <button
-                          onClick={() => abrirModalOcupantes(viaje)}
-                          style={{
-                            marginTop: '10px', width: '100%', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
-                            background: fuecEnviado[viaje.id] ? 'rgba(34,197,94,0.12)' : 'rgba(34,197,94,0.08)',
-                            border: `1px solid ${fuecEnviado[viaje.id] ? BRAND_GREEN : 'rgba(34,197,94,0.35)'}`,
-                            borderRadius: '8px',
-                            color: fuecEnviado[viaje.id] ? BRAND_GREEN : 'var(--t-musgo-texto)',
-                            fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s'
-                          }}>
-                          {fuecEnviado[viaje.id] ? <IconVisto size={13} /> : <IconClipboard size={13} />}
-                          {fuecEnviado[viaje.id] ? 'Ocupantes registrados — Actualizar' : 'Registrar ocupantes del viaje'}
-                        </button>
-                      )}
+                      {/* Botón FUEC — SCRUM-255: la lista se congela 48 h antes de
+                          la salida (seguros del viaje); si todavía no hay lista,
+                          se permite registrarla una vez. */}
+                      {viaje.trip_status === 'ASSIGNED' && (() => {
+                        const registrados = !!fuecEnviado[viaje.id] || viaje.ocupantes_registrados > 0;
+                        const horasParaSalida = (new Date(viaje.departure_time) - new Date()) / 3600000;
+                        const dentroDe48h = horasParaSalida < 48;
+                        const bloqueado = dentroDe48h && registrados;
+                        return (
+                          <>
+                            <button
+                              onClick={() => !bloqueado && abrirModalOcupantes(viaje)}
+                              disabled={bloqueado}
+                              style={{
+                                marginTop: '10px', width: '100%', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                                background: registrados ? 'rgba(34,197,94,0.12)' : 'rgba(34,197,94,0.08)',
+                                border: `1px solid ${registrados ? BRAND_GREEN : 'rgba(34,197,94,0.35)'}`,
+                                borderRadius: '8px',
+                                color: registrados ? BRAND_GREEN : 'var(--t-musgo-texto)',
+                                fontSize: '13px', fontWeight: '700', cursor: bloqueado ? 'default' : 'pointer',
+                                transition: 'background-color 0.2s, border-color 0.2s'
+                              }}>
+                              {registrados ? <IconVisto size={13} /> : <IconClipboard size={13} />}
+                              {bloqueado ? 'Ocupantes registrados' : registrados ? 'Ocupantes registrados — Actualizar' : 'Registrar ocupantes del viaje'}
+                            </button>
+                            {dentroDe48h && (
+                              <p style={{ margin: '6px 0 0', fontSize: '11.5px', color: 'var(--t-piedra)', textAlign: 'center' }}>
+                                {bloqueado
+                                  ? 'Por los seguros del viaje, ya no se pueden cambiar (faltan menos de 48 horas).'
+                                  : 'Faltan menos de 48 horas: los podrás registrar una sola vez.'}
+                              </p>
+                            )}
+                          </>
+                        );
+                      })()}
 
                       {/* Ver FUEC — lo sube el conductor (empresa afiliada), el
                           representante del viaje tiene derecho a verlo. Mientras no
@@ -2632,6 +2692,21 @@ const Dashboard = () => {
                             </div>
                           )}
 
+                          {/* SCRUM-253 — el vehículo real, antes de aceptar */}
+                          {oferta.fotosVehiculo.length > 0 ? (
+                            <button type="button" className="t-foco" onClick={() => setGaleriaVehiculo({ fotos: oferta.fotosVehiculo, conductor: oferta.conductor })}
+                              style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '6px', marginBottom: '10px', background: 'var(--t-niebla)', border: '1px solid var(--t-linea)', borderRadius: '9px', cursor: 'pointer', textAlign: 'left' }}>
+                              <span style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                {oferta.fotosVehiculo.slice(0, 3).map((url, i) => (
+                                  <img key={i} src={url} alt="" style={{ width: '46px', height: '34px', objectFit: 'cover', borderRadius: '5px' }} />
+                                ))}
+                              </span>
+                              <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--t-tinta)' }}>Ver fotos del vehículo ({oferta.fotosVehiculo.length})</span>
+                            </button>
+                          ) : (
+                            <p style={{ margin: '0 0 10px', fontSize: '12px', color: 'var(--t-piedra-clara)' }}>Este conductor todavía no ha subido fotos del vehículo.</p>
+                          )}
+
                           {oferta.created_at && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--t-piedra-clara)', marginBottom: '4px' }}><IconReloj size={11} />Oferta enviada {tiempoRelativo(oferta.created_at)}</div>
                           )}
@@ -2777,7 +2852,8 @@ const Dashboard = () => {
                     style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '30px', height: '30px', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '17px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
                 </div>
                 <p style={{ margin: '8px 0 0', fontSize: '14px', color: 'rgba(255,255,255,0.45)' }}>
-                  Ingresa el nombre y documento de cada persona que viajará.
+                  Ingresa el nombre y documento de cada persona que viajará. Por los seguros del viaje,
+                  solo se pueden cambiar hasta 48 horas antes de la salida.
                 </p>
                 <p style={{ margin: '6px 0 0', fontSize: '13px', fontWeight: 700, color: ocupantesFuec.length >= ocupantesEsperados ? BRAND_GREEN : 'var(--t-chiva)' }}>
                   {ocupantesFuec.length} de {ocupantesEsperados} pasajero(s) del viaje
@@ -2977,6 +3053,36 @@ const Dashboard = () => {
             </>
           );
         })()}
+      </AnimatePresence>
+
+      {/* GALERÍA DEL VEHÍCULO — SCRUM-253 */}
+      <AnimatePresence>
+        {galeriaVehiculo && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setGaleriaVehiculo(null)}
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 3000 }} />
+            <div style={{ position: 'fixed', inset: 0, zIndex: 3001, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+            <motion.div role="dialog" aria-label="Fotos del vehículo" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+              style={{ pointerEvents: 'all', width: '560px', maxWidth: '94vw', maxHeight: '88vh', overflowY: 'auto',
+                       background: 'var(--t-papel)', borderRadius: '16px', padding: '18px', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', fontFamily: T.ui }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h3 style={{ margin: 0, fontSize: '16px', fontFamily: T.display, fontWeight: 800, color: 'var(--t-tinta)' }}>Vehículo de {galeriaVehiculo.conductor}</h3>
+                <button type="button" onClick={() => setGaleriaVehiculo(null)} aria-label="Cerrar"
+                  style={{ background: 'var(--t-niebla-2)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', color: 'var(--t-piedra)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconEquis size={14} />
+                </button>
+              </div>
+              <div style={{ display: 'grid', gap: '10px' }}>
+                {galeriaVehiculo.fotos.map((url, i) => (
+                  <img key={i} src={url} alt={`Foto ${i + 1} del vehículo`} style={{ width: '100%', borderRadius: '10px', objectFit: 'cover', maxHeight: '60vh', background: 'var(--t-niebla)' }} />
+                ))}
+              </div>
+            </motion.div>
+            </div>
+          </>
+        )}
       </AnimatePresence>
 
       {/* PERFIL DRAWER — HU16 */}
