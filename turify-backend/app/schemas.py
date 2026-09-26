@@ -83,6 +83,8 @@ class DocumentTypeEnum(str, Enum):
     Tecnomecanica = 'Tecnomecanica'
     Seguros = 'Seguros Contractual y extracontractual'
     RUNT = 'RUNT'  # HU37 — RUNT (experiencia del conductor), opcional y posterior al registro
+    CedulaFrente = 'Cedula frente'    # SCRUM-252
+    CedulaReverso = 'Cedula reverso'
 
 class VerificationStatusEnum(str, Enum):
     PENDING = 'PENDING'
@@ -138,6 +140,10 @@ class ServiceRequestCreate(BaseModel):
     # exponía).
     infants_count: int = Field(0, ge=0, le=60)
     has_pets: bool = False
+    # SCRUM-254 — confirmación de que las mascotas viajan en guacal o
+    # transportadora. Obligatoria si has_pets; no se guarda en columna, queda
+    # en el log CREATE_TRIP como constancia de que el pasajero la aceptó.
+    mascotas_en_guacal: bool = False
     # Épica 2 (HU25) — datos de la ruta calculados con Google Maps, para el motor de precio (Épica 12)
     origin_lat: Optional[float] = Field(None, ge=-90, le=90)
     origin_lng: Optional[float] = Field(None, ge=-180, le=180)
@@ -229,6 +235,9 @@ class PriceEstimateRequest(BaseModel):
     tipo_via: str = "PAVIMENTADA"
     requiere_ac: bool = False
     requiere_wifi: bool = False
+    # SCRUM-257 — para reconocer destinos de la planilla del Ministerio.
+    origin: Optional[str] = Field(None, max_length=255)
+    destination: Optional[str] = Field(None, max_length=255)
 
     @field_validator('tipo_via')
     @classmethod
@@ -497,6 +506,11 @@ class VehicleSettingsResponse(BaseModel):
     acepta_mascotas: bool
     cargo_mascota: Optional[float] = None
     acepta_menores_2_anos: bool
+    # SCRUM-253 — fotos reales del vehículo
+    fotos: list[dict] = []
+    foto_registro: Optional[str] = None
+    tipos_foto: dict[str, str] = {}
+    minimo_fotos: int = 3
 
     class Config:
         from_attributes = True

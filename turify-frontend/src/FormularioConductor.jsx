@@ -23,6 +23,8 @@ const ETIQUETA_DOCUMENTO = {
   'Tarjeta de operacion': 'Tarjeta de Operación',
   'Tecnomecanica': 'Revisión Tecnomecánica',
   'Seguros Contractual y extracontractual': 'Seguros (Contractual / Extracontractual)',
+  'Cedula frente': 'Cédula (frente)',
+  'Cedula reverso': 'Cédula (reverso)',
 };
 
 // Tamaño legible para el archivo cargado — confirma que subió el correcto.
@@ -267,6 +269,7 @@ const FormularioConductor = () => {
     plate: '', capacity: '', vehicle_photo: null,
     doc_soat: null, doc_licencia: null, doc_tarjeta_operacion: null,
     doc_tecnomecanica: null, doc_seguros: null,
+    doc_cedula_frente: null, doc_cedula_reverso: null,  // SCRUM-252
     // HU55 — comodidades del vehículo, opcionales (se pueden dejar sin marcar
     // y configurar después desde el panel del conductor)
     tiene_ac: false, tiene_wifi: false, tiene_bano: false, tiene_musica: false,
@@ -391,6 +394,8 @@ const FormularioConductor = () => {
     if (formConductor.doc_tarjeta_operacion) formData.append('doc_tarjeta_operacion', formConductor.doc_tarjeta_operacion);
     if (formConductor.doc_tecnomecanica) formData.append('doc_tecnomecanica', formConductor.doc_tecnomecanica);
     if (formConductor.doc_seguros) formData.append('doc_seguros', formConductor.doc_seguros);
+    if (formConductor.doc_cedula_frente) formData.append('doc_cedula_frente', formConductor.doc_cedula_frente);
+    if (formConductor.doc_cedula_reverso) formData.append('doc_cedula_reverso', formConductor.doc_cedula_reverso);
 
     try {
       const respuesta = await fetch(`${API_BASE_URL}/drivers/register-details`, {
@@ -421,7 +426,7 @@ const FormularioConductor = () => {
   };
 
   // ── Progreso: el formulario es largo, conviene decir cuánto falta ──
-  const documentos = ['doc_soat', 'doc_licencia', 'doc_tarjeta_operacion', 'doc_tecnomecanica', 'doc_seguros'];
+  const documentos = ['doc_cedula_frente', 'doc_cedula_reverso', 'doc_soat', 'doc_licencia', 'doc_tarjeta_operacion', 'doc_tecnomecanica', 'doc_seguros'];
   const seccionPersonalLista = Boolean(formConductor.age && (
     formConductor.affiliated_company === 'otra'
       ? formConductor.nueva_empresa_nombre && formConductor.nueva_empresa_nit
@@ -602,6 +607,9 @@ const FormularioConductor = () => {
             <Seccion n={3} titulo="Documentación reglamentaria" Ico={IconClipboard} completa={seccionDocsLista}
               descripcion={`En PDF o imagen. ${documentosCargados} de ${documentos.length} cargados.`}>
               <div className="fc-rejilla" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                {/* SCRUM-252 — cédula por ambos lados */}
+                <DropZone label="Cédula (frente)" name="doc_cedula_frente" Ico={IconTarjeta} onChange={handleInputConductor} file={formConductor.doc_cedula_frente} error={erroresArchivo.doc_cedula_frente} />
+                <DropZone label="Cédula (reverso)" name="doc_cedula_reverso" Ico={IconTarjeta} onChange={handleInputConductor} file={formConductor.doc_cedula_reverso} error={erroresArchivo.doc_cedula_reverso} />
                 <DropZone label="SOAT vigente" name="doc_soat" Ico={IconEscudo} onChange={handleInputConductor} file={formConductor.doc_soat} error={erroresArchivo.doc_soat} />
                 <DropZone label="Licencia de conducción" name="doc_licencia" Ico={IconTarjeta} onChange={handleInputConductor} file={formConductor.doc_licencia} error={erroresArchivo.doc_licencia} />
                 <DropZone label="Tarjeta de operación" name="doc_tarjeta_operacion" Ico={IconClipboard} onChange={handleInputConductor} file={formConductor.doc_tarjeta_operacion} error={erroresArchivo.doc_tarjeta_operacion} />
