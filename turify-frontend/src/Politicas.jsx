@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { T, EstilosBase, LogoWordmark, IconAlerta, IconEquis } from './diseno';
 
-// Contenido legal — Términos, Habeas Data, Cancelaciones y PQRS. Texto tomado
+// Contenido legal — Términos, Habeas Data, Pagos, Cancelaciones y PQRS. Texto tomado
 // tal cual del borrador que se viene trabajando (doc "Políticas Legales de
 // Turify"); si se corrige allá, hay que traer el cambio acá también, no hay
 // sincronización automática entre el doc de trabajo y esta página.
@@ -61,6 +61,7 @@ const Tabla = ({ encabezados, filas }) => (
 const SECCIONES_NAV = [
   { id: 'terminos', label: 'Términos y Condiciones' },
   { id: 'datos', label: 'Datos Personales' },
+  { id: 'pagos', label: 'Pagos' },
   { id: 'cancelaciones', label: 'Cancelaciones' },
   { id: 'pqrs', label: 'PQRS' },
 ];
@@ -88,7 +89,7 @@ const Politicas = () => {
           <h1 style={{ fontFamily: T.display, fontWeight: 800, fontSize: 'clamp(28px, 4vw, 38px)', letterSpacing: '-.02em', color: 'var(--t-tinta)', margin: '0 0 6px' }}>
             Políticas legales
           </h1>
-          <p style={{ margin: '0 0 24px', fontSize: '13px', color: 'var(--t-piedra-clara)' }}>Última actualización: 23 de septiembre de 2026</p>
+          <p style={{ margin: '0 0 24px', fontSize: '13px', color: 'var(--t-piedra-clara)' }}>Última actualización: 27 de septiembre de 2026</p>
 
           {/* AVISO DE BORRADOR — se quita cuando un abogado lo revise */}
           <div style={{ display: 'flex', gap: '10px', background: 'var(--t-chiva-suave)', border: '1px solid var(--t-chiva-linea)', borderRadius: '10px', padding: '14px 16px', marginBottom: '28px' }}>
@@ -188,6 +189,9 @@ const Politicas = () => {
                 ['Ubicación en tiempo real', 'Conductores (mientras están en línea o en viaje)', 'Mostrar el radar de viajes cercanos y el seguimiento en vivo'],
                 ['Nombre y número de documento de cada ocupante', 'Pasajeros (al registrar el viaje)', 'Cruzar contra el FUEC que expide la empresa afiliada'],
                 ['Calificaciones y comentarios', 'Pasajeros y conductores', 'Reputación dentro de la plataforma'],
+                ['Cuenta de pagos: tipo, número, nombre y cédula del titular', 'Conductores', 'Mostrarles a sus pasajeros dónde pagarle, después de verificar que la cuenta esté a su nombre'],
+                ['Reportes y confirmaciones de pago, reclamos', 'Pasajeros y conductores', 'Llevar la cuenta de lo pagado en cada viaje y resolver reclamos'],
+                ['Ubicación al marcar cada etapa del viaje (código de abordaje, llegada al destino, regreso)', 'Conductores', 'Dejar evidencia en la bitácora del viaje para resolver reclamos'],
               ]}
             />
 
@@ -202,6 +206,7 @@ const Politicas = () => {
             <Sub>2.3 Con quién se comparten estos datos</Sub>
             <Lista items={[
               <><b>La empresa afiliada del conductor</b>, para la expedición y verificación del FUEC de cada viaje.</>,
+              <><b>El pasajero de un viaje confirmado</b> ve la cuenta de pagos del conductor (solo si Turify ya verificó que está a nombre del conductor), para pagarle las etapas del viaje.</>,
               <><b>La pasarela de pagos</b> (cuando esté en operación), únicamente los datos necesarios para procesar el cobro.</>,
               <>Turify <b>no vende ni cede</b> datos personales a terceros con fines comerciales o publicitarios.</>,
             ]} />
@@ -229,39 +234,102 @@ const Politicas = () => {
             </P>
           </Seccion>
 
-          {/* 3. CANCELACIONES */}
-          <Seccion id="cancelaciones" numero={3} titulo="Política de Cancelaciones y Penalizaciones">
+          {/* 3. PAGOS */}
+          <Seccion id="pagos" numero={3} titulo="Pagos del viaje">
             <P>
-              Corresponde a <b>HU59 (SCRUM-211)</b> en el backlog de Jira.
+              El precio que acuerdan pasajero y conductor se paga por etapas, a medida que el servicio se va
+              cumpliendo. Así ninguna de las dos partes arriesga todo el valor del viaje de una vez.
+            </P>
+            <Tabla
+              encabezados={['Tipo de viaje', 'Anticipo (al confirmar)', 'Al llegar al destino', 'Al recogerlos para el regreso']}
+              filas={[
+                ['Ida y vuelta', '20 %', '50 %', '30 %'],
+                ['Solo ida', '30 %', '70 %', '—'],
+              ]}
+            />
+
+            <Sub>3.1 A quién se le paga</Sub>
+            <P>
+              Mientras Turify no procese pagos dentro de la app, <b>cada pago se le hace directamente al
+              conductor</b>, a la cuenta que aparece en el viaje. Turify solo muestra cuentas que estén a nombre
+              del conductor y que un administrador haya verificado contra su cédula. Turify no recibe ni guarda
+              ese dinero. No le pagues a cuentas de otras personas ni a cuentas que no aparezcan en la app.
+            </P>
+
+            <Sub>3.2 Quien recibe el dinero, confirma</Sub>
+            <P>
+              El pasajero marca en la app cada pago que hace, y el conductor confirma que lo recibió. Con las
+              devoluciones es al revés: el conductor la marca y el pasajero confirma que le llegó. Si alguno dice
+              que el dinero no le llegó, el pago queda <b>en reclamo</b> y un administrador de Turify lo revisa.
+            </P>
+
+            <Sub>3.3 Código de abordaje</Sub>
+            <P>
+              Al confirmar el viaje, el pasajero recibe un <b>código de 4 dígitos</b> que le da al conductor solo
+              cuando el grupo se sube al vehículo. Sin ese código el viaje no puede iniciar. En los viajes de ida y
+              vuelta se genera un código nuevo para el regreso. Después de 5 intentos fallidos el código se
+              bloquea 15 minutos y se le avisa al pasajero.
+            </P>
+
+            <Sub>3.4 Bitácora del viaje</Sub>
+            <P>
+              Cada paso del viaje queda registrado con fecha y hora: la confirmación, cada pago y cada
+              confirmación, el código de abordaje, la llegada al destino, el regreso y las cancelaciones. Cuando el
+              conductor marca una etapa también se guarda su ubicación. Nadie puede editar ni borrar la bitácora,
+              ni siquiera Turify, y es la evidencia con la que se resuelven los reclamos.
+            </P>
+
+            <Sub>3.5 Comisión de Turify</Sub>
+            <P>
+              Mientras los pagos se hagan directamente al conductor, <b>Turify no cobra comisión</b>. Cuando el
+              anticipo pueda pagarse dentro de la app, Turify descontará de él una comisión del <b>10 % del precio
+              acordado</b>. El conductor la verá antes de aceptar el viaje, y el resto del anticipo se le entregará
+              a él. Los demás pagos no tienen comisión.
+            </P>
+
+            <Sub>3.6 Reclamos de pagos</Sub>
+            <P>
+              El pasajero y el conductor pueden abrir un reclamo desde el viaje en la app, sobre un pago o sobre
+              el servicio (por ejemplo, si el conductor no volvió por el grupo). Un administrador revisa la
+              bitácora, puede contactar a las partes y decide si el pago se hizo, se sigue debiendo, se anula o se
+              debe devolver. Si el conductor incumplió, puede contarse como cancelación injustificada.
+            </P>
+          </Seccion>
+
+          {/* 4. CANCELACIONES */}
+          <Seccion id="cancelaciones" numero={4} titulo="Política de Cancelaciones y Penalizaciones">
+            <P>
+              La penalización por cancelar tarde es el <b>anticipo</b>: compensa al conductor que ya había
+              reservado el vehículo y el día para ese viaje.
             </P>
             <Tabla
               encabezados={['Momento', 'Quién cancela', 'Regla']}
               filas={[
                 ['Antes de aceptar una oferta', 'Pasajero', 'Cancelación libre, sin penalización — todavía nadie comprometió un vehículo'],
                 ['Antes de aceptar una oferta', 'Conductor', 'Puede retirar su oferta libremente'],
-                ['Oferta aceptada, 24 horas o más antes de la salida', 'Pasajero', 'Cancelación libre, sin penalización'],
-                ['Oferta aceptada, entre 24 y 2 horas antes de la salida', 'Pasajero', '30% de penalización sobre el precio acordado'],
-                ['Oferta aceptada, menos de 2 horas antes de la salida (o no presentación)', 'Pasajero', '50% de penalización sobre el precio acordado'],
-                ['Oferta aceptada, viaje aún no iniciado', 'Conductor', 'Sin penalización económica al pasajero — pero si no fue por fuerza mayor, queda registrado como cancelación injustificada contra su confiabilidad como conductor. El viaje vuelve a quedar disponible para que otro conductor lo tome.'],
-                ['Viaje ya iniciado (IN_PROGRESS)', 'Ninguna de las dos partes', 'No es cancelable por la app — se resuelve directamente entre pasajero y conductor'],
+                ['Oferta aceptada, 24 horas o más antes de la salida', 'Pasajero', 'Sin penalización. Si ya pagó el anticipo, el conductor se lo devuelve completo.'],
+                ['Oferta aceptada, menos de 24 horas antes de la salida', 'Pasajero', 'Si ya pagó el anticipo, lo pierde: queda para el conductor como compensación y Turify no cobra comisión sobre él. Si no lo había pagado, no hay penalización.'],
+                ['Oferta aceptada, viaje aún no iniciado', 'Conductor', 'Devuelve todo lo que haya recibido. Si ya tenía el anticipo y no fue por fuerza mayor, queda registrado como cancelación injustificada contra su confiabilidad. El viaje vuelve a quedar disponible para que otro conductor lo tome.'],
+                ['Viaje ya iniciado', 'Ninguna de las dos partes', 'No se cancela por la app. Si el grupo no regresa con el conductor, él puede cerrar el viaje sin regreso indicando el motivo; queda en la bitácora y cualquiera de los dos puede abrir un reclamo.'],
               ]}
             />
 
-            <Sub>3.1 Fuerza mayor</Sub>
+            <Sub>4.1 Fuerza mayor</Sub>
             <P>
               Condiciones climáticas severas, cierres de vía, emergencias médicas o de seguridad no se penalizan,
               siempre que se documenten con un motivo y una evidencia (foto, certificado, reporte, etc.) al momento
-              de cancelar.
+              de cancelar. Con fuerza mayor documentada, el pasajero recupera el anticipo aunque cancele con menos
+              de 24 horas.
             </P>
 
-            <Sub>3.2 Sobre el cobro de la penalización</Sub>
+            <Sub>4.2 Devoluciones</Sub>
             <P>
-              Turify todavía no procesa pagos dentro de la plataforma (ver Épica 6 en el backlog) — el monto de la
-              penalización se calcula y se muestra en el momento de cancelar, como referencia de lo que corresponde
-              según esta política, pero no se cobra automáticamente.
+              Devuelve el dinero quien lo recibió: hoy, el conductor. La app le muestra lo que debe devolver, él
+              marca la devolución y el pasajero confirma que le llegó. Si no le llega, el pasajero abre un reclamo
+              y lo revisa un administrador (sección 3.6).
             </P>
 
-            <Sub>3.3 Reincidencia</Sub>
+            <Sub>4.3 Reincidencia</Sub>
             <P>
               Un número alto de cancelaciones tardías o injustificadas en un periodo (a definir, ej. 3 en 30 días)
               puede derivar en restricciones temporales para publicar viajes o recibir solicitudes, previa
@@ -269,23 +337,23 @@ const Politicas = () => {
             </P>
           </Seccion>
 
-          {/* 4. PQRS */}
-          <Seccion id="pqrs" numero={4} titulo="Política de PQRS (Peticiones, Quejas y Reclamos)">
+          {/* 5. PQRS */}
+          <Seccion id="pqrs" numero={5} titulo="Política de PQRS (Peticiones, Quejas y Reclamos)">
             <P>
               Exigida por el artículo 50 de la Ley 1480 de 2011 (Estatuto del Consumidor): toda plataforma que
               ofrece bienes o servicios a consumidores en Colombia debe tener un canal efectivo para que cualquier
               persona radique peticiones, quejas o reclamos sobre el servicio.
             </P>
 
-            <Sub>4.1 Qué se puede radicar por este canal</Sub>
+            <Sub>5.1 Qué se puede radicar por este canal</Sub>
             <Lista items={[
               'Quejas sobre un viaje, un conductor o una empresa afiliada.',
-              'Reclamos por cobros, cancelaciones o penalizaciones que el usuario considere incorrectos.',
+              'Reclamos por cobros, cancelaciones o penalizaciones que el usuario considere incorrectos. Los reclamos sobre un pago de un viaje también se pueden abrir desde el viaje en la app (sección 3.6).',
               'El ejercicio de los derechos de acceso, rectificación, cancelación y oposición sobre datos personales (los mismos de la sección 2.4 — es el mismo canal, no hace falta uno aparte).',
               'Sugerencias generales sobre la plataforma.',
             ]} />
 
-            <Sub>4.2 Canal y plazos</Sub>
+            <Sub>5.2 Canal y plazos</Sub>
             <P>
               <a href="mailto:soporte.turify@gmail.com" style={{ color: BRAND_GREEN, fontWeight: 700 }}>soporte.turify@gmail.com</a> — el mismo canal de la sección 2.4 sirve para ambas cosas.
             </P>
@@ -297,7 +365,7 @@ const Politicas = () => {
               fondo sobre la prestación misma del servicio de transporte puede depender de esa empresa.
             </P>
 
-            <Sub>4.3 Segunda instancia</Sub>
+            <Sub>5.3 Segunda instancia</Sub>
             <P>
               Si la respuesta no resuelve la solicitud, el usuario puede acudir a la Superintendencia de Industria
               y Comercio (SIC), autoridad de protección al consumidor y de protección de datos personales en
