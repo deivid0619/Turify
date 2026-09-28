@@ -398,8 +398,15 @@ def test_iniciar_viaje_exitoso_con_fuec_y_representante(
     )
     assert registro.status_code == 201
 
+    # SCRUM-259 — además del FUEC y los ocupantes, el código que el pasajero
+    # le dicta al conductor al subir.
+    codigo = client.get(
+        f"/api/pagos/viajes/{viaje['request_id']}", headers=auth_headers(pasajero)
+    ).json()["codigo_abordaje"]
+
     respuesta = client.patch(
         f"/api/service-requests/{viaje['request_id']}/start",
+        json={"codigo": codigo},
         headers=auth_headers(conductor),
     )
 

@@ -1,4 +1,4 @@
-from app.routers import auth, drivers, service_requests, admin
+from app.routers import auth, drivers, service_requests, admin, pagos
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, SessionLocal
@@ -52,6 +52,7 @@ app.include_router(auth.router)
 app.include_router(drivers.router)
 app.include_router(service_requests.router)
 app.include_router(admin.router)
+app.include_router(pagos.router)
 
 # Endpoint de salud liviano, sin autenticacion ni logica de negocio -- lo usan
 # las plataformas de despliegue (Render, Railway, etc.) para saber si el

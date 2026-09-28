@@ -165,7 +165,10 @@ def test_cancelar_viaje_asignado_con_24h_o_mas_es_libre(client, crear_pasajero, 
     assert respuesta.json()["penalty_percentage"] == 0
 
 
-def test_cancelar_viaje_asignado_entre_24h_y_2h_cobra_30(client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers):
+# SCRUM-181 — la penalización es el anticipo que ya se pagó (reemplaza el
+# 30 %/50 % de HU59). Sin anticipo pagado no hay nada que retener; los casos
+# con anticipo pagado están en test_pagos.py.
+def test_cancelar_viaje_asignado_con_menos_de_24h_sin_anticipo_no_penaliza(client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers):
     pasajero = crear_pasajero()
     conductor, _vehiculo = crear_conductor_con_vehiculo()
     salida = datetime.now(timezone.utc) + timedelta(hours=10)
@@ -182,8 +185,9 @@ def test_cancelar_viaje_asignado_entre_24h_y_2h_cobra_30(client, crear_pasajero,
         headers=auth_headers(pasajero),
     )
     assert respuesta.status_code == 200
-    assert respuesta.json()["penalty_percentage"] == 30
-    assert respuesta.json()["penalty_amount"] == 25500
+    assert respuesta.json()["penalty_percentage"] == 0
+    assert respuesta.json()["penalty_amount"] == 0
+    assert respuesta.json()["anticipo_pagado"] is False
 
 
 def test_cancelar_viaje_ya_cancelado_falla(client, crear_pasajero, auth_headers):

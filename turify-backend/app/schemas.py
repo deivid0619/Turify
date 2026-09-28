@@ -514,3 +514,91 @@ class VehicleSettingsResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ── ÉPICA 6 — Pagos (SCRUM-178) ──────────────────────────────────────────────
+
+class CodigoAbordaje(BaseModel):
+    """SCRUM-259 — el código de 4 dígitos que el pasajero le dicta al conductor."""
+    codigo: str = Field(..., min_length=4, max_length=4, pattern=r'^\d{4}$')
+
+
+class CerrarSinRegreso(BaseModel):
+    motivo: str = Field(..., min_length=5, max_length=500)
+
+
+class MotivoOpcional(BaseModel):
+    motivo: Optional[str] = Field(None, max_length=500)
+
+
+class ReclamoCreate(BaseModel):
+    motivo: str = Field(..., min_length=5, max_length=1000)
+    pago_id: Optional[int] = None
+
+
+class DecisionReclamo(str, Enum):
+    PAGO_CONFIRMADO = "PAGO_CONFIRMADO"          # el pago sí se hizo
+    PAGO_PENDIENTE = "PAGO_PENDIENTE"            # el pago no se hizo, se sigue debiendo
+    ANULAR = "ANULAR"                            # ya no se debe
+    DEVOLUCION_PENDIENTE = "DEVOLUCION_PENDIENTE"  # hay que devolverlo
+    DEVUELTO = "DEVUELTO"                        # la devolución sí se hizo
+    SIN_CAMBIOS = "SIN_CAMBIOS"                  # reclamo sin efecto sobre la plata
+
+
+class ResolverReclamo(BaseModel):
+    decision: DecisionReclamo
+    nota: str = Field(..., min_length=5, max_length=1000)
+    # Cuenta como cancelación injustificada del conductor (p. ej. no volvió por el grupo).
+    penalizar_conductor: bool = False
+
+
+class TipoCuentaPago(str, Enum):
+    NEQUI = "NEQUI"
+    DAVIPLATA = "DAVIPLATA"
+    BANCOLOMBIA_AHORROS = "BANCOLOMBIA_AHORROS"
+    BANCOLOMBIA_CORRIENTE = "BANCOLOMBIA_CORRIENTE"
+    OTRO_BANCO = "OTRO_BANCO"
+
+
+class CuentaPagoIn(BaseModel):
+    """SCRUM-263 — cuenta a nombre del conductor para recibir pagos."""
+    tipo: TipoCuentaPago
+    banco: Optional[str] = Field(None, max_length=60)
+    numero: str
+    titular_nombre: str
+    titular_documento: str
+
+    @field_validator('numero', 'titular_documento', mode='before')
+    @classmethod
+    def solo_digitos(cls, v):
+        return re.sub(r'[\s.\-]', '', str(v or ''))
+
+    @field_validator('titular_nombre')
+    @classmethod
+    def nombre_valido(cls, v):
+        return _validar_nombre(v)
+
+    @field_validator('titular_documento')
+    @classmethod
+    def documento_valido(cls, v):
+        if not re.fullmatch(r'\d{5,10}', v):
+            raise ValueError("La cédula del titular debe tener entre 5 y 10 dígitos.")
+        return v
+
+    @model_validator(mode='after')
+    def numero_segun_tipo(self):
+        if self.tipo in (TipoCuentaPago.NEQUI, TipoCuentaPago.DAVIPLATA):
+            if not re.fullmatch(r'3\d{9}', self.numero):
+                raise ValueError("El número de Nequi o Daviplata es el celular: 10 dígitos que empiezan por 3.")
+        elif not re.fullmatch(r'\d{6,20}', self.numero):
+            raise ValueError("El número de cuenta debe tener entre 6 y 20 dígitos.")
+        if self.tipo == TipoCuentaPago.OTRO_BANCO and not (self.banco or '').strip():
+            raise ValueError("Escribe el nombre del banco.")
+        if self.tipo != TipoCuentaPago.OTRO_BANCO:
+            self.banco = None
+        return self
+
+
+class VerificarCuenta(BaseModel):
+    aprobar: bool
+    nota: Optional[str] = Field(None, max_length=500)

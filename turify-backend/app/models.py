@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, Enum, ForeignKey, DateTime,
-    Boolean, Numeric, Text, Index, JSON, CheckConstraint
+    Boolean, Numeric, Text, Index, JSON, CheckConstraint, UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import TIMESTAMP
@@ -141,6 +141,7 @@ class ServiceRequest(Base):
         CheckConstraint("children_count >= 0", name="ck_sr_children"),
         CheckConstraint("infants_count >= 0", name="ck_sr_infants"),
         CheckConstraint("return_time IS NULL OR return_time > departure_time", name="ck_sr_return_after"),
+        CheckConstraint("tramo IS NULL OR tramo IN ('IDA', 'EN_DESTINO', 'REGRESO')", name="ck_sr_tramo"),
     )
 
     request_id          = Column(Integer, primary_key=True, autoincrement=True)
@@ -222,6 +223,21 @@ class ServiceRequest(Base):
     penalty_percentage   = Column(Numeric(5, 2))
     penalty_amount       = Column(Numeric(10, 2))
     cancelled_at          = Column(TIMESTAMP(timezone=True))
+    # SCRUM-259 — viaje por etapas. `tramo` dice en qué parte va un viaje
+    # IN_PROGRESS: IDA (ya recogió al grupo), EN_DESTINO (ida y vuelta: llegó
+    # y espera para volver) o REGRESO (los recogió para volver). El código de
+    # abordaje lo ve solo el pasajero y se lo dicta al conductor al subir: sin
+    # él no se puede iniciar ni la ida ni el regreso. Se borra al usarlo.
+    tramo                  = Column(String(12))
+    codigo_abordaje        = Column(String(4))
+    codigo_intentos        = Column(Integer, nullable=False, default=0)
+    codigo_bloqueado_hasta = Column(TIMESTAMP(timezone=True))
+    abordo_at              = Column(TIMESTAMP(timezone=True))
+    llego_destino_at       = Column(TIMESTAMP(timezone=True))
+    abordo_regreso_at      = Column(TIMESTAMP(timezone=True))
+    finalizado_at          = Column(TIMESTAMP(timezone=True))
+    cerrado_sin_regreso    = Column(Boolean, nullable=False, default=False)
+    motivo_sin_regreso     = Column(Text)
     created_at          = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 
@@ -348,3 +364,126 @@ class Rating(Base):
     score       = Column(Integer, nullable=False)
     comment     = Column(Text)
     created_at  = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+
+# ── ÉPICA 6 — Pagos (SCRUM-178) ──────────────────────────────────────────────
+# Recorrido del dinero acordado con David (25 sep 2026): anticipo al confirmar
+# y el resto directo al conductor en cada etapa del viaje. Ver app/pagos/.
+
+class PagoViaje(Base):
+    """SCRUM-258 — un pago del plan de un viaje confirmado. Cada oferta
+    aceptada tiene su propio plan: si el conductor cancela y otro toma el
+    viaje, el plan viejo queda con la devolución del anticipo y el nuevo
+    arranca de cero.
+
+    canal DIRECTO = se le paga al conductor en efectivo o por transferencia y
+    lo confirma quien recibe la plata; APP = pasa por la pasarela (Wompi,
+    SCRUM-179, todavía sin integrar — por eso RETENIDO/LIBERADO/REEMBOLSADO
+    no se usan aún)."""
+    __tablename__ = "PagoViaje"
+    __table_args__ = (
+        CheckConstraint("hito IN ('ANTICIPO', 'LLEGADA_DESTINO', 'RECOGIDA_REGRESO')", name="ck_pago_hito"),
+        CheckConstraint("canal IN ('DIRECTO', 'APP')", name="ck_pago_canal"),
+        CheckConstraint(
+            "estado IN ('PENDIENTE', 'PAGO_REPORTADO', 'CONFIRMADO', 'EN_RECLAMO', "
+            "'DEVOLUCION_PENDIENTE', 'DEVOLUCION_REPORTADA', 'DEVUELTO', 'ANULADO', "
+            "'RETENIDO', 'LIBERADO', 'REEMBOLSADO')",
+            name="ck_pago_estado",
+        ),
+        CheckConstraint("monto >= 0 AND comision >= 0 AND comision <= monto", name="ck_pago_montos"),
+        UniqueConstraint("offer_id", "hito", name="uq_pago_oferta_hito"),
+    )
+
+    pago_id        = Column(Integer, primary_key=True, autoincrement=True)
+    request_id     = Column(Integer, ForeignKey("ServiceRequest.request_id", ondelete="CASCADE"), nullable=False, index=True)
+    offer_id       = Column(Integer, ForeignKey("DriverOffer.offer_id", ondelete="CASCADE"), nullable=False)
+    driver_id      = Column(Integer, ForeignKey("User.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    hito           = Column(String(20), nullable=False)
+    orden          = Column(Integer, nullable=False)
+    porcentaje     = Column(Numeric(5, 2), nullable=False)
+    monto          = Column(Numeric(12, 2), nullable=False)
+    # La comisión de Turify va entera en el anticipo (es de donde se descuenta).
+    comision       = Column(Numeric(12, 2), nullable=False, default=0)
+    canal          = Column(String(10), nullable=False, default='DIRECTO')
+    estado         = Column(String(25), nullable=False, default='PENDIENTE')
+    # Estado que tenía antes de entrar a EN_RECLAMO — dice si el reclamo es
+    # sobre un pago o sobre una devolución, y a dónde vuelve si se rechaza.
+    estado_previo  = Column(String(25))
+    # Desde cuándo se debe (el anticipo al confirmar, los demás al llegar a
+    # su etapa). NULL = todavía no toca pagarlo.
+    exigible_desde = Column(TIMESTAMP(timezone=True))
+    reportado_at   = Column(TIMESTAMP(timezone=True))
+    confirmado_at  = Column(TIMESTAMP(timezone=True))
+    created_at     = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+
+class EventoViaje(Base):
+    """SCRUM-260 — bitácora del viaje: cada abordaje, llegada, pago reportado,
+    confirmación, devolución y reclamo, con quién lo hizo y la última
+    ubicación del conductor. Solo se inserta: la migración
+    2026-09-26_pagos_por_etapas.sql pone un trigger que rechaza UPDATE y
+    DELETE (salvo los que llegan en cascada al borrar el viaje o el usuario)."""
+    __tablename__ = "EventoViaje"
+
+    evento_id  = Column(Integer, primary_key=True, autoincrement=True)
+    request_id = Column(Integer, ForeignKey("ServiceRequest.request_id", ondelete="CASCADE"), nullable=False, index=True)
+    pago_id    = Column(Integer, ForeignKey("PagoViaje.pago_id", ondelete="CASCADE"))
+    tipo       = Column(String(40), nullable=False)
+    actor_id   = Column(Integer, ForeignKey("User.user_id", ondelete="SET NULL"))
+    monto      = Column(Numeric(12, 2))
+    lat        = Column(Numeric(10, 8))
+    lng        = Column(Numeric(11, 8))
+    detalle    = Column(Text)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+
+class Reclamo(Base):
+    """SCRUM-264 — desacuerdo sobre un pago (o sobre el viaje) que resuelve
+    un administrador con las pruebas de la bitácora."""
+    __tablename__ = "Reclamo"
+    __table_args__ = (
+        CheckConstraint("estado IN ('ABIERTO', 'RESUELTO')", name="ck_reclamo_estado"),
+    )
+
+    reclamo_id   = Column(Integer, primary_key=True, autoincrement=True)
+    request_id   = Column(Integer, ForeignKey("ServiceRequest.request_id", ondelete="CASCADE"), nullable=False, index=True)
+    pago_id      = Column(Integer, ForeignKey("PagoViaje.pago_id", ondelete="CASCADE"))
+    abierto_por  = Column(Integer, ForeignKey("User.user_id", ondelete="SET NULL"))
+    motivo       = Column(Text, nullable=False)
+    estado       = Column(String(10), nullable=False, default='ABIERTO')
+    decision     = Column(String(30))
+    resolucion   = Column(Text)
+    resuelto_por = Column(Integer, ForeignKey("User.user_id", ondelete="SET NULL"))
+    resuelto_at  = Column(TIMESTAMP(timezone=True))
+    created_at   = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+
+class CuentaPagoConductor(Base):
+    """SCRUM-263 — cuenta a nombre del conductor donde recibe los pagos. Toda
+    cuenta nueva o cambiada queda pendiente hasta que un administrador la
+    compara con la cédula; solo una cuenta verificada se le muestra al
+    pasajero."""
+    __tablename__ = "CuentaPagoConductor"
+    __table_args__ = (
+        CheckConstraint(
+            "tipo IN ('NEQUI', 'DAVIPLATA', 'BANCOLOMBIA_AHORROS', 'BANCOLOMBIA_CORRIENTE', 'OTRO_BANCO')",
+            name="ck_cuenta_tipo",
+        ),
+        CheckConstraint("estado IN ('PENDIENTE_VERIFICACION', 'VERIFICADA', 'RECHAZADA')", name="ck_cuenta_estado"),
+        CheckConstraint("numero ~ '^[0-9]{6,20}$'", name="ck_cuenta_numero"),
+        CheckConstraint("titular_documento ~ '^[0-9]{5,10}$'", name="ck_cuenta_documento"),
+    )
+
+    cuenta_id         = Column(Integer, primary_key=True, autoincrement=True)
+    driver_id         = Column(Integer, ForeignKey("User.user_id", ondelete="CASCADE"), nullable=False, unique=True)
+    tipo              = Column(String(25), nullable=False)
+    banco             = Column(String(60))
+    numero            = Column(String(20), nullable=False)
+    titular_nombre    = Column(String(100), nullable=False)
+    titular_documento = Column(String(10), nullable=False)
+    estado            = Column(String(25), nullable=False, default='PENDIENTE_VERIFICACION')
+    nota_admin        = Column(Text)
+    verificada_por    = Column(Integer, ForeignKey("User.user_id", ondelete="SET NULL"))
+    verificada_at     = Column(TIMESTAMP(timezone=True))
+    created_at        = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    updated_at        = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())

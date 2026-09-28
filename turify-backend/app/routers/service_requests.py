@@ -17,6 +17,7 @@ from app.pricing.features import PricingInput
 from app.pricing.service import obtener_precio_sugerido, registrar_resultado_viaje
 from app.pricing.peajes_antioquia import calcular_peajes_de_ruta
 from app.routers.drivers import get_supabase, upload_to_supabase, fotos_publicas_vehiculo
+from app.pagos import servicio as pagos
 
 router = APIRouter(prefix="/api/service-requests", tags=["Service Requests"])
 
@@ -759,6 +760,7 @@ def aceptar_precio_fijo(
         raise HTTPException(status_code=400, detail="Otro conductor ya aceptó este viaje.")
 
     service_request.status = 'ASSIGNED'
+    pagos.crear_plan(db, service_request, nueva_oferta, actor=current_user)  # SCRUM-258
     db.commit()
     db.refresh(nueva_oferta)
 
@@ -874,6 +876,13 @@ def get_driver_active_offers(
             models.TripPassenger.request_id == oferta.request_id
         ).all() if viaje else []
 
+        # SCRUM-258/259 — plan de pagos y etapa del viaje, solo del viaje que
+        # sí es suyo (oferta aceptada).
+        plan_pagos = None
+        if viaje and oferta.status == 'ACCEPTED':
+            pagos.asegurar_plan(db, viaje, oferta)
+            plan_pagos = pagos.serializar_plan(db, viaje, "CONDUCTOR", usuario=current_user, oferta=oferta)["plan"]
+
         resultado.append({
             "offer_id": oferta.offer_id,
             "request_id": oferta.request_id,
@@ -894,6 +903,10 @@ def get_driver_active_offers(
             "fuec_cargado": bool(viaje.fuec_url) if viaje else False,
             "ocupantes_registrados": len(ocupantes),
             "tiene_representante": any(o.es_representante for o in ocupantes),
+            "trip_type": viaje.trip_type if viaje else None,
+            "tramo": viaje.tramo if viaje else None,
+            "cerrado_sin_regreso": bool(viaje.cerrado_sin_regreso) if viaje else False,
+            "plan_pagos": plan_pagos,
         })
 
     return resultado
@@ -995,6 +1008,10 @@ def get_assigned_requests(
                 models.Rating.rater_id == current_user.user_id
             ).first() is not None
 
+        # SCRUM-258/259 — plan de pagos, código de abordaje y cuenta del conductor
+        pagos.asegurar_plan(db, v, oferta_aceptada)
+        vista_pagos = pagos.serializar_plan(db, v, "PASAJERO", usuario=current_user, oferta=oferta_aceptada)
+
         resultado.append({
             "request_id": v.request_id,
             "origin": v.origin,
@@ -1027,6 +1044,13 @@ def get_assigned_requests(
             "ocupantes_registrados": db.query(models.TripPassenger).filter(
                 models.TripPassenger.request_id == v.request_id
             ).count(),
+            "tramo": v.tramo,
+            "cerrado_sin_regreso": bool(v.cerrado_sin_regreso),
+            "plan_pagos": vista_pagos["plan"],
+            "codigo_abordaje": vista_pagos["codigo_abordaje"],
+            "codigo_para": vista_pagos["codigo_para"],
+            "codigo_bloqueado_hasta": vista_pagos["codigo_bloqueado_hasta"],
+            "cuenta_conductor": vista_pagos["cuenta_conductor"],
         })
 
     return resultado
@@ -1045,16 +1069,19 @@ def descargar_recibo(
     if not viaje:
         raise HTTPException(status_code=404, detail="Viaje no encontrado.")
 
-    if viaje.passenger_id != current_user.user_id and current_user.role != 'ADMIN':
+    oferta_aceptada = db.query(models.DriverOffer).filter(
+        models.DriverOffer.request_id == request_id,
+        models.DriverOffer.status == 'ACCEPTED'
+    ).first()
+
+    # SCRUM-258 — el recibo es para los dos: pasajero y conductor del viaje.
+    es_conductor = oferta_aceptada is not None and oferta_aceptada.driver_id == current_user.user_id
+    if viaje.passenger_id != current_user.user_id and current_user.role != 'ADMIN' and not es_conductor:
         raise HTTPException(status_code=403, detail="No tienes permiso para ver el recibo de este viaje.")
 
     if viaje.status != 'COMPLETED':
         raise HTTPException(status_code=400, detail="El recibo solo está disponible para viajes completados.")
 
-    oferta_aceptada = db.query(models.DriverOffer).filter(
-        models.DriverOffer.request_id == request_id,
-        models.DriverOffer.status == 'ACCEPTED'
-    ).first()
     conductor = None
     if oferta_aceptada:
         conductor = db.query(models.User).filter(
@@ -1105,7 +1132,31 @@ def descargar_recibo(
     campo("Tipo de viaje:", "Ida y vuelta" if viaje.trip_type == 'ROUND_TRIP' else "Solo ida")
     campo("Pasajeros:", (viaje.adults_count or 0) + (viaje.children_count or 0))
     precio = float(oferta_aceptada.offered_price) if oferta_aceptada else 0
-    campo("Precio pagado:", f"${precio:,.0f} COP")
+    campo("Precio acordado:", f"{pagos.cop(precio)} COP")
+
+    # SCRUM-258 — cómo se pagó, etapa por etapa, y la comisión de Turify.
+    pagos_viaje = pagos.pagos_de_oferta(db, oferta_aceptada.offer_id) if oferta_aceptada else []
+    if pagos_viaje:
+        estado_legible = {
+            "CONFIRMADO": "pagado", "LIBERADO": "pagado", "RETENIDO": "pagado en la app",
+            "PAGO_REPORTADO": "reportado, sin confirmar", "PENDIENTE": "pendiente",
+            "EN_RECLAMO": "en reclamo", "ANULADO": "no se cobró", "DEVUELTO": "devuelto",
+            "DEVOLUCION_PENDIENTE": "por devolver", "DEVOLUCION_REPORTADA": "por devolver",
+            "REEMBOLSADO": "reembolsado",
+        }
+        y -= 0.3*cm
+        c.setFont("Helvetica-Bold", 11)
+        c.setFillColorRGB(0.05, 0.05, 0.05)
+        c.drawString(2*cm, y, "Pagos del viaje")
+        y -= 0.75*cm
+        for p in pagos_viaje:
+            etiqueta = pagos.etiqueta_hito(p.hito, viaje.trip_type == 'ROUND_TRIP')
+            campo(f"{etiqueta} ({float(p.porcentaje):.0f} %):",
+                  f"{pagos.cop(p.monto)} - {estado_legible.get(p.estado, p.estado)}")
+        cobrados = [p for p in pagos_viaje if p.estado not in ("ANULADO", "DEVUELTO", "REEMBOLSADO")]
+        comision = sum(pagos.pesos(p.comision) for p in cobrados)
+        campo("Comisión de Turify:", pagos.cop(comision))
+        campo("Recibe el conductor:", pagos.cop(sum(pagos.pesos(p.monto) for p in cobrados) - comision))
 
     y -= 0.6*cm
     c.setStrokeColorRGB(0.85, 0.85, 0.85)
@@ -1337,6 +1388,7 @@ def accept_offer(
 
     # Marcar el viaje como ASSIGNED
     service_request.status = 'ASSIGNED'
+    pagos.crear_plan(db, service_request, oferta, actor=current_user)  # SCRUM-258
 
     db.commit()
 
@@ -1520,6 +1572,7 @@ def resolve_counter_offer(
         for otra in otras:
             otra.status = 'REJECTED'
 
+        pagos.crear_plan(db, service_request, oferta, actor=current_user)  # SCRUM-258
         db.commit()
 
         # Notificar al pasajero que el conductor aceptó
@@ -1650,20 +1703,29 @@ async def cancel_service_request(
             db=db, current_user=current_user,
         )
 
-    # Penalización (HU59): solo puede aplicarle al pasajero, y solo si ya
-    # había un conductor comprometido (ASSIGNED) — mientras está PENDING
-    # nadie comprometió nada todavía, así que cancelar siempre es libre.
+    # SCRUM-181 — la penalización es el anticipo (reemplaza el 30 %/50 % de
+    # HU59, que no cabía en un anticipo del 20 % o 30 %). Pasajero con menos de
+    # 24 h y sin fuerza mayor: pierde lo que ya pagó de anticipo, que queda
+    # para el conductor. En cualquier otro caso se le devuelve todo. Mientras
+    # está PENDING no hay plan de pagos: cancelar siempre es libre.
     penalty_pct = 0
     penalty_amount = 0.0
-    if es_pasajero and viaje.status == 'ASSIGNED' and oferta_aceptada and not es_fuerza_mayor:
-        horas_restantes = (viaje.departure_time.replace(tzinfo=None) - datetime.now()).total_seconds() / 3600
-        if horas_restantes >= 24:
-            penalty_pct = 0
-        elif horas_restantes >= 2:
-            penalty_pct = 30
-        else:
-            penalty_pct = 50
-        penalty_amount = float(oferta_aceptada.offered_price) * penalty_pct / 100
+    resultado_pagos = {"anticipo_pagado": False, "monto_a_devolver": 0}
+    if viaje.status == 'ASSIGNED' and oferta_aceptada:
+        pagos.asegurar_plan(db, viaje, oferta_aceptada)
+        horas_restantes = (pagos.con_zona(viaje.departure_time) - pagos.ahora()).total_seconds() / 3600
+        resultado_pagos = pagos.aplicar_cancelacion(
+            db, viaje, oferta_aceptada, por_pasajero=es_pasajero, fuerza_mayor=es_fuerza_mayor,
+            horas_restantes=horas_restantes, actor=current_user,
+        )
+        penalty_pct = resultado_pagos["penalty_percentage"]
+        penalty_amount = resultado_pagos["penalty_amount"]
+        pagos.registrar_evento(
+            db, viaje.request_id, "VIAJE_CANCELADO", actor=current_user,
+            detalle=(f"Canceló el {'pasajero' if es_pasajero else 'conductor'}"
+                     + (" por fuerza mayor" if es_fuerza_mayor else "")
+                     + (f". Motivo: {motivo}" if motivo else ".")),
+        )
 
     viaje.cancelled_by = 'PASSENGER' if es_pasajero else 'DRIVER'
     viaje.cancellation_reason = motivo
@@ -1680,17 +1742,22 @@ async def cancel_service_request(
         # de ESTE conductor, no la del que tome el viaje después.
         viaje.status = 'PENDING'
         viaje.fuec_url = None
+        viaje.codigo_abordaje = None
         oferta_aceptada.status = 'REJECTED'
-        if not es_fuerza_mayor:
+        # Sin anticipo no hay reserva: si el pasajero ni siquiera reportó el
+        # pago, el conductor puede soltar el viaje sin que le cuente.
+        if not es_fuerza_mayor and resultado_pagos["anticipo_pagado"]:
             current_user.cancelaciones_injustificadas = (current_user.cancelaciones_injustificadas or 0) + 1
 
         db.commit()
 
+        devolucion = resultado_pagos["monto_a_devolver"]
         crear_notificacion(
             db,
             user_id=viaje.passenger_id,
             title="Tu conductor canceló el viaje",
-            message=f"El conductor no podrá cumplir el viaje de {viaje.origin} → {viaje.destination}. Seguimos buscando otro conductor.",
+            message=(f"El conductor no podrá cumplir el viaje de {viaje.origin} → {viaje.destination}. Seguimos buscando otro conductor."
+                     + (f" Debe devolverte {pagos.cop(devolucion)}: confírmalo en la app cuando te llegue." if devolucion else "")),
             tipo="SYSTEM",
             offer_id=oferta_aceptada.offer_id
         )
@@ -1720,7 +1787,13 @@ async def cancel_service_request(
                 offer_id=oferta.offer_id
             )
         if oferta_aceptada:
-            detalle_penalizacion = f" Penalización: {penalty_pct}% (${penalty_amount:,.0f})." if penalty_amount > 0 else " Sin penalización."
+            devolucion = resultado_pagos["monto_a_devolver"]
+            if penalty_amount > 0:
+                detalle_penalizacion = f" El anticipo ({pagos.cop(penalty_amount)}) queda para ti como compensación."
+            elif devolucion:
+                detalle_penalizacion = f" Canceló con tiempo: debes devolverle {pagos.cop(devolucion)} al pasajero."
+            else:
+                detalle_penalizacion = " No había pagos de por medio."
             crear_notificacion(
                 db,
                 user_id=oferta_aceptada.driver_id,
@@ -1741,15 +1814,37 @@ async def cancel_service_request(
         "status": viaje.status,
         "penalty_percentage": penalty_pct,
         "penalty_amount": penalty_amount,
+        "anticipo_pagado": resultado_pagos["anticipo_pagado"],
+        "monto_a_devolver": resultado_pagos["monto_a_devolver"],
     }
+
+
+def _viaje_del_conductor(db: Session, request_id: int, conductor):
+    """El viaje y la oferta aceptada del conductor que llama, o 403/404."""
+    if conductor.role != 'DRIVER':
+        raise HTTPException(status_code=403, detail="Solo el conductor del viaje puede hacer esto.")
+    viaje = db.query(models.ServiceRequest).filter(models.ServiceRequest.request_id == request_id).first()
+    if not viaje:
+        raise HTTPException(status_code=404, detail="Viaje no encontrado.")
+    oferta = db.query(models.DriverOffer).filter(
+        models.DriverOffer.request_id == request_id,
+        models.DriverOffer.driver_id == conductor.user_id,
+        models.DriverOffer.status == 'ACCEPTED'
+    ).first()
+    if not oferta:
+        raise HTTPException(status_code=403, detail="No eres el conductor asignado a este viaje.")
+    return viaje, oferta
 
 
 @router.patch("/{request_id}/start")
 def start_trip(
     request_id: int,
+    payload: schemas.CodigoAbordaje | None = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user)
 ):
+    """Recoge al grupo: exige el FUEC, los ocupantes y (SCRUM-259) el código
+    de abordaje que el pasajero le dicta al conductor al subir."""
     if current_user.role != 'DRIVER':
         raise HTTPException(status_code=403, detail="Solo el conductor puede iniciar el viaje.")
 
@@ -1794,7 +1889,13 @@ def start_trip(
             detail=f"Antes de iniciar el viaje falta registrar: {', '.join(faltantes)}."
         )
 
+    pagos.asegurar_plan(db, viaje, oferta_aceptada)
+    pagos.validar_codigo(db, viaje, payload.codigo if payload else None, current_user)
+
     viaje.status = 'IN_PROGRESS'
+    viaje.tramo = 'IDA'
+    viaje.abordo_at = pagos.ahora()
+    pagos.registrar_evento(db, viaje.request_id, "ABORDAJE_IDA", actor=current_user, gps_de=current_user)
     db.commit()
 
     # Notificar al pasajero
@@ -1814,8 +1915,124 @@ def start_trip(
     return {
         "message": "¡Viaje iniciado! El pasajero ha sido notificado.",
         "request_id": viaje.request_id,
-        "status": "IN_PROGRESS"
+        "status": "IN_PROGRESS",
+        "tramo": viaje.tramo,
     }
+
+
+# SCRUM-259 — ida y vuelta: el conductor llega al destino. Se debe el pago
+# de la llegada y el pasajero recibe un código nuevo para el regreso.
+@router.patch("/{request_id}/arrive")
+def llegar_al_destino(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    viaje, oferta = _viaje_del_conductor(db, request_id, current_user)
+    if viaje.trip_type != 'ROUND_TRIP':
+        raise HTTPException(status_code=400, detail="En un viaje de solo ida, al llegar usa \"Finalizar viaje\".")
+    if viaje.status != 'IN_PROGRESS' or viaje.tramo != 'IDA':
+        raise HTTPException(status_code=400, detail="Solo puedes marcar la llegada durante la ida del viaje.")
+
+    viaje.tramo = 'EN_DESTINO'
+    viaje.llego_destino_at = pagos.ahora()
+    viaje.codigo_abordaje = pagos.generar_codigo()
+    viaje.codigo_intentos = 0
+    viaje.codigo_bloqueado_hasta = None
+    pago = pagos.marcar_exigible(db, oferta, "LLEGADA_DESTINO")
+    pagos.registrar_evento(db, viaje.request_id, "LLEGADA_DESTINO", actor=current_user, gps_de=current_user)
+    db.commit()
+
+    monto = f" Toca pagarle al conductor {pagos.cop(pago.monto)}." if pago is not None else ""
+    crear_notificacion(
+        db, user_id=viaje.passenger_id,
+        title="Llegaron al destino",
+        message=f"Llegaron a {viaje.destination}.{monto} Para el regreso tienes un código nuevo en la app.",
+        tipo="SYSTEM", offer_id=oferta.offer_id,
+    )
+    return {"message": "Llegada registrada. El pasajero tiene un código nuevo para el regreso.",
+            "request_id": viaje.request_id, "status": viaje.status, "tramo": viaje.tramo}
+
+
+# SCRUM-259 — ida y vuelta: recoge al grupo para volver, con el código nuevo.
+@router.patch("/{request_id}/start-return")
+def iniciar_regreso(
+    request_id: int,
+    payload: schemas.CodigoAbordaje | None = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    viaje, oferta = _viaje_del_conductor(db, request_id, current_user)
+    if viaje.status != 'IN_PROGRESS' or viaje.tramo != 'EN_DESTINO':
+        raise HTTPException(status_code=400, detail="El regreso se inicia cuando ya llegaron al destino.")
+
+    pagos.validar_codigo(db, viaje, payload.codigo if payload else None, current_user)
+
+    viaje.tramo = 'REGRESO'
+    viaje.abordo_regreso_at = pagos.ahora()
+    pago = pagos.marcar_exigible(db, oferta, "RECOGIDA_REGRESO")
+    pagos.registrar_evento(db, viaje.request_id, "ABORDAJE_REGRESO", actor=current_user, gps_de=current_user)
+    db.commit()
+
+    monto = f" Toca pagarle al conductor {pagos.cop(pago.monto)}." if pago is not None else ""
+    crear_notificacion(
+        db, user_id=viaje.passenger_id,
+        title="Empezó el regreso",
+        message=f"El conductor los recogió para volver.{monto}",
+        tipo="SYSTEM", offer_id=oferta.offer_id,
+    )
+    return {"message": "¡Regreso iniciado!", "request_id": viaje.request_id,
+            "status": viaje.status, "tramo": viaje.tramo}
+
+
+# SCRUM-259 — el grupo no regresa con el conductor (decidió quedarse, se
+# fue por su cuenta, etc.). El pago del regreso se anula (o se devuelve si ya
+# lo habían pagado) y el pasajero puede abrir un reclamo si no está de acuerdo.
+@router.patch("/{request_id}/close-without-return")
+def cerrar_sin_regreso(
+    request_id: int,
+    payload: schemas.CerrarSinRegreso,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    viaje, oferta = _viaje_del_conductor(db, request_id, current_user)
+    if viaje.status != 'IN_PROGRESS' or viaje.tramo != 'EN_DESTINO':
+        raise HTTPException(status_code=400, detail="Solo se puede cerrar sin regreso cuando ya llegaron al destino.")
+
+    motivo = payload.motivo.strip()
+    pago = pagos.pago_de_hito(db, oferta.offer_id, "RECOGIDA_REGRESO")
+    if pago is not None:
+        if pago.estado in ("CONFIRMADO", "PAGO_REPORTADO"):
+            pago.estado = "DEVOLUCION_PENDIENTE"
+            pago.reportado_at = None
+            pago.confirmado_at = None
+            pagos.registrar_evento(db, viaje.request_id, "DEVOLUCION_PENDIENTE", actor=current_user, pago=pago,
+                                   monto=pago.monto, detalle="El pago del regreso se había hecho y no hubo regreso.")
+        elif pago.estado == "PENDIENTE":
+            pago.estado = "ANULADO"
+            pagos.registrar_evento(db, viaje.request_id, "PAGO_ANULADO", actor=current_user, pago=pago,
+                                   monto=pago.monto, detalle="No hubo regreso.")
+
+    viaje.status = 'COMPLETED'
+    viaje.tramo = None
+    viaje.codigo_abordaje = None
+    viaje.cerrado_sin_regreso = True
+    viaje.motivo_sin_regreso = motivo
+    viaje.finalizado_at = pagos.ahora()
+    pagos.registrar_evento(db, viaje.request_id, "CERRADO_SIN_REGRESO", actor=current_user,
+                           gps_de=current_user, detalle=motivo)
+    db.commit()
+
+    crear_notificacion(
+        db, user_id=viaje.passenger_id,
+        title="El conductor cerró el viaje sin regreso",
+        message=f"Motivo: {motivo}. El pago del regreso no se cobra. Si no estás de acuerdo, abre un reclamo desde el viaje.",
+        tipo="SYSTEM", offer_id=oferta.offer_id,
+    )
+    registrar_log(db, action="TRIP_COMPLETED", user_id=current_user.user_id,
+        entity="ServiceRequest", entity_id=viaje.request_id,
+        detail=f"Viaje #{request_id} cerrado sin regreso por conductor #{current_user.user_id}: {motivo}")
+    return {"message": "Viaje cerrado sin regreso.", "request_id": viaje.request_id, "status": viaje.status}
 
 
 # HU17 — PATCH /api/service-requests/{request_id}/complete
@@ -1849,7 +2066,24 @@ def complete_trip(
     if not oferta_aceptada:
         raise HTTPException(status_code=403, detail="No eres el conductor asignado a este viaje.")
 
+    # SCRUM-259 — ida y vuelta se finaliza al volver (o se cierra sin regreso).
+    # Los viajes que arrancaron antes de las etapas (tramo NULL) se finalizan
+    # como siempre.
+    if viaje.trip_type == 'ROUND_TRIP' and viaje.tramo in ('IDA', 'EN_DESTINO'):
+        raise HTTPException(
+            status_code=400,
+            detail="En un viaje de ida y vuelta primero marca la llegada al destino y el regreso (o ciérralo sin regreso)."
+        )
+    pago_llegada = None
+    if viaje.trip_type != 'ROUND_TRIP':
+        # Solo ida: el 70 % se paga al dejarlos en el destino.
+        pago_llegada = pagos.marcar_exigible(db, oferta_aceptada, "LLEGADA_DESTINO")
+
     viaje.status = 'COMPLETED'
+    viaje.tramo = None
+    viaje.codigo_abordaje = None
+    viaje.finalizado_at = pagos.ahora()
+    pagos.registrar_evento(db, viaje.request_id, "VIAJE_FINALIZADO", actor=current_user, gps_de=current_user)
     db.commit()
 
     # ÉPICA 12 (HU29) — cada viaje completado alimenta el historial real de
@@ -1894,11 +2128,14 @@ def complete_trip(
         )
 
     # Notificar al pasajero
+    por_pagar = ""
+    if pago_llegada is not None and pago_llegada.estado == "PENDIENTE":
+        por_pagar = f" Toca pagarle al conductor {pagos.cop(pago_llegada.monto)}."
     crear_notificacion(
         db,
         user_id=viaje.passenger_id,
         title="¡Viaje completado!",
-        message=f"Tu viaje de {viaje.origin} a {viaje.destination} ha finalizado. ¡Gracias por usar Turify!",
+        message=f"Tu viaje de {viaje.origin} a {viaje.destination} ha finalizado.{por_pagar} ¡Gracias por usar Turify!",
         tipo="TRIP_COMPLETED",
         offer_id=oferta_aceptada.offer_id
     )
@@ -1939,6 +2176,7 @@ def get_trip_status(
         "destination": viaje.destination,
         "departure_time": viaje.departure_time.isoformat() if viaje.departure_time else None,
         "fuec_cargado": bool(viaje.fuec_url),
+        "tramo": viaje.tramo,
     }
 
 # HU10 — POST /api/service-requests/{request_id}/passengers
