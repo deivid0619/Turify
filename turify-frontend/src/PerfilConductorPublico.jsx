@@ -35,7 +35,7 @@ const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
 
           <motion.div initial={{ opacity: 0, y: 28, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 14, scale: 0.96 }}
             transition={{ type: 'tween', duration: 0.24 }}
-            style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '480px', maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', zIndex: 4001, borderRadius: '26px', boxShadow: '0 30px 80px rgba(5,46,22,0.45)', backgroundColor: 'var(--t-papel)', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+            style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '480px', maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', zIndex: 4001, borderRadius: '26px', boxShadow: '0 30px 80px rgba(5,46,22,0.45)', backgroundColor: 'var(--t-papel)', fontFamily: "'Questrial', system-ui, sans-serif" }}>
 
             {(cargando || !datos) ? (
               <div style={{ padding: '100px 20px', textAlign: 'center', color: 'var(--t-piedra)', fontSize: '16px' }}>⏳ Cargando perfil...</div>

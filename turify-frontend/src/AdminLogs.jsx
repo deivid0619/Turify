@@ -119,7 +119,7 @@ const AdminLogs = () => {
       <header style={{ background: T.monte, padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
           <button onClick={() => navigate('/admin/conductores')} className="t-foco"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: SOBRE_MONTE.fondo, border: `1px solid ${SOBRE_MONTE.linea}`, borderRadius: T.rControl, padding: '9px 14px', cursor: 'pointer', fontSize: '13.5px', fontFamily: T.ui, fontWeight: 600, color: claro(0.9) }}>
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: SOBRE_MONTE.fondo, border: `1px solid ${SOBRE_MONTE.linea}`, borderRadius: T.rControl, padding: '9px 14px', cursor: 'pointer', fontSize: '13.5px', fontFamily: T.display, fontWeight: 600, color: claro(0.9) }}>
             <IconFlechaIzq size={15} />Volver al panel
           </button>
           <div>
@@ -130,7 +130,7 @@ const AdminLogs = () => {
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <BotonTema tema={tema} alternar={alternarTema} compacto />
           <motion.button whileTap={{ scale: 0.96 }} onClick={() => cargarLogs(filtroAccion)} className="t-foco"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: T.ruta, color: '#fff', border: '1px solid transparent', borderRadius: T.rControl, padding: '10px 16px', cursor: 'pointer', fontFamily: T.ui, fontWeight: 700, fontSize: '13.5px' }}>
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: T.ruta, color: '#fff', border: '1px solid transparent', borderRadius: T.rControl, padding: '10px 16px', cursor: 'pointer', fontFamily: T.display, fontWeight: 700, fontSize: '13.5px' }}>
             <IconRecargar size={15} />{cargando ? 'Actualizando' : 'Actualizar'}
           </motion.button>
         </div>
@@ -176,7 +176,7 @@ const AdminLogs = () => {
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {FILTROS.map(f => (
               <button key={f.value} onClick={() => setFiltroAccion(f.value)} className="t-foco"
-                style={{ padding: '7px 13px', borderRadius: T.rChip, cursor: 'pointer', fontSize: '12.5px', fontFamily: T.ui, fontWeight: 600, transition: 'background .18s, color .18s',
+                style={{ padding: '7px 13px', borderRadius: T.rChip, cursor: 'pointer', fontSize: '12.5px', fontFamily: T.display, fontWeight: 600, transition: 'background .18s, color .18s',
                   border: `1px solid ${filtroAccion === f.value ? T.tinta : T.linea}`,
                   backgroundColor: filtroAccion === f.value ? T.tinta : T.niebla,
                   color: filtroAccion === f.value ? T.papel : T.piedra }}>

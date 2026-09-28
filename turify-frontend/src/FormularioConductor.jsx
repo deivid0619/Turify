@@ -241,7 +241,7 @@ const Cabecera = ({ titulo, onVolver, etiquetaVolver = 'Volver al mapa' }) => (
         <h2 style={{ margin: '12px 0 0', fontSize: '21px', fontWeight: 800, color: '#fff', fontFamily: T.display, letterSpacing: '-.02em' }}>{titulo}</h2>
       </div>
       <button type="button" onClick={onVolver} className="t-foco"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: 'rgba(255,255,255,0.08)', border: `1px solid ${T.monteLinea}`, color: 'rgba(234,242,236,.9)', padding: '8px 14px', borderRadius: T.rControl, cursor: 'pointer', fontWeight: 600, fontSize: '13.5px', fontFamily: T.ui }}>
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: 'rgba(255,255,255,0.08)', border: `1px solid ${T.monteLinea}`, color: 'rgba(234,242,236,.9)', padding: '8px 14px', borderRadius: T.rControl, cursor: 'pointer', fontWeight: 600, fontSize: '13.5px', fontFamily: T.display }}>
         <IconFlechaIz size={14} />{etiquetaVolver}
       </button>
     </div>

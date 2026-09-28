@@ -1,6 +1,6 @@
 import API_BASE_URL from './api';
 import { useState } from 'react';
-import { T, EstilosBase, Boton, Rotulo, TableroRuta, LogoWordmark, IconAlerta, IconVisto, IconOjo, IconOjoTachado } from './diseno';
+import { T, EstilosBase, Boton, Rotulo, TableroRuta, LogoWordmark, IconAlerta, IconVisto, IconOjo, IconOjoTachado, Resalte } from './diseno';
 
 const Registro = ({ irALogin }) => {
   const [formData, setFormData] = useState({
@@ -189,10 +189,10 @@ const Registro = ({ irALogin }) => {
 
           <div style={{ position: 'relative' }}>
             <h2 style={{
-              fontFamily: T.display, fontWeight: 800, fontSize: '27px', lineHeight: 1.15,
-              letterSpacing: '-.02em', color: '#fff', margin: '0 0 12px',
+              fontFamily: T.frase, fontWeight: 400, fontSize: '27px', lineHeight: 1.2,
+              letterSpacing: '-.01em', color: '#fff', margin: '0 0 12px',
             }}>
-              Sumate a la red<br /><span style={{ color: T.chiva }}>Turify.</span>
+              Sumate a la red<br /><Resalte sobreOscuro>Turify.</Resalte>
             </h2>
             <p style={{ fontSize: '13px', color: 'rgba(234,242,236,.55)', lineHeight: 1.6, margin: '0 0 22px' }}>
               Publicá tu viaje, negociá la tarifa y viajá con conductores verificados en Medellín y su región.

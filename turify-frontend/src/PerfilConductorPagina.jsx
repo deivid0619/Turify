@@ -66,7 +66,7 @@ const PerfilConductorPagina = () => {
 
   if (cargando) {
     return (
-      <div style={{ minHeight: '100vh', backgroundColor: 'var(--t-papel)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra-clara)', fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: '14px' }}>
+      <div style={{ minHeight: '100vh', backgroundColor: 'var(--t-papel)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra-clara)', fontFamily: "'Questrial', system-ui, sans-serif", fontSize: '14px' }}>
         Cargando perfil…
       </div>
     );
@@ -74,7 +74,7 @@ const PerfilConductorPagina = () => {
 
   if (error || !datos) {
     return (
-      <div style={{ minHeight: '100vh', backgroundColor: 'var(--t-papel)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', system-ui, sans-serif", gap: '18px' }}>
+      <div style={{ minHeight: '100vh', backgroundColor: 'var(--t-papel)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: "'Questrial', system-ui, sans-serif", gap: '18px' }}>
         <p style={{ margin: 0, fontWeight: 700, fontSize: '16px', color: 'var(--t-tinta)' }}>No pudimos cargar este perfil.</p>
         <p style={{ margin: '-10px 0 0', color: 'var(--t-piedra)', fontSize: '13px' }}>Verifica tu conexión e intenta de nuevo.</p>
         <button onClick={volver} style={{ background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '8px', padding: '9px 18px', cursor: 'pointer', fontSize: '13px', color: 'var(--t-tinta)', fontWeight: 600 }}>
@@ -85,8 +85,8 @@ const PerfilConductorPagina = () => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: 'var(--t-papel)', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&display=swap');`}</style>
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--t-papel)', fontFamily: "'Questrial', system-ui, sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700&display=swap');`}</style>
 
       {/* CABECERA — a todo el ancho, como el resto del sitio */}
       <div style={{

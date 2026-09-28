@@ -177,7 +177,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
             style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 2000 }} />
 
           <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.3 }}
-            style={{ position: 'fixed', top: 0, right: 0, width: '460px', maxWidth: '100%', height: '100vh', backgroundColor: 'var(--t-papel)', zIndex: 2001, boxShadow: '-5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+            style={{ position: 'fixed', top: 0, right: 0, width: '460px', maxWidth: '100%', height: '100vh', backgroundColor: 'var(--t-papel)', zIndex: 2001, boxShadow: '-5px 0 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', fontFamily: "'Questrial', system-ui, sans-serif" }}>
 
             {/* CABECERA — monte, igual que la entrada y el panel del conductor */}
             <div style={{ background: T.monte, padding: '24px 20px 0', flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
@@ -210,7 +210,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                         {perfil?.role === 'DRIVER' ? 'Conductor' : perfil?.role === 'ADMIN' ? 'Admin' : 'Pasajero'}
                       </span>
                       {perfil?.role === 'DRIVER' && perfil?.conductor_verificado && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(233,161,59,.14)', border: '1px solid rgba(233,161,59,.32)', color: T.chiva, borderRadius: '20px', padding: '2px 9px', fontSize: '11.5px', fontWeight: 700 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(255,144,0,.14)', border: '1px solid rgba(255,144,0,.32)', color: T.chiva, borderRadius: '20px', padding: '2px 9px', fontSize: '11.5px', fontWeight: 700 }}>
                           <IconGorro size={12} />Verificado
                         </span>
                       )}
@@ -271,7 +271,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px', padding: '10px 12px', backgroundColor: 'var(--t-niebla)', borderRadius: '8px', border: '1px solid var(--t-linea)' }}>
                         <span style={{ fontSize: '15px', color: 'var(--t-tinta)' }}>{perfil.phone_number}</span>
-                        <button onClick={() => setEditandoTelefono(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: T.ruta, cursor: 'pointer', fontSize: '13px', fontWeight: 700, fontFamily: T.ui }}><IconLapiz size={12} />Editar</button>
+                        <button onClick={() => setEditandoTelefono(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: T.ruta, cursor: 'pointer', fontSize: '13px', fontWeight: 700, fontFamily: T.display }}><IconLapiz size={12} />Editar</button>
                       </div>
                     )}
                   </div>

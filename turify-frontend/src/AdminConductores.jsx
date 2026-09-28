@@ -349,7 +349,7 @@ const AdminConductores = () => {
                   </span>
                   <br />
                   <button onClick={cargarConductores} className="t-foco"
-                    style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '7px', background: SOBRE_MONTE.fondo, border: `1px solid ${SOBRE_MONTE.linea}`, color: claro(0.85), padding: '7px 14px', borderRadius: T.rControl, cursor: 'pointer', fontSize: '13px', fontFamily: T.ui, fontWeight: 600 }}>
+                    style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '7px', background: SOBRE_MONTE.fondo, border: `1px solid ${SOBRE_MONTE.linea}`, color: claro(0.85), padding: '7px 14px', borderRadius: T.rControl, cursor: 'pointer', fontSize: '13px', fontFamily: T.display, fontWeight: 600 }}>
                     <IconRecargar size={14} />Reintentar
                   </button>
                 </div>
@@ -406,7 +406,7 @@ const AdminConductores = () => {
 
             <div style={{ padding: '12px 20px', borderTop: `1px solid ${T.monteLinea}` }}>
               <motion.button whileTap={{ scale: 0.97 }} onClick={cargarConductores} disabled={cargando} className="t-foco"
-                style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: SOBRE_MONTE.fondo, border: `1px solid ${SOBRE_MONTE.linea}`, borderRadius: T.rControl, color: claro(0.85), padding: '10px', cursor: cargando ? 'not-allowed' : 'pointer', fontSize: '13.5px', fontFamily: T.ui, fontWeight: 700 }}>
+                style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: SOBRE_MONTE.fondo, border: `1px solid ${SOBRE_MONTE.linea}`, borderRadius: T.rControl, color: claro(0.85), padding: '10px', cursor: cargando ? 'not-allowed' : 'pointer', fontSize: '13.5px', fontFamily: T.display, fontWeight: 700 }}>
                 <IconRecargar size={15} />{cargando ? 'Actualizando' : 'Actualizar'}
               </motion.button>
             </div>
@@ -478,7 +478,7 @@ const AdminConductores = () => {
                             </p>
                             <button
                               onClick={() => setDocPreview(doc)} className="t-foco"
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', padding: 0, color: T.cieloTexto, fontSize: '13px', fontFamily: T.ui, cursor: 'pointer', fontWeight: 600, marginTop: '4px' }}>
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', padding: 0, color: T.cieloTexto, fontSize: '13px', fontFamily: T.display, cursor: 'pointer', fontWeight: 600, marginTop: '4px' }}>
                               <IconOjo size={14} />Ver el documento
                             </button>
                             {esRunt && (
@@ -503,13 +503,13 @@ const AdminConductores = () => {
                               <motion.button whileTap={{ scale: 0.95 }} className="t-foco"
                                 onClick={() => verificarDocumento(doc.document_id, 'APPROVED', experienciaEditada[doc.document_id] ?? doc.years_experience)}
                                 disabled={procesando === doc.document_id}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: T.ruta, color: '#fff', border: '1px solid transparent', borderRadius: T.rControl, padding: '8px 14px', fontFamily: T.ui, fontWeight: 700, fontSize: '13px', cursor: procesando === doc.document_id ? 'not-allowed' : 'pointer', opacity: procesando === doc.document_id ? 0.7 : 1 }}>
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: T.ruta, color: '#fff', border: '1px solid transparent', borderRadius: T.rControl, padding: '8px 14px', fontFamily: T.display, fontWeight: 700, fontSize: '13px', cursor: procesando === doc.document_id ? 'not-allowed' : 'pointer', opacity: procesando === doc.document_id ? 0.7 : 1 }}>
                                 <IconVisto size={14} />{procesando === doc.document_id ? 'Guardando' : 'Aprobar'}
                               </motion.button>
                               <motion.button whileTap={{ scale: 0.95 }} className="t-foco"
                                 onClick={() => verificarDocumento(doc.document_id, 'REJECTED')}
                                 disabled={procesando === doc.document_id}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: T.alertaSuave, color: T.alertaTexto, border: `1px solid ${T.alertaLinea}`, borderRadius: T.rControl, padding: '8px 14px', fontFamily: T.ui, fontWeight: 700, fontSize: '13px', cursor: procesando === doc.document_id ? 'not-allowed' : 'pointer', opacity: procesando === doc.document_id ? 0.7 : 1 }}>
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: T.alertaSuave, color: T.alertaTexto, border: `1px solid ${T.alertaLinea}`, borderRadius: T.rControl, padding: '8px 14px', fontFamily: T.display, fontWeight: 700, fontSize: '13px', cursor: procesando === doc.document_id ? 'not-allowed' : 'pointer', opacity: procesando === doc.document_id ? 0.7 : 1 }}>
                                 <IconEquis size={14} />{procesando === doc.document_id ? 'Guardando' : 'Rechazar'}
                               </motion.button>
                             </div>
@@ -517,7 +517,7 @@ const AdminConductores = () => {
 
                           {doc.verification_status !== 'PENDING' && (
                             <button onClick={() => verificarDocumento(doc.document_id, 'PENDING')} className="t-foco"
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: `1px solid ${T.linea}`, color: T.piedra, borderRadius: T.rControl, padding: '7px 12px', fontSize: '12.5px', fontFamily: T.ui, cursor: 'pointer', fontWeight: 600, flexShrink: 0 }}>
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: `1px solid ${T.linea}`, color: T.piedra, borderRadius: T.rControl, padding: '7px 12px', fontSize: '12.5px', fontFamily: T.display, cursor: 'pointer', fontWeight: 600, flexShrink: 0 }}>
                               <IconRecargar size={13} />Revertir
                             </button>
                           )}

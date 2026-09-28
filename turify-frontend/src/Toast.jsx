@@ -51,7 +51,7 @@ const ToastItem = ({ id, type, message, duration, onRemove }) => {
       minWidth: '300px',
       maxWidth: '380px',
       boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-      fontFamily: "'DM Sans', sans-serif",
+      fontFamily: "'Questrial', system-ui, sans-serif",
       overflow: 'hidden',
       position: 'relative',
     }}>

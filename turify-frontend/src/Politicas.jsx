@@ -17,7 +17,7 @@ const Seccion = ({ id, numero, titulo, children }) => (
 );
 
 const Sub = ({ children }) => (
-  <h3 style={{ fontFamily: T.ui, fontWeight: 700, fontSize: '15.5px', color: 'var(--t-tinta)', margin: '22px 0 8px' }}>{children}</h3>
+  <h3 style={{ fontFamily: T.display, fontWeight: 700, fontSize: '15.5px', color: 'var(--t-tinta)', margin: '22px 0 8px' }}>{children}</h3>
 );
 
 const P = ({ children }) => (
@@ -77,7 +77,7 @@ const Politicas = () => {
         <div style={{ background: 'var(--t-monte)', padding: '18px clamp(20px, 5vw, 64px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <LogoWordmark alto={17} oscuro />
           <button onClick={() => (window.opener ? window.close() : navigate(-1))} className="t-foco"
-            style={{ display: 'flex', alignItems: 'center', gap: '7px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', color: '#EAF2EC', borderRadius: T.rControl, padding: '8px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, fontFamily: T.ui }}>
+            style={{ display: 'flex', alignItems: 'center', gap: '7px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', color: '#EAF2EC', borderRadius: T.rControl, padding: '8px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, fontFamily: T.display }}>
             <IconEquis size={13} />Cerrar
           </button>
         </div>

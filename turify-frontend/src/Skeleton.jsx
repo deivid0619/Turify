@@ -92,7 +92,7 @@ export const SkeletonDashboard = () => (
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
       zIndex: 99999,
-      fontFamily: "'DM Sans', sans-serif"
+      fontFamily: "'Questrial', system-ui, sans-serif"
     }}>
       {/* Logo animado */}
       <div style={{ marginBottom: 32, textAlign: 'center' }}>
@@ -126,7 +126,7 @@ export const ErrorConexion = ({ onReintentar }) => (
     display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'center',
     zIndex: 99999,
-    fontFamily: "'DM Sans', sans-serif",
+    fontFamily: "'Questrial', system-ui, sans-serif",
     padding: 24,
   }}>
     <div style={{

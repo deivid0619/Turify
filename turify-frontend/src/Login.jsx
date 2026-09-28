@@ -1,8 +1,8 @@
 import API_BASE_URL from './api';
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { T, EstilosBase, Boton, Rotulo, TableroRuta, IconAlerta, IconOjo, IconOjoTachado,
-         LogoWordmark, LogoMonograma, LogoBifurcacion } from './diseno';
+import { T, FIJO, EstilosBase, Boton, Rotulo, TableroRuta, IconAlerta, IconOjo, IconOjoTachado,
+         LogoWordmark, LogoMonograma, LogoBifurcacion, Resalte } from './diseno';
 import LandingInfo from './LandingInfo';
 
 // Logo en uso. Alternativas: LogoMonograma | LogoBifurcacion
@@ -13,12 +13,13 @@ const LOGO = LogoWordmark;
 const COPY_POR_VISTA = {
   // Alternativas si querés probar otra: la idea es nombrar el vacío que Turify llena,
   // sin sonar peleador. Otras que funcionan igual de bien:
-  //   <>Tu ruta existe,<br /><span>aunque no esté en el mapa.</span></>
-  //   <>Hasta la última<br /><span>vereda de Antioquia.</span></>
-  //   <>Que salir de la vereda<br /><span>no sea una odisea.</span></>
-  viajar:   { frase: <>Tu camino,<br /><span>con precio claro.</span></> },
-  conducir: { frase: <>Caminos que otros<br /><span>no recorren.</span></> },
-  quienes:  { frase: <>Hasta la última<br /><span>vereda de tu municipio.</span></> },
+  //   <>Tu ruta existe, aunque no esté en el <Resalte sobreOscuro>mapa.</Resalte></>
+  //   <>Que salir de la <Resalte sobreOscuro>vereda</Resalte> no sea una odisea.</>
+  // Estilo del lema: palabras normales en Questrial, las clave en Syne
+  // negrilla, mayúsculas y naranja (ver Resalte en diseno.jsx).
+  viajar:   { frase: <>Tu <Resalte sobreOscuro>camino,</Resalte> con<br />precio <Resalte sobreOscuro>claro.</Resalte></> },
+  conducir: { frase: <><Resalte sobreOscuro>Caminos</Resalte> que otros<br />no <Resalte sobreOscuro>recorren.</Resalte></> },
+  quienes:  { frase: <>Hasta la última <Resalte sobreOscuro>vereda</Resalte><br />de tu <Resalte sobreOscuro>municipio.</Resalte></> },
 };
 // Rutas reales de Antioquia que rotan en el tablero de la izquierda.
 const RUTAS = [
@@ -262,7 +263,6 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
         .login-der { flex:0 0 400px; min-width:0; background:${T.papel}; display:flex; flex-direction:column;
                      align-items:center; justify-content:center; padding:48px 40px; border-left:1px solid ${T.linea}; }
         .login-forma { width:100%; max-width:340px; }
-        .login-izq h1 span { color:${T.chiva}; }
         .login-pestana { font-family:${T.dato}; font-size:11px; font-weight:500; letter-spacing:.14em;
                          text-transform:uppercase; background:none; border:none; cursor:pointer;
                          padding:7px 0; color:rgba(234,242,236,.42); transition:color .18s;
@@ -297,10 +297,10 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
               <polygon points="-10,460 -10,408 70,388 130,404 190,372 250,396 310,376 370,392 370,460" fill="#86EFAC" opacity=".23" />
               <g className="login-fondo-animado">
                 <path d="M-10 360 C 70 330, 130 358, 190 336 S 300 344, 380 330"
-                  fill="none" stroke="#E9A13B" strokeWidth="1.5" strokeDasharray="1 9" strokeLinecap="round" opacity=".65">
+                  fill="none" stroke={FIJO.chiva} strokeWidth="1.5" strokeDasharray="1 9" strokeLinecap="round" opacity=".65">
                   <animate attributeName="stroke-dashoffset" from="40" to="0" dur="1.6s" repeatCount="indefinite" />
                 </path>
-                <circle r="3.5" fill="#E9A13B">
+                <circle r="3.5" fill={FIJO.chiva}>
                   <animateMotion dur="4.5s" repeatCount="indefinite"
                     path="M-10 360 C 70 330, 130 358, 190 336 S 300 344, 380 330" />
                 </circle>
@@ -328,9 +328,9 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
             {/* Centro: la frase y el tablero, juntos y centrados vertical */}
             <div className="login-izq__centro">
               <h1 style={{
-                fontFamily: T.display, fontWeight: 800, fontSize: 'clamp(34px, 4.2vw, 56px)',
-                lineHeight: 1.14, letterSpacing: '-.02em', color: '#fff',
-                margin: 0, maxWidth: '17ch',
+                fontFamily: T.frase, fontWeight: 400, fontSize: 'clamp(34px, 4.2vw, 56px)',
+                lineHeight: 1.18, letterSpacing: '-.01em', color: '#fff',
+                margin: 0,
               }}>
                 {copy.frase}
               </h1>
