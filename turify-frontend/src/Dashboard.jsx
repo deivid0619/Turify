@@ -13,6 +13,11 @@ import { SkeletonDashboard, SkeletonTarjetaConfirmado, ErrorConexion } from './S
 
 const BRAND_GREEN = T.ruta;
 import API_BASE_URL from './api';
+import { PlanPagos, PagosPendientes, CodigoAbordaje, CuentaParaPagar, ModalReclamo } from './PagosViaje';
+import {
+  cop, ejecutarAccionPago, abrirReclamo, cargarPagosPendientes, MENSAJE_ACCION,
+  hayPagoPorHacer, anticipoDe, anticipoPagado,
+} from './pagos';
 import {
   T, EstilosBase, TableroRuta, Icono,
   IconReloj, IconVisto, IconBandera, IconAuto, IconCalendario, IconPersonas,
@@ -192,6 +197,11 @@ const Dashboard = () => {
   const [mostrarMisSolicitudes, setMostrarMisSolicitudes] = useState(false);
   const [listaSolicitudes, setListaSolicitudes] = useState([]);
   const [viajesConfirmados, setViajesConfirmados] = useState([]);
+  // ÉPICA 6 — pagos del viaje (SCRUM-178)
+  const [pagosPendientes, setPagosPendientes] = useState([]);
+  const [procesandoPago, setProcesandoPago] = useState(null);
+  const [reclamoViajeId, setReclamoViajeId] = useState(null);
+  const [enviandoReclamo, setEnviandoReclamo] = useState(false);
 
   // HU43 — Tracking en el MAPA GRANDE. Cuando hay un viaje en curso con
   // coordenadas, se traza su ruta una sola vez y se guarda para pintarla en el
@@ -1091,9 +1101,22 @@ const Dashboard = () => {
             // El conductor lo sube (ver PanelConductor.jsx); acá solo se muestra si ya existe.
             fuec_url: v.fuec_url || null,
             ocupantes_registrados: v.ocupantes_registrados || 0,
+            // ÉPICA 6 — etapas del viaje, código de abordaje y plan de pagos
+            trip_type: v.trip_type,
+            tramo: v.tramo || null,
+            cerrado_sin_regreso: !!v.cerrado_sin_regreso,
+            plan_pagos: v.plan_pagos || null,
+            codigo_abordaje: v.codigo_abordaje || null,
+            codigo_para: v.codigo_para || null,
+            codigo_bloqueado_hasta: v.codigo_bloqueado_hasta || null,
+            cuenta_conductor: v.cuenta_conductor || null,
           })));
         }
       } catch {}
+
+      // SCRUM-181 — devoluciones y reclamos de viajes cancelados o que
+      // volvieron a buscar conductor: ya no salen en ninguna tarjeta.
+      try { setPagosPendientes(await cargarPagosPendientes(token)); } catch { /* no bloquea la lista */ }
 
       // Orden: el último viaje buscado (created_at más reciente) siempre de primero.
       const ordenados = [...viajesConOfertas].sort(
@@ -1111,6 +1134,36 @@ const Dashboard = () => {
       await cargarMisViajes();
     } finally {
       setActualizandoViajes(false);
+    }
+  };
+
+  // ÉPICA 6 — acciones sobre un pago: reportar, confirmar o reclamar
+  const accionPago = async (pago, accion) => {
+    setProcesandoPago(`${pago.pago_id}:${accion}`);
+    try {
+      await ejecutarAccionPago(token, pago.pago_id, accion);
+      toast.success(MENSAJE_ACCION[accion]);
+      await cargarMisViajes();
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setProcesandoPago(null);
+    }
+  };
+
+  const enviarReclamo = async (motivo) => {
+    setEnviandoReclamo(true);
+    try {
+      await abrirReclamo(token, reclamoViajeId, motivo);
+      toast.success('Reclamo enviado. Un administrador lo revisará y les responderá a los dos.');
+      setReclamoViajeId(null);
+      await cargarMisViajes();
+      return true;
+    } catch (error) {
+      toast.error(error.message);
+      return false;
+    } finally {
+      setEnviandoReclamo(false);
     }
   };
 
@@ -1153,15 +1206,29 @@ const Dashboard = () => {
     }
   };
 
-  // HU59 — según cuánto falte para la salida: libre, 30% o 50% de
-  // penalización sobre el precio acordado (SCRUM-211). Es solo una vista
-  // previa en el cliente; el backend recalcula lo mismo al confirmar, que es
-  // lo que de verdad queda registrado.
-  const calcularPreviewPenalizacion = (departureTimeISO) => {
-    const horas = (new Date(departureTimeISO) - new Date()) / 3600000;
-    if (horas >= 24) return { pct: 0, label: 'Cancelación gratuita', detalle: 'Faltan 24 horas o más para tu viaje.' };
-    if (horas >= 2) return { pct: 30, label: '30% de penalización', detalle: 'Estás cancelando entre 24 y 2 horas antes del viaje.' };
-    return { pct: 50, label: '50% de penalización', detalle: horas >= 0 ? 'Estás cancelando con menos de 2 horas de anticipación.' : 'La hora de salida ya pasó.' };
+  // SCRUM-181 — la penalización es el anticipo: con 24 h o más se devuelve
+  // todo; con menos, se pierde lo que ya se pagó de anticipo. Es solo una
+  // vista previa; el backend aplica la misma regla al confirmar.
+  const calcularPreviewPenalizacion = (viaje) => {
+    const horas = (new Date(viaje.departure_time) - new Date()) / 3600000;
+    const anticipo = anticipoDe(viaje.plan_pagos);
+    const pagado = anticipoPagado(viaje.plan_pagos);
+    const monto = anticipo ? anticipo.monto : 0;
+    if (horas >= 24) {
+      return {
+        pierde: 0, label: 'Cancelación gratuita',
+        detalle: pagado
+          ? `Faltan 24 horas o más: el conductor te devuelve el anticipo (${cop(monto)}).`
+          : 'Faltan 24 horas o más para tu viaje.',
+      };
+    }
+    if (pagado) {
+      return {
+        pierde: monto, label: 'Pierdes el anticipo',
+        detalle: `Faltan menos de 24 horas: el anticipo (${cop(monto)}) queda para el conductor como compensación.`,
+      };
+    }
+    return { pierde: 0, label: 'Sin penalización', detalle: 'Todavía no pagaste el anticipo, así que no hay nada que perder.' };
   };
 
   const abrirModalCancelarViaje = (viaje) => {
@@ -1192,10 +1259,13 @@ const Dashboard = () => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || 'No se pudo cancelar el viaje.');
 
-      const monto = data.penalty_amount || 0;
-      toast.success(monto > 0
-        ? `Viaje cancelado. Penalización: ${data.penalty_percentage}% ($${Number(monto).toLocaleString()}).`
-        : 'Viaje cancelado sin penalización.');
+      if (data.penalty_amount > 0) {
+        toast.success(`Viaje cancelado. El anticipo (${cop(data.penalty_amount)}) queda para el conductor.`);
+      } else if (data.monto_a_devolver > 0) {
+        toast.success(`Viaje cancelado. El conductor debe devolverte ${cop(data.monto_a_devolver)}: confírmalo en Mis viajes cuando te llegue.`);
+      } else {
+        toast.success('Viaje cancelado sin penalización.');
+      }
       setModalCancelarViaje(null);
       cargarMisViajes();
     } catch (error) {
@@ -1544,7 +1614,7 @@ const Dashboard = () => {
         border-radius: 8px;
         color: var(--t-musgo) !important;
         font-size: 13px;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Questrial', system-ui, sans-serif;
         box-sizing: border-box;
         outline: none;
         min-width: 0;
@@ -1605,7 +1675,7 @@ const Dashboard = () => {
       }
 
       /* ── PANEL "MIS VIAJES" — pasajes de viaje ── */
-      @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700&family=Questrial&display=swap');
       @keyframes pulse {
         0%, 100% { opacity: 1; transform: scale(1); }
         50% { opacity: 0.45; transform: scale(0.7); }
@@ -1654,7 +1724,7 @@ const Dashboard = () => {
         cursor: pointer;
         font-weight: 700;
         font-size: 11.5px;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Questrial', system-ui, sans-serif;
         letter-spacing: 0.01em;
         transition: background-color 0.18s, color 0.18s;
       }
@@ -1671,7 +1741,7 @@ const Dashboard = () => {
               <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
                 onClick={() => navigate('/registro-conductor')}
                 title="Conviértete en conductor de Turify"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: BRAND_GREEN, border: 'none', color: '#fff', borderRadius: '20px', padding: '6px 12px', fontSize: '12.5px', fontWeight: 700, fontFamily: T.ui, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: BRAND_GREEN, border: 'none', color: '#fff', borderRadius: '20px', padding: '6px 12px', fontSize: '12.5px', fontWeight: 700, fontFamily: T.display, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
                 <IconAuto size={14} />Ser conductor
               </motion.button>
             )}
@@ -1727,7 +1797,7 @@ const Dashboard = () => {
                 <InputDireccion name="origen" placeholder="¿Desde dónde sales?" value={busqueda.origen} onChange={handleBusqueda} esOrigen={true} onUbicacionActual={handleUbicacionActual} mapsLoaded={mapsLoaded} ancho="260px" />
                 <button type="button" onClick={() => setMarcandoEnMapa(marcandoEnMapa === 'origen' ? null : 'origen')}
                   className="t-foco" title="Marcar el origen en el mapa"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '5px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '11.5px', fontWeight: 600, fontFamily: T.ui, color: marcandoEnMapa === 'origen' ? T.ruta : T.piedraClara }}>
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '5px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '11.5px', fontWeight: 600, fontFamily: T.display, color: marcandoEnMapa === 'origen' ? T.ruta : T.piedraClara }}>
                   <IconPin size={12} />{marcandoEnMapa === 'origen' ? 'Tocá el mapa…' : 'Marcar en el mapa'}
                 </button>
               </div>
@@ -1738,7 +1808,7 @@ const Dashboard = () => {
                 <InputDireccion name="destino" placeholder="¿A dónde vas?" value={busqueda.destino} onChange={handleBusqueda} mapsLoaded={mapsLoaded} ancho="260px" />
                 <button type="button" onClick={() => setMarcandoEnMapa(marcandoEnMapa === 'destino' ? null : 'destino')}
                   className="t-foco" title="Marcar el destino en el mapa"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '5px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '11.5px', fontWeight: 600, fontFamily: T.ui, color: marcandoEnMapa === 'destino' ? T.ruta : T.piedraClara }}>
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '5px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '11.5px', fontWeight: 600, fontFamily: T.display, color: marcandoEnMapa === 'destino' ? T.ruta : T.piedraClara }}>
                   <IconPin size={12} />{marcandoEnMapa === 'destino' ? 'Tocá el mapa…' : 'Marcar en el mapa'}
                 </button>
               </div>
@@ -2283,6 +2353,12 @@ const Dashboard = () => {
               )}
               <div style={{ padding: '18px', overflowY: 'auto', flex: 1 }}>
 
+                {/* SCRUM-181 — devoluciones de viajes cancelados */}
+                {!viajeSeleccionado && (
+                  <PagosPendientes pendientes={pagosPendientes} onAccion={accionPago} procesando={procesandoPago}
+                    titulo="Tienes pagos pendientes de viajes cancelados" />
+                )}
+
                 {/* PESTAÑA: EN BÚSQUEDA */}
                 {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '50px 20px' }}>
@@ -2419,12 +2495,20 @@ const Dashboard = () => {
                             absorbe el aviso de estado: el detalle cuelga del paso actual,
                             así la tarjeta pierde una caja y gana claridad. */}
                         {(() => {
-                          const pasos = [
-                            { key: 'ASSIGNED',    label: 'Confirmado',  detalle: 'El conductor aceptó tu viaje.' },
-                            { key: 'IN_PROGRESS', label: 'En camino',   detalle: 'Va hacia el punto de recogida.' },
-                            { key: 'COMPLETED',   label: 'Completado',  detalle: 'Viaje finalizado.' },
+                          // SCRUM-259 — ida y vuelta tiene más etapas: llegada al destino y regreso.
+                          const pasos = viaje.trip_type === 'ROUND_TRIP' ? [
+                            { key: 'ASSIGNED',   label: 'Confirmado',    detalle: 'El conductor aceptó tu viaje.' },
+                            { key: 'IDA',        label: 'Ida',           detalle: 'Van hacia el destino.' },
+                            { key: 'EN_DESTINO', label: 'En el destino', detalle: 'El conductor espera para el regreso.' },
+                            { key: 'REGRESO',    label: 'Regreso',       detalle: 'Van de vuelta.' },
+                            { key: 'COMPLETED',  label: 'Completado',    detalle: viaje.cerrado_sin_regreso ? 'Cerrado sin regreso.' : 'Viaje finalizado.' },
+                          ] : [
+                            { key: 'ASSIGNED',   label: 'Confirmado',    detalle: 'El conductor aceptó tu viaje.' },
+                            { key: 'IDA',        label: 'En camino',     detalle: 'Van hacia el destino.' },
+                            { key: 'COMPLETED',  label: 'Completado',    detalle: 'Viaje finalizado.' },
                           ];
-                          const idxActual = pasos.findIndex(p => p.key === viaje.trip_status);
+                          const claveActual = viaje.trip_status === 'IN_PROGRESS' ? (viaje.tramo || 'IDA') : viaje.trip_status;
+                          const idxActual = pasos.findIndex(p => p.key === claveActual);
                           return (
                             <div style={{ marginBottom: '13px' }}>
                               {pasos.map((paso, idx) => {
@@ -2504,6 +2588,21 @@ const Dashboard = () => {
                           <p style={{ margin: '10px 0 0', fontSize: '12px', color: 'var(--t-piedra-clara)', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
                             <IconRadar size={12} />Esperando la ubicación del conductor...
                           </p>
+                        )}
+
+                        {/* SCRUM-259 — código que el pasajero le dicta al conductor al subir */}
+                        <CodigoAbordaje codigo={viaje.codigo_abordaje} para={viaje.codigo_para}
+                          bloqueadoHasta={viaje.codigo_bloqueado_hasta} />
+
+                        {/* SCRUM-258/260/263 — plan de pagos y a dónde pagarle al conductor */}
+                        {viaje.plan_pagos && (
+                          <>
+                            {viaje.trip_status !== 'COMPLETED' && (
+                              <CuentaParaPagar cuenta={viaje.cuenta_conductor} hayPagosPorHacer={hayPagoPorHacer(viaje.plan_pagos)} />
+                            )}
+                            <PlanPagos plan={viaje.plan_pagos} onAccion={accionPago} procesando={procesandoPago}
+                              onReclamo={() => setReclamoViajeId(viaje.id)} />
+                          </>
                         )}
 
                       {/* Botón FUEC — SCRUM-255: la lista se congela 48 h antes de
@@ -2751,7 +2850,7 @@ const Dashboard = () => {
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {notificaciones.filter(n => !n.is_read).length > 0 && (
                     <button onClick={marcarTodasLeidas}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '8px', padding: '6px 10px', fontSize: '12px', fontWeight: 600, color: 'var(--t-piedra)', cursor: 'pointer', fontFamily: T.ui }}>
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '8px', padding: '6px 10px', fontSize: '12px', fontWeight: 600, color: 'var(--t-piedra)', cursor: 'pointer', fontFamily: T.display }}>
                       <IconVisto size={12} />Leer todas
                     </button>
                   )}
@@ -2864,12 +2963,12 @@ const Dashboard = () => {
               {/* CONTENIDO — scrollable */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', backgroundColor: 'var(--t-monte)' }}>
                 {ocupantesFuec.map((ocupante, idx) => (
-                  <div key={idx} style={{ backgroundColor: ocupante.es_representante ? 'rgba(233,161,59,0.06)' : 'rgba(34,197,94,0.05)', border: ocupante.es_representante ? '1px solid rgba(233,161,59,0.35)' : '1px solid rgba(34,197,94,0.12)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
+                  <div key={idx} style={{ backgroundColor: ocupante.es_representante ? 'rgba(255,144,0,0.06)' : 'rgba(34,197,94,0.05)', border: ocupante.es_representante ? '1px solid rgba(255,144,0,0.35)' : '1px solid rgba(34,197,94,0.12)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: ocupante.es_representante ? '2px' : '10px' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ fontSize: '13px', fontWeight: '700', color: 'rgba(255,255,255,0.5)' }}>Ocupante {idx + 1}</span>
                         {ocupante.es_representante && (
-                          <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--t-chiva)', background: 'rgba(233,161,59,0.15)', border: '1px solid rgba(233,161,59,0.35)', borderRadius: '20px', padding: '2px 8px' }}>
+                          <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--t-chiva)', background: 'rgba(255,144,0,0.15)', border: '1px solid rgba(255,144,0,0.35)', borderRadius: '20px', padding: '2px 8px' }}>
                             Representante del viaje
                           </span>
                         )}
@@ -2988,18 +3087,23 @@ const Dashboard = () => {
         )}
       </AnimatePresence>
 
+      {/* RECLAMO SOBRE LOS PAGOS — SCRUM-264 */}
+      <ModalReclamo abierto={!!reclamoViajeId} onCerrar={() => setReclamoViajeId(null)}
+        onEnviar={enviarReclamo} enviando={enviandoReclamo} />
+
       {/* MODAL CANCELAR VIAJE — HU59 (SCRUM-211) */}
       <AnimatePresence>
         {modalCancelarViaje && (() => {
-          const preview = calcularPreviewPenalizacion(modalCancelarViaje.departure_time);
-          const montoEstimado = fuerzaMayorCancelacion ? 0 : Math.round((modalCancelarViaje.precio_acordado || 0) * preview.pct / 100);
+          const preview = calcularPreviewPenalizacion(modalCancelarViaje);
           return (
             <>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 onClick={() => !enviandoCancelacion && setModalCancelarViaje(null)}
                 style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
+              {/* Centrado con contenedor flex (ver el mismo modal en PanelConductor). */}
+              <div style={{ position: 'fixed', inset: 0, zIndex: 3001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', boxSizing: 'border-box', pointerEvents: 'none' }}>
               <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
-                style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '380px', maxWidth: '92vw', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: T.ui }}>
+                style={{ pointerEvents: 'auto', maxHeight: '100%', overflowY: 'auto', boxSizing: 'border-box', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', width: '380px', maxWidth: '100%', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: T.ui }}>
                 <h3 style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px', fontFamily: T.display, fontWeight: 800, letterSpacing: '-.01em', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <IconAlerta size={17} color="var(--t-alerta-linea)" />Cancelar viaje
                 </h3>
@@ -3008,12 +3112,9 @@ const Dashboard = () => {
                 </p>
 
                 {!fuerzaMayorCancelacion && (
-                  <div style={{ padding: '10px 12px', borderRadius: '8px', marginBottom: '14px', background: preview.pct === 0 ? 'rgba(34,197,94,0.08)' : 'var(--t-alerta-suave)', border: `1px solid ${preview.pct === 0 ? 'rgba(34,197,94,0.3)' : 'var(--t-alerta-linea)'}` }}>
-                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: preview.pct === 0 ? BRAND_GREEN : 'var(--t-alerta-texto)' }}>{preview.label}</p>
+                  <div style={{ padding: '10px 12px', borderRadius: '8px', marginBottom: '14px', background: preview.pierde === 0 ? 'rgba(34,197,94,0.08)' : 'var(--t-alerta-suave)', border: `1px solid ${preview.pierde === 0 ? 'rgba(34,197,94,0.3)' : 'var(--t-alerta-linea)'}` }}>
+                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: preview.pierde === 0 ? BRAND_GREEN : 'var(--t-alerta-texto)' }}>{preview.label}</p>
                     <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>{preview.detalle}</p>
-                    {montoEstimado > 0 && (
-                      <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>Monto estimado: <strong>${montoEstimado.toLocaleString()}</strong></p>
-                    )}
                   </div>
                 )}
 
@@ -3026,7 +3127,7 @@ const Dashboard = () => {
                 {fuerzaMayorCancelacion && (
                   <div style={{ marginBottom: '10px' }}>
                     <p style={{ margin: '0 0 6px', fontSize: '12px', color: 'var(--t-piedra)' }}>
-                      Sin penalización si adjuntas una evidencia (foto, certificado médico, reporte, etc.).
+                      Sin penalización si adjuntas una evidencia (foto, certificado médico, reporte, etc.): se te devuelve todo lo que hayas pagado.
                     </p>
                     <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp"
                       onChange={e => setEvidenciaCancelacion(e.target.files?.[0] || null)}
@@ -3050,6 +3151,7 @@ const Dashboard = () => {
                   </button>
                 </div>
               </motion.div>
+              </div>
             </>
           );
         })()}
