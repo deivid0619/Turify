@@ -43,8 +43,16 @@ const LandingInfo = ({ onQuieroConducir }) => {
         .li-rotulo { font-family:${T.dato}; font-size:11px; letter-spacing:.16em; text-transform:uppercase;
                      color:${BRAND_GREEN}; margin:0 0 12px; }
         .li-h2 { font-family:${T.frase}; font-weight:400; font-size:clamp(26px,3.4vw,38px); line-height:1.2;
-                 letter-spacing:-.01em; color:var(--t-tinta); margin:0 0 14px; max-width:28ch; text-wrap:balance; }
-        .li-intro { font-size:15px; line-height:1.65; color:var(--t-piedra); max-width:56ch; margin:0 0 48px; }
+                 letter-spacing:-.01em; color:var(--t-tinta); margin:0; max-width:28ch; text-wrap:balance; }
+        .li-intro { font-size:15px; line-height:1.65; color:var(--t-piedra); max-width:56ch; margin:0; }
+        /* Encabezado de sección: título a la izquierda y explicación a la derecha,
+           alineados por abajo; en pantallas angostas se apilan. */
+        .li-cabecera { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:18px 56px;
+                       align-items:end; margin:0 0 48px; }
+        @media (max-width:860px) { .li-cabecera { grid-template-columns:1fr; } }
+        /* Bloque para conductores: la única sección centrada, como cierre de la página. */
+        .li-cta { display:flex; flex-direction:column; align-items:center; text-align:center; gap:26px; }
+        .li-cta .li-rotulo, .li-cta h2, .li-cta p { margin-left:auto; margin-right:auto; }
         .li-grid-pasos { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:28px; }
         .li-paso { display:flex; flex-direction:column; gap:12px; }
         /* Número del paso en el naranja de la marca (--t-resalte: legible sobre papel). */
@@ -67,10 +75,14 @@ const LandingInfo = ({ onQuieroConducir }) => {
       {/* CÓMO FUNCIONA */}
       <section className="li-banda">
         <div className="li-contenido">
-        <p className="li-rotulo">Cómo funciona</p>
-        <h2 className="li-h2">De publicar el viaje a subirte, en <Resalte>cuatro pasos.</Resalte></h2>
-        <p className="li-intro">Sin intermediarios ocultos: vos ves el precio, el conductor ve tu ruta, y los dos
-          saben qué hace falta antes de salir.</p>
+        <div className="li-cabecera">
+          <div>
+            <p className="li-rotulo">Cómo funciona</p>
+            <h2 className="li-h2">De publicar el viaje a subirte, en <Resalte>cuatro pasos.</Resalte></h2>
+          </div>
+          <p className="li-intro">Sin intermediarios ocultos: vos ves el precio, el conductor ve tu ruta, y los dos
+            saben qué hace falta antes de salir.</p>
+        </div>
         <div className="li-grid-pasos">
           {PASOS.map((p, i) => (
             <motion.div key={i} className="li-paso"
@@ -91,10 +103,14 @@ const LandingInfo = ({ onQuieroConducir }) => {
       {/* COBERTURA */}
       <section className="li-banda" style={{ background: 'var(--t-niebla)', borderTop: '1px solid var(--t-linea)', borderBottom: '1px solid var(--t-linea)' }}>
         <div className="li-contenido">
-          <p className="li-rotulo">Cobertura</p>
-          <h2 className="li-h2">Llegamos donde el transporte convencional <Resalte>no llega.</Resalte></h2>
-          <p className="li-intro">Buses y taxis convencionales cubren las rutas grandes. Turify existe para todo lo
-            demás — fincas, veredas y corregimientos que necesitan transporte especial para moverse.</p>
+          <div className="li-cabecera">
+            <div>
+              <p className="li-rotulo">Cobertura</p>
+              <h2 className="li-h2">Llegamos donde el transporte convencional <Resalte>no llega.</Resalte></h2>
+            </div>
+            <p className="li-intro">Buses y taxis convencionales cubren las rutas grandes. Turify existe para todo lo
+              demás — fincas, veredas y corregimientos que necesitan transporte especial para moverse.</p>
+          </div>
           <div className="li-rutas-grid">
             {RUTAS_COBERTURA.map(([origen, destino], i) => (
               <motion.div key={i} className="li-ruta-tarjeta"
@@ -112,11 +128,15 @@ const LandingInfo = ({ onQuieroConducir }) => {
       {/* VIAJES VERIFICADOS */}
       <section className="li-banda">
         <div className="li-contenido">
-        <p className="li-rotulo">Seguridad</p>
-        <h2 className="li-h2">Cada conductor, <Resalte>verificado</Resalte> antes de recibir un solo viaje.</h2>
-        <p className="li-intro">Turify revisa que estos documentos existan y no estén vencidos antes de habilitar
-          una cuenta de conductor — no garantiza lo que certifica la empresa afiliada, pero sí que el papeleo
-          básico esté al día.</p>
+        <div className="li-cabecera">
+          <div>
+            <p className="li-rotulo">Seguridad</p>
+            <h2 className="li-h2">Cada conductor, <Resalte>verificado</Resalte> antes de recibir un solo viaje.</h2>
+          </div>
+          <p className="li-intro">Turify revisa que estos documentos existan y no estén vencidos antes de habilitar
+            una cuenta de conductor — no garantiza lo que certifica la empresa afiliada, pero sí que el papeleo
+            básico esté al día.</p>
+        </div>
         <div className="li-doc-grid">
           {DOCUMENTOS.map((d, i) => (
             <motion.div key={i} className="li-doc"
@@ -134,8 +154,8 @@ const LandingInfo = ({ onQuieroConducir }) => {
 
       {/* CTA CONDUCTORES */}
       <section className="li-banda" style={{ background: 'var(--t-monte)' }}>
-        <div className="li-contenido" style={{ display: 'flex', flexWrap: 'wrap', gap: '28px', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ maxWidth: '480px' }}>
+        <div className="li-contenido li-cta">
+          <div style={{ maxWidth: '560px' }}>
             <p className="li-rotulo" style={{ color: 'var(--t-chiva)' }}>Para conductores</p>
             <h2 style={{ fontFamily: T.frase, fontWeight: 400, fontSize: 'clamp(24px,3vw,32px)', lineHeight: 1.2, letterSpacing: '-.01em', color: '#fff', margin: '0 0 10px', textWrap: 'balance' }}>
               ¿Tenés vehículo? <Resalte sobreOscuro>Conducí</Resalte> cuando quieras.
@@ -144,7 +164,7 @@ const LandingInfo = ({ onQuieroConducir }) => {
               Vos decidís qué ofertas tomar. Recibís solicitudes de tu zona, incluso en veredas pequeñas.
             </p>
           </div>
-          <Boton type="button" onClick={onQuieroConducir} style={{ padding: '14px 28px', flexShrink: 0 }}>
+          <Boton type="button" onClick={onQuieroConducir} style={{ padding: '14px 28px' }}>
             <IconAuto size={16} style={{ verticalAlign: '-3px', marginRight: '8px' }} />Empezar a conducir
           </Boton>
         </div>
