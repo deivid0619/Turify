@@ -8,8 +8,9 @@ import {
   T, EstilosBase, Chip, Rotulo, LogoWordmark, BotonTema, useTema,
   IconReloj, IconVisto, IconEquis, IconClipboard, IconRecibo, IconGorro,
   IconPersona, IconOjo, IconAlerta, IconEscudo, IconTarjeta, IconLlave,
-  IconDocumento, IconDescargar, IconSalir, IconRecargar,
+  IconDocumento, IconDescargar, IconSalir, IconRecargar, IconPrecio,
 } from './diseno';
+import { cargarCuentasAdmin, cargarReclamosAdmin } from './pagos';
 
 const ETIQUETA_DOCUMENTO = {
   'SOAT': 'SOAT Vigente',
@@ -96,7 +97,7 @@ const useDocumentoSeguro = (documentId, token) => {
 };
 
 
-const ModalDocumento = ({ doc, onCerrar, token }) => {
+export const ModalDocumento = ({ doc, onCerrar, token }) => {
   const { cargando, error, blobUrl, tipo } = useDocumentoSeguro(doc.document_id, token);
   const pdf = tipo === 'application/pdf';
 
@@ -208,6 +209,18 @@ const AdminConductores = () => {
 
   useEffect(() => { if (token) cargarConductores(); }, [token]);
 
+  // Cuentas por verificar y reclamos abiertos, para el número del botón "Pagos".
+  const [pendientesPagos, setPendientesPagos] = useState({ cuentas: 0, reclamos: 0 });
+  useEffect(() => {
+    if (!token) return undefined;
+    let vigente = true;
+    Promise.all([cargarCuentasAdmin(token), cargarReclamosAdmin(token)])
+      .then(([c, r]) => { if (vigente) setPendientesPagos({ cuentas: c.length, reclamos: r.length }); })
+      .catch(() => {});
+    return () => { vigente = false; };
+  }, [token]);
+  const totalPagos = pendientesPagos.cuentas + pendientesPagos.reclamos;
+
   useEffect(() => {
     if (conductorSeleccionado) {
       const actualizado = conductores.find(c => c.user_id === conductorSeleccionado.user_id);
@@ -290,6 +303,16 @@ const AdminConductores = () => {
           <Rotulo style={{ color: claro(0.5) }}>Panel de administración</Rotulo>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button onClick={() => navigate(pendientesPagos.cuentas === 0 && pendientesPagos.reclamos > 0 ? '/admin/pagos?pestana=reclamos' : '/admin/pagos')}
+            className="t-foco" style={estiloAccion(claro(0.9))}
+            aria-label={totalPagos > 0 ? `Pagos: ${totalPagos} por revisar` : 'Pagos'}>
+            <IconPrecio size={15} />Pagos
+            {totalPagos > 0 && (
+              <span aria-hidden="true" style={{ minWidth: '20px', padding: '1px 7px', borderRadius: T.rChip, background: T.chiva, color: '#1A1206', fontFamily: T.display, fontWeight: 700, fontSize: '11.5px', textAlign: 'center' }}>
+                {totalPagos}
+              </span>
+            )}
+          </button>
           <button onClick={() => navigate('/admin/logs')} className="t-foco" style={estiloAccion(claro(0.9))}>
             <IconClipboard size={15} />Ver la bitácora
           </button>

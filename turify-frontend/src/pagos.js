@@ -66,6 +66,32 @@ export async function guardarCuentaPagos(token, datos) {
   return leer(res, 'No se pudo guardar la cuenta.');
 }
 
+// ── Administración (SCRUM-263 cuentas, SCRUM-264 reclamos) ────────────────
+
+export async function cargarCuentasAdmin(token, estado = 'PENDIENTE_VERIFICACION') {
+  const res = await fetch(`${API_BASE_URL}/api/pagos/admin/cuentas?estado=${estado}`, { headers: cabeceras(token) });
+  return leer(res, 'No se pudieron cargar las cuentas.');
+}
+
+export async function verificarCuentaAdmin(token, cuentaId, aprobar, nota) {
+  const res = await fetch(`${API_BASE_URL}/api/pagos/admin/cuentas/${cuentaId}/verificar`, {
+    method: 'POST', headers: cabeceras(token, true), body: JSON.stringify({ aprobar, nota: nota || null }),
+  });
+  return leer(res, 'No se pudo guardar la verificación.');
+}
+
+export async function cargarReclamosAdmin(token, estado = 'ABIERTO') {
+  const res = await fetch(`${API_BASE_URL}/api/pagos/admin/reclamos?estado=${estado}`, { headers: cabeceras(token) });
+  return leer(res, 'No se pudieron cargar los reclamos.');
+}
+
+export async function resolverReclamoAdmin(token, reclamoId, datos) {
+  const res = await fetch(`${API_BASE_URL}/api/pagos/admin/reclamos/${reclamoId}/resolver`, {
+    method: 'POST', headers: cabeceras(token, true), body: JSON.stringify(datos),
+  });
+  return leer(res, 'No se pudo resolver el reclamo.');
+}
+
 // Mensaje del toast después de cada acción, en palabras del usuario.
 export const MENSAJE_ACCION = {
   REPORTAR_PAGO: 'Listo: le avisamos al conductor para que confirme.',

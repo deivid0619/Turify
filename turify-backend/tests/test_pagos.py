@@ -330,6 +330,23 @@ def test_pago_no_recibido_abre_reclamo_que_resuelve_el_admin(client, crear_pasaj
     assert _pago(_vista(client, pasajero, auth_headers, request_id), "ANTICIPO")["estado"] == "CONFIRMADO"
 
 
+def test_reclamo_sin_cambios_devuelve_el_pago_a_como_estaba(client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers):
+    pasajero, conductor, request_id = _confirmado(client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers)
+    admin = crear_pasajero(email="admin.sincambios@example.com", role="ADMIN")
+    pago_id = _pago(_vista(client, pasajero, auth_headers, request_id), "ANTICIPO")["pago_id"]
+    client.post(f"/api/pagos/{pago_id}/reportar-pago", headers=auth_headers(pasajero))
+    client.post(f"/api/pagos/{pago_id}/no-recibido", headers=auth_headers(conductor))
+    reclamo_id = client.get("/api/pagos/admin/reclamos", headers=auth_headers(admin)).json()[0]["reclamo_id"]
+
+    resuelto = client.post(f"/api/pagos/admin/reclamos/{reclamo_id}/resolver",
+                           json={"decision": "SIN_CAMBIOS", "nota": "Lo resuelven entre ellos; ya hablamos con los dos."},
+                           headers=auth_headers(admin))
+
+    # No se queda "en reclamo" para siempre: el conductor puede volver a confirmarlo.
+    assert resuelto.json()["pago_estado"] == "PAGO_REPORTADO"
+    assert _pago(_vista(client, conductor, auth_headers, request_id), "ANTICIPO")["acciones"][0] == "CONFIRMAR_RECIBIDO"
+
+
 # ── Cancelación: el anticipo es la penalización (SCRUM-181) ─────────────────
 
 def test_cancelar_con_24h_o_mas_devuelve_el_anticipo(client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers):
@@ -415,9 +432,14 @@ def test_conductor_que_cancela_con_anticipo_pagado_debe_devolverlo(
 
 # ── Cuenta del conductor (SCRUM-263) ────────────────────────────────────────
 
-def test_cuenta_a_nombre_del_conductor_verificada_por_el_admin(client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers):
+def test_cuenta_a_nombre_del_conductor_verificada_por_el_admin(
+        client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers, db_session):
     pasajero, conductor, request_id = _confirmado(client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers)
     admin = crear_pasajero(email="admin.cuentas@example.com", role="ADMIN")
+    for lado in ("Cedula frente", "Cedula reverso"):
+        db_session.add(models.Document(user_id=conductor.user_id, document_type=lado,
+                                       file_url=f"https://ejemplo.supabase.co/{lado}.jpg"))
+    db_session.commit()
     cuenta = {"tipo": "NEQUI", "numero": "3001234567", "titular_documento": "1023456789"}
 
     ajena = client.put("/api/pagos/cuenta", json={**cuenta, "titular_nombre": "Pedro Picapiedra"}, headers=auth_headers(conductor))
@@ -428,6 +450,8 @@ def test_cuenta_a_nombre_del_conductor_verificada_por_el_admin(client, crear_pas
     assert _vista(client, pasajero, auth_headers, request_id)["cuenta_conductor"] is None  # aún sin verificar
 
     pendientes = client.get("/api/pagos/admin/cuentas", headers=auth_headers(admin)).json()
+    # El admin ve la cédula del conductor para compararla con el titular.
+    assert [d["document_type"] for d in pendientes[0]["cedula"]] == ["Cedula frente", "Cedula reverso"]
     client.post(f"/api/pagos/admin/cuentas/{pendientes[0]['cuenta_id']}/verificar",
                 json={"aprobar": True}, headers=auth_headers(admin))
     assert _vista(client, pasajero, auth_headers, request_id)["cuenta_conductor"]["numero"] == "3001234567"

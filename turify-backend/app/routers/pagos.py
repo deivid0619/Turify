@@ -400,6 +400,11 @@ def resolver_reclamo(reclamo_id: int, payload: schemas.ResolverReclamo,
     if destino is not None and pago is None:
         raise HTTPException(status_code=400, detail="Este reclamo no es sobre un pago: usa 'SIN_CAMBIOS'.")
 
+    # "Sin cambios" sobre un pago que quedó en reclamo lo devuelve a como
+    # estaba; si no, se quedaría en reclamo para siempre.
+    if destino is None and pago is not None and pago.estado == "EN_RECLAMO" and pago.estado_previo:
+        destino = pago.estado_previo
+
     if destino is not None:
         pago.estado = destino
         pago.estado_previo = None
@@ -459,12 +464,28 @@ def listar_cuentas(estado: str = Query("PENDIENTE_VERIFICACION",
     if estado != "TODAS":
         consulta = consulta.filter(models.CuentaPagoConductor.estado == estado)
     filas = consulta.order_by(models.CuentaPagoConductor.updated_at.desc()).limit(100).all()
+
+    # Fotos de la cédula de cada conductor: el admin compara el titular de la
+    # cuenta con la cédula antes de verificarla (SCRUM-263).
+    cedulas = {}
+    if filas:
+        for doc in db.query(models.Document).filter(
+                models.Document.user_id.in_([c.user_id for _, c in filas]),
+                models.Document.document_type.in_(("Cedula frente", "Cedula reverso"))).all():
+            cedulas.setdefault(doc.user_id, []).append({
+                "document_id": doc.document_id,
+                "document_type": doc.document_type,
+                "verification_status": doc.verification_status,
+            })
+
     return [{
         **servicio.serializar_cuenta(cuenta, completa=True),
         "titular_documento": cuenta.titular_documento,
         "driver_id": conductor.user_id,
         "conductor_nombre": conductor.full_name,
         "conductor_email": conductor.email,
+        "conductor_telefono": conductor.phone_number,
+        "cedula": sorted(cedulas.get(conductor.user_id, []), key=lambda d: d["document_type"]),
         "actualizada_at": cuenta.updated_at.isoformat() if cuenta.updated_at else None,
     } for cuenta, conductor in filas]
 

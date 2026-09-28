@@ -374,7 +374,9 @@ export const Boton = ({ variante = 'primario', ancho, children, style, ...rest }
     borderRadius: T.rControl, padding: '12px 18px', fontFamily: T.display,
     fontWeight: 700, fontSize: '13.5px', cursor: 'pointer',
     transition: 'background .18s, border-color .18s, color .18s',
-    width: ancho ? '100%' : undefined, border: '1px solid transparent',
+    // Borde en propiedades separadas: las variantes solo cambian el color, y
+    // mezclarlo con el atajo `border` hace que React avise al cambiar de variante.
+    width: ancho ? '100%' : undefined, borderWidth: '1px', borderStyle: 'solid', borderColor: 'transparent',
   };
   const variantes = {
     primario:  { background: T.ruta, color: '#fff' },

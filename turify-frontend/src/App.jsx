@@ -9,6 +9,7 @@ import Dashboard from './Dashboard';
 import FormularioConductor from './FormularioConductor';
 import AdminConductores from './AdminConductores';
 import AdminLogs from './AdminLogs';
+import AdminPagos from './AdminPagos';
 import PerfilConductorPagina from './PerfilConductorPagina';
 import Politicas from './Politicas';
 
@@ -86,6 +87,7 @@ function App() {
           <Route element={<RutaAdmin />}>
             <Route path="/admin/conductores" element={<AdminConductores />} />
             <Route path="/admin/logs" element={<AdminLogs />} />
+            <Route path="/admin/pagos" element={<AdminPagos />} />
           </Route>
 
           {/* Redirección por defecto */}
