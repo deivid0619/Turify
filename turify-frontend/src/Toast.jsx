@@ -62,6 +62,7 @@ const ToastItem = ({ id, type, message, duration, onRemove }) => {
         </p>
         <button
           onClick={() => { setVisible(false); setTimeout(() => onRemove(id), 300); }}
+          aria-label="Cerrar aviso"
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: cfg.color, opacity: 0.5, fontSize: '17px', padding: 0, flexShrink: 0, lineHeight: 1 }}>
           ×
         </button>

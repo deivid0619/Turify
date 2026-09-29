@@ -13,6 +13,9 @@
 
   --t-ruta:         #16A34A;
   --t-ruta-hover:   #128A3E;
+  /* Texto e iconos sobre el verde de la marca: el blanco se queda en 3,3:1 y
+     este verde casi negro llega a 5,2:1 (en oscuro, 7,5:1). */
+  --t-sobre-ruta:   #08210F;
 
   --t-musgo:        #E6F1E8;
   --t-musgo-linea:  #C9E3D0;
@@ -34,8 +37,9 @@
   --t-resalte:      #DB7800;
 
   --t-tinta:        #131A16;
-  --t-piedra:       #6B7A72;
-  --t-piedra-clara: #9AA79F;
+  /* Grises de texto: los dos pasan 4,5:1 (WCAG AA) sobre papel y niebla. */
+  --t-piedra:       #56625C;
+  --t-piedra-clara: #5F6D65;
   --t-linea:        #E2E4DC;
 
   --t-cielo:        #2563EB;
@@ -60,6 +64,7 @@
 
   --t-ruta:         #22C55E;
   --t-ruta-hover:   #34D871;
+  --t-sobre-ruta:   #08210F;
 
   --t-musgo:        #102E1D;
   --t-musgo-linea:  #22553A;
@@ -78,7 +83,7 @@
 
   --t-tinta:        #E8EFE9;
   --t-piedra:       #93A69A;
-  --t-piedra-clara: #6F8177;
+  --t-piedra-clara: #809288;
   --t-linea:        #22402F;
 
   --t-cielo:        #60A5FA;

@@ -194,7 +194,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
                   <div style={{ width: '52px', height: '52px', borderRadius: '50%', overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.08)', border: `1px solid ${T.monteLinea}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'rgba(234,242,236,.65)' }}>
                     {perfil?.profile_photo_url
-                      ? <img src={perfil.profile_photo_url} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ? <img src={perfil.profile_photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <IconPersona size={24} />}
                   </div>
                   <div style={{ minWidth: 0 }}>
@@ -240,7 +240,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                         padding: '8px 0 10px', cursor: 'pointer',
                         fontFamily: T.dato, fontSize: '11.5px', fontWeight: 500,
                         letterSpacing: '.12em', textTransform: 'uppercase',
-                        color: activa ? '#fff' : 'rgba(234,242,236,.42)', transition: 'color .18s',
+                        color: activa ? '#fff' : 'rgba(234,242,236,.62)', transition: 'color .18s',
                       }}>
                       <tab.Ico size={13} />{tab.label}
                     </button>
@@ -262,10 +262,10 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                       <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
                         <input value={nuevoTelefono} onChange={e => setNuevoTelefono(e.target.value)} style={inputStyle} placeholder="Número de teléfono" />
                         <button onClick={guardarTelefono} disabled={guardandoTelefono}
-                          style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '0 14px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                          style={{ background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', border: 'none', borderRadius: '8px', padding: '0 14px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
                           {guardandoTelefono ? '...' : 'Guardar'}
                         </button>
-                        <button onClick={() => setEditandoTelefono(false)}
+                        <button onClick={() => setEditandoTelefono(false)} aria-label="Cancelar" className="t-foco"
                           style={{ background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', borderRadius: '8px', padding: '0 12px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}><IconEquis size={13} /></button>
                       </div>
                     ) : (
@@ -345,7 +345,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                         <div style={{ marginBottom: '12px' }}>
                           <label style={{ fontSize: '13px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Vehículo</label>
                           <div style={{ marginTop: '6px', backgroundColor: 'var(--t-niebla)', borderRadius: '8px', border: '1px solid var(--t-linea)', overflow: 'hidden' }}>
-                            {perfil.vehiculo.photo_url && <img src={perfil.vehiculo.photo_url} alt="vehículo" style={{ width: '100%', height: '120px', objectFit: 'cover' }} />}
+                            {perfil.vehiculo.photo_url && <img src={perfil.vehiculo.photo_url} alt="Foto de tu vehículo" style={{ width: '100%', height: '120px', objectFit: 'cover' }} />}
                             <div style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', fontSize: '15px', fontWeight: 700, color: T.tinta }}><IconAuto size={15} /><span style={{ fontFamily: T.dato, letterSpacing: '.08em' }}>{perfil.vehiculo.plate}</span></span>
                               <span style={{ fontSize: '14px', color: 'var(--t-piedra)' }}>{perfil.vehiculo.capacity} asientos</span>
@@ -441,7 +441,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                                 <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: '700', color: T.tinta, display: 'flex', alignItems: 'center', gap: '6px' }}><IconGorro size={14} />¿Querés verificar tu experiencia?</p>
                                 <p style={{ margin: '0 0 10px', fontSize: '13px', color: 'var(--t-piedra)' }}>Sube tu RUNT para obtener el badge de conductor verificado.</p>
                                 <button onClick={() => setMostrarFormRunt(true)}
-                                  style={{ background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 16px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                                  style={{ background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', border: 'none', borderRadius: '8px', padding: '8px 16px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
                                   {runt ? 'Volver a enviar RUNT' : 'Subir RUNT'}
                                 </button>
                               </div>
@@ -478,7 +478,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
 
                                 <div style={{ display: 'flex', gap: '8px' }}>
                                   <button onClick={subirRunt} disabled={subiendoRunt}
-                                    style={{ flex: 1, background: subiendoRunt ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '14px', cursor: subiendoRunt ? 'not-allowed' : 'pointer' }}>
+                                    style={{ flex: 1, background: subiendoRunt ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: subiendoRunt ? '#fff' : 'var(--t-sobre-ruta)', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '14px', cursor: subiendoRunt ? 'not-allowed' : 'pointer' }}>
                                     {subiendoRunt ? 'Enviando...' : 'Enviar RUNT'}
                                   </button>
                                   <button onClick={() => { setMostrarFormRunt(false); setErrorRunt(''); }}
@@ -515,7 +515,7 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                     </div>
                   ))}
                   <button onClick={cambiarPassword} disabled={guardandoPassword}
-                    style={{ width: '100%', background: guardandoPassword ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: '700', fontSize: '15px', cursor: guardandoPassword ? 'not-allowed' : 'pointer', marginTop: '4px' }}>
+                    style={{ width: '100%', background: guardandoPassword ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: guardandoPassword ? '#fff' : 'var(--t-sobre-ruta)', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: '700', fontSize: '15px', cursor: guardandoPassword ? 'not-allowed' : 'pointer', marginTop: '4px' }}>
                     {guardandoPassword ? 'Actualizando...' : 'Actualizar contraseña'}
                   </button>
                 </div>
@@ -531,8 +531,8 @@ const PerfilDrawer = ({ abierto, onCerrar }) => {
                   </p>
                   <a href="mailto:soporte.turify@gmail.com"
                     style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--t-musgo)', border: `1px solid ${BRAND_GREEN}`, borderRadius: '10px', padding: '14px', textDecoration: 'none', marginBottom: '10px' }}>
-                    <span style={{ width: '34px', height: '34px', borderRadius: '50%', background: BRAND_GREEN, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <IconAyuda size={16} color="#fff" />
+                    <span style={{ width: '34px', height: '34px', borderRadius: '50%', background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <IconAyuda size={16} color="var(--t-sobre-ruta)" />
                     </span>
                     <span>
                       <span style={{ display: 'block', fontSize: '11px', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--t-musgo-texto)' }}>Soporte y PQRS</span>

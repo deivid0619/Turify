@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleMap, MarkerF, PolylineF, useJsApiLoader } from '@react-google-maps/api';
 import { AuthContext } from './AuthContext';
 import { ToastContainer, useToast } from './Toast';
+import { comoBoton } from './teclado';
 import { SkeletonTarjetaViaje } from './Skeleton';
 import PerfilDrawer from './PerfilDrawer';
 
@@ -1203,7 +1204,7 @@ const PanelConductor = ({ onVerRuta }) => {
             <button type="button" className="t-foco" onClick={enviarCedula} disabled={enviandoCedula || !cedula.frente || !cedula.reverso}
               style={{ padding: '8px 14px', borderRadius: T.rControl, border: 'none', fontSize: '12.5px', fontWeight: 700, fontFamily: T.display,
                        cursor: (enviandoCedula || !cedula.frente || !cedula.reverso) ? 'not-allowed' : 'pointer',
-                       background: (cedula.frente && cedula.reverso) ? BRAND_GREEN : 'rgba(255,255,255,0.12)', color: '#fff' }}>
+                       background: (cedula.frente && cedula.reverso) ? BRAND_GREEN : 'rgba(255,255,255,0.12)', color: (cedula.frente && cedula.reverso) ? 'var(--t-sobre-ruta)' : '#fff'}}>
               {enviandoCedula ? 'Enviando…' : 'Enviar cédula'}
             </button>
           </div>
@@ -1217,7 +1218,7 @@ const PanelConductor = ({ onVerRuta }) => {
             Sube fotos reales de tu vehículo ({(vehiculo.fotos || []).length} de {vehiculo.minimo_fotos || 3}): los pasajeros las ven antes de aceptar tu oferta.
           </span>
           <button type="button" className="t-foco" onClick={() => setPestanaActiva('vehiculo')}
-            style={{ padding: '6px 12px', borderRadius: T.rControl, border: 'none', background: BRAND_GREEN, color: '#fff', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: T.display }}>
+            style={{ padding: '6px 12px', borderRadius: T.rControl, border: 'none', background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: T.display }}>
             Subir fotos
           </button>
         </div>
@@ -1232,7 +1233,7 @@ const PanelConductor = ({ onVerRuta }) => {
           <button key={tab.id} onClick={() => setPestanaActiva(tab.id)}
             style={{ flex: '1 1 28%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px 6px', borderRadius: '9px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '12px', fontFamily: T.display, whiteSpace: 'nowrap', minWidth: 0, transition: 'background-color .18s, color .18s', backgroundColor: pestanaActiva === tab.id ? '#fff' : 'rgba(255,255,255,0.08)', color: pestanaActiva === tab.id ? T.monte : 'rgba(255,255,255,0.7)' }}>
             <tab.Ico size={13} />{tab.label}
-            {tab.count > 0 && <span style={{ background: pestanaActiva === tab.id ? BRAND_GREEN : 'rgba(255,255,255,0.25)', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '11px', marginLeft: '4px' }}>{tab.count}</span>}
+            {tab.count > 0 && <span style={{ background: pestanaActiva === tab.id ? BRAND_GREEN : 'rgba(255,255,255,0.25)', color: pestanaActiva === tab.id ? 'var(--t-sobre-ruta)' : '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '11px', marginLeft: '4px' }}>{tab.count}</span>}
           </button>
         ))}
       </div>
@@ -1261,7 +1262,7 @@ const PanelConductor = ({ onVerRuta }) => {
                 <p style={{ margin: '2px 0', fontWeight: '700', fontSize: '14px', color: BRAND_GREEN }}>→ {solicitudModal.destination}</p>
                 <p style={{ margin: '4px 0 0', fontSize: '12px', color: T.piedra, display: 'flex', alignItems: 'center', gap: '6px' }}><IconPersonas size={13} />{(solicitudModal.adults_count || 1) + (solicitudModal.children_count || 0)} pasajero(s){solicitudModal.has_pets && <> · <IconMascota size={12} />mascota en guacal</>}</p>
               </div>
-              <button onClick={() => { setSolicitudModal(null); setPrecio(''); setErrorPrecio(''); }}
+              <button onClick={() => { setSolicitudModal(null); setPrecio(''); setErrorPrecio(''); }} aria-label="Cerrar" className="t-foco"
                 style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--t-piedra-clara)' }}>×</button>
             </div>
             <p style={{ margin: '0 0 8px', fontSize: '13px', color: 'var(--t-piedra)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '7px' }}><IconPrecio size={14} />¿Cuánto cobrarías por este viaje?</p>
@@ -1276,7 +1277,7 @@ const PanelConductor = ({ onVerRuta }) => {
                 {errorPrecio && <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#C2410C' }}>{errorPrecio}</p>}
               </div>
               <motion.button whileTap={{ scale: 0.95 }} onClick={enviarOferta} disabled={enviandoOferta}
-                style={{ background: enviandoOferta ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 16px', fontWeight: '700', fontSize: '14px', cursor: enviandoOferta ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
+                style={{ background: enviandoOferta ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: enviandoOferta ? '#fff' : 'var(--t-sobre-ruta)', border: 'none', borderRadius: '8px', padding: '10px 16px', fontWeight: '700', fontSize: '14px', cursor: enviandoOferta ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
                 {enviandoOferta ? '...' : 'Enviar'}
               </motion.button>
             </div>
@@ -1296,7 +1297,7 @@ const PanelConductor = ({ onVerRuta }) => {
                 <button onClick={() => setMostrarFiltros(f => !f)}
                   style={{ display: 'flex', alignItems: 'center', gap: '6px', background: filtrosActivos ? 'var(--t-musgo)' : 'var(--t-niebla)', border: `1px solid ${filtrosActivos ? BRAND_GREEN : 'var(--t-linea)'}`, borderRadius: '8px', padding: '6px 12px', fontSize: '13px', fontWeight: '600', color: filtrosActivos ? BRAND_GREEN : 'var(--t-piedra)', cursor: 'pointer' }}>
                   <IconFiltros size={14} /> Filtros
-                  {filtrosActivos && <span style={{ background: BRAND_GREEN, color: '#fff', borderRadius: '50%', width: '16px', height: '16px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconVisto size={10} color="#fff" grosor={2.6} /></span>}
+                  {filtrosActivos && <span style={{ background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', borderRadius: '50%', width: '16px', height: '16px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconVisto size={10} color="var(--t-sobre-ruta)" grosor={2.6} /></span>}
                 </button>
                 {filtrosActivos && (
                   <button onClick={() => setFiltros({ tipo: 'todos', pasajeros: 'todos', mascotas: false })}
@@ -1316,7 +1317,7 @@ const PanelConductor = ({ onVerRuta }) => {
                     <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
                       {[{ val: 'todos', label: 'Todos' }, { val: 'ONE_WAY', label: '→ Solo ida' }, { val: 'ROUND_TRIP', label: '↩ Ida y vuelta' }].map(op => (
                         <button key={op.val} onClick={() => setFiltros(f => ({ ...f, tipo: op.val }))}
-                          style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '600', transition: 'all 0.15s', backgroundColor: filtros.tipo === op.val ? BRAND_GREEN : 'var(--t-linea)', color: filtros.tipo === op.val ? '#fff' : 'var(--t-piedra)' }}>
+                          style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '600', transition: 'all 0.15s', backgroundColor: filtros.tipo === op.val ? BRAND_GREEN : 'var(--t-linea)', color: filtros.tipo === op.val ? 'var(--t-sobre-ruta)' : 'var(--t-piedra)' }}>
                           {op.label}
                         </button>
                       ))}
@@ -1327,7 +1328,7 @@ const PanelConductor = ({ onVerRuta }) => {
                     <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
                       {[{ val: 'todos', label: 'Todos' }, { val: '1', label: '1 pasajero' }, { val: '2-4', label: '2–4' }, { val: '5+', label: '5 o más' }].map(op => (
                         <button key={op.val} onClick={() => setFiltros(f => ({ ...f, pasajeros: op.val }))}
-                          style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '600', transition: 'all 0.15s', backgroundColor: filtros.pasajeros === op.val ? BRAND_GREEN : 'var(--t-linea)', color: filtros.pasajeros === op.val ? '#fff' : 'var(--t-piedra)' }}>
+                          style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '600', transition: 'all 0.15s', backgroundColor: filtros.pasajeros === op.val ? BRAND_GREEN : 'var(--t-linea)', color: filtros.pasajeros === op.val ? 'var(--t-sobre-ruta)' : 'var(--t-piedra)' }}>
                           {op.label}
                         </button>
                       ))}
@@ -1337,6 +1338,8 @@ const PanelConductor = ({ onVerRuta }) => {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <p style={{ margin: 0, fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>Solo con mascotas <IconMascota size={13} /></p>
                       <div onClick={() => setFiltros(f => ({ ...f, mascotas: !f.mascotas }))}
+                        {...comoBoton(() => setFiltros(f => ({ ...f, mascotas: !f.mascotas })))}
+                        role="switch" aria-checked={filtros.mascotas} aria-label="Solo con mascotas" className="t-foco"
                         style={{ width: '36px', height: '20px', borderRadius: '10px', backgroundColor: filtros.mascotas ? BRAND_GREEN : 'var(--t-linea)', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
                         <div style={{ position: 'absolute', top: '2px', left: filtros.mascotas ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: 'var(--t-papel)', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
                       </div>
@@ -1388,7 +1391,7 @@ const PanelConductor = ({ onVerRuta }) => {
                     : <>Apenas alguien publique un viaje cerca, aparece acá.<br />Te llega también una notificación.</>}
                 </p>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={cargarSolicitudes}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '9px', padding: '10px 18px', fontWeight: 600, fontSize: '14px', cursor: 'pointer', fontFamily: T.display }}>
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', border: 'none', borderRadius: '9px', padding: '10px 18px', fontWeight: 600, fontSize: '14px', cursor: 'pointer', fontFamily: T.display }}>
                   <IconGirar size={14} />Verificar de nuevo
                 </motion.button>
               </motion.div>
@@ -1469,13 +1472,13 @@ const PanelConductor = ({ onVerRuta }) => {
                       <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                         onClick={(e) => { e.stopPropagation(); aceptarPrecioFijo(sol); }}
                         disabled={aceptandoPrecioFijo === sol.request_id}
-                        style={{ width: '100%', background: aceptandoPrecioFijo === sol.request_id ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: aceptandoPrecioFijo === sol.request_id ? 'not-allowed' : 'pointer' }}>
+                        style={{ width: '100%', background: aceptandoPrecioFijo === sol.request_id ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: aceptandoPrecioFijo === sol.request_id ? '#fff' : 'var(--t-sobre-ruta)', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: aceptandoPrecioFijo === sol.request_id ? 'not-allowed' : 'pointer' }}>
                         <IconVisto size={15} />{aceptandoPrecioFijo === sol.request_id ? 'Aceptando…' : `Aceptar viaje — $${Number(sol.suggested_price).toLocaleString('es-CO')}`}
                       </motion.button>
                     ) : (
                       <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                         onClick={(e) => { e.stopPropagation(); setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); }}
-                        style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                        style={{ width: '100%', background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
                         <IconPrecio size={15} />Hacer oferta
                       </motion.button>
                     )}
@@ -1566,7 +1569,7 @@ const PanelConductor = ({ onVerRuta }) => {
                       <motion.button whileTap={{ scale: 0.96 }}
                         onClick={() => resolverContraoferta(viaje.offer_id, 'ACCEPT')}
                         disabled={resolviendoOferta === viaje.offer_id + 'ACCEPT'}
-                        style={{ flex: 1, background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                        style={{ flex: 1, background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
                         {resolviendoOferta === viaje.offer_id + 'ACCEPT' ? '...' : <><IconVisto size={14} />Aceptar precio</>}
                       </motion.button>
                       <motion.button whileTap={{ scale: 0.96 }}
@@ -2047,7 +2050,7 @@ const PanelConductor = ({ onVerRuta }) => {
                 </label>
 
                 <button onClick={guardarVehiculo} disabled={guardandoVehiculo}
-                  style={{ width: '100%', padding: '11px', borderRadius: '10px', border: 'none', background: BRAND_GREEN, color: '#fff', fontSize: '14px', fontWeight: '700', cursor: guardandoVehiculo ? 'default' : 'pointer', opacity: guardandoVehiculo ? 0.6 : 1 }}>
+                  style={{ width: '100%', padding: '11px', borderRadius: '10px', border: 'none', background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', fontSize: '14px', fontWeight: '700', cursor: guardandoVehiculo ? 'default' : 'pointer', opacity: guardandoVehiculo ? 0.6 : 1 }}>
                   {guardandoVehiculo ? 'Guardando...' : 'Guardar cambios'}
                 </button>
               </>
@@ -2227,7 +2230,7 @@ const PanelConductor = ({ onVerRuta }) => {
                   <p style={{ margin: '0 0 2px', fontSize: '12px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: BRAND_GREEN }}>Documento de viaje</p>
                   <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: 'var(--t-musgo)', fontFamily: "'Syne', sans-serif" }}>Ocupantes registrados</h3>
                 </div>
-                <button onClick={() => setModalOcupantesId(null)}
+                <button onClick={() => setModalOcupantesId(null)} aria-label="Cerrar" className="t-foco"
                   style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '30px', height: '30px', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '17px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
@@ -2297,7 +2300,7 @@ const PanelConductor = ({ onVerRuta }) => {
                   Cancelar
                 </button>
                 <button onClick={enviarCalificacion} disabled={enviandoCalificacion || estrellasCalificar < 1}
-                  style={{ flex: 1, background: (enviandoCalificacion || estrellasCalificar < 1) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: (enviandoCalificacion || estrellasCalificar < 1) ? 'not-allowed' : 'pointer' }}>
+                  style={{ flex: 1, background: (enviandoCalificacion || estrellasCalificar < 1) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: (enviandoCalificacion || estrellasCalificar < 1) ? '#fff' : 'var(--t-sobre-ruta)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: (enviandoCalificacion || estrellasCalificar < 1) ? 'not-allowed' : 'pointer' }}>
                   {enviandoCalificacion ? 'Enviando...' : 'Enviar calificación'}
                 </button>
               </div>
@@ -2415,7 +2418,7 @@ const PanelConductor = ({ onVerRuta }) => {
                     Volver
                   </button>
                   <button type="submit" disabled={codigoIngresado.length !== 4 || enviandoCodigo}
-                    style={{ flex: 1, background: codigoIngresado.length === 4 && !enviandoCodigo ? BRAND_GREEN : 'var(--t-piedra-clara)', color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: codigoIngresado.length === 4 && !enviandoCodigo ? 'pointer' : 'not-allowed' }}>
+                    style={{ flex: 1, background: codigoIngresado.length === 4 && !enviandoCodigo ? BRAND_GREEN : 'var(--t-piedra-clara)', color: codigoIngresado.length === 4 && !enviandoCodigo ? 'var(--t-sobre-ruta)' : '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: codigoIngresado.length === 4 && !enviandoCodigo ? 'pointer' : 'not-allowed' }}>
                     {enviandoCodigo ? 'Validando…' : modalCodigo.accion === 'start-return' ? 'Iniciar regreso' : 'Iniciar viaje'}
                   </button>
                 </div>

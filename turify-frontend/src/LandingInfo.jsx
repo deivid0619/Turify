@@ -4,9 +4,9 @@ import { motion } from 'framer-motion';
 
 const BRAND_GREEN = 'var(--t-ruta)';
 
-// Rutas reales para mostrar el alcance — más de las 6 que rotan en el tablero
-// del hero, para que la sección de cobertura se sienta más completa sin
-// repetir el mismo componente vacío.
+// Ejemplos de rutas (lugares reales de Antioquia, no viajes activos) para
+// mostrar el tipo de trayecto que se puede publicar. La sección lo dice en
+// pantalla: presentarlas como cobertura sería una afirmación sin respaldo.
 const RUTAS_COBERTURA = [
   ['Palmitas', 'Medellín'],
   ['Santa Elena', 'Rionegro'],
@@ -40,8 +40,10 @@ const LandingInfo = ({ onQuieroConducir }) => {
            columna centrada, así todo arranca en el mismo borde. */
         .li-banda { padding:clamp(56px,8vw,96px) clamp(20px,5vw,64px); }
         .li-contenido { max-width:1180px; margin:0 auto; }
+        /* Verde de texto (musgo-texto): el verde de la marca en letra de 11 px no
+           llega a 4,5:1 sobre papel. */
         .li-rotulo { font-family:${T.dato}; font-size:11px; letter-spacing:.16em; text-transform:uppercase;
-                     color:${BRAND_GREEN}; margin:0 0 12px; }
+                     color:var(--t-musgo-texto); margin:0 0 12px; }
         .li-h2 { font-family:${T.frase}; font-weight:400; font-size:clamp(26px,3.4vw,38px); line-height:1.2;
                  letter-spacing:-.01em; color:var(--t-tinta); margin:0; max-width:28ch; text-wrap:balance; }
         .li-intro { font-size:15px; line-height:1.65; color:var(--t-piedra); max-width:56ch; margin:0; }
@@ -111,6 +113,7 @@ const LandingInfo = ({ onQuieroConducir }) => {
             <p className="li-intro">Buses y taxis convencionales cubren las rutas grandes. Turify existe para todo lo
               demás — fincas, veredas y corregimientos que necesitan transporte especial para moverse.</p>
           </div>
+          <p className="li-rotulo" style={{ marginBottom: '14px' }}>Ejemplos de rutas que podés publicar</p>
           <div className="li-rutas-grid">
             {RUTAS_COBERTURA.map(([origen, destino], i) => (
               <motion.div key={i} className="li-ruta-tarjeta"

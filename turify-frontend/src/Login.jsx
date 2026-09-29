@@ -21,7 +21,8 @@ const COPY_POR_VISTA = {
   conducir: { frase: <><Resalte sobreOscuro>Caminos</Resalte> que otros<br />no <Resalte sobreOscuro>recorren.</Resalte></> },
   quienes:  { frase: <>Hasta la última <Resalte sobreOscuro>vereda</Resalte><br />de tu <Resalte sobreOscuro>municipio.</Resalte></> },
 };
-// Rutas reales de Antioquia que rotan en el tablero de la izquierda.
+// Ejemplos de rutas de Antioquia que rotan en el tablero de la izquierda
+// (lugares reales, no viajes activos: el rótulo de abajo lo dice).
 const RUTAS = [
   ['Palmitas', 'Medellín'],
   ['Santa Elena', 'Rionegro'],
@@ -60,9 +61,9 @@ const TableroEnVivo = () => {
         style={{ opacity: visible ? 1 : 0, transition: 'opacity .26s ease' }} />
       <div style={{
         marginTop: '18px', fontFamily: T.dato, fontSize: '11px',
-        letterSpacing: '.16em', textTransform: 'uppercase', color: 'rgba(234,242,236,.42)',
+        letterSpacing: '.16em', textTransform: 'uppercase', color: 'rgba(234,242,236,.62)',
       }}>
-        412 rutas activas en Antioquia
+        Ejemplos de rutas en Antioquia
       </div>
     </div>
   );
@@ -141,7 +142,8 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
         const response = await fetch(`${API_BASE_URL}/users/login-google`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-          body: JSON.stringify({ credential: respuestaGoogle.credential }),
+          // Ley 1581 — el aviso de Términos y datos está junto al botón (ver abajo).
+          body: JSON.stringify({ credential: respuestaGoogle.credential, acepta_politicas: true }),
         });
         if (response.ok) {
           const data = await response.json();
@@ -265,7 +267,7 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
         .login-forma { width:100%; max-width:340px; }
         .login-pestana { font-family:${T.dato}; font-size:11px; font-weight:500; letter-spacing:.14em;
                          text-transform:uppercase; background:none; border:none; cursor:pointer;
-                         padding:7px 0; color:rgba(234,242,236,.42); transition:color .18s;
+                         padding:7px 0; color:rgba(234,242,236,.62); transition:color .18s;
                          border-bottom:1.5px solid transparent; }
         .login-pestana:hover { color:rgba(234,242,236,.8); }
         .login-pestana-on { color:#fff; border-bottom-color:${T.chiva}; }
@@ -338,8 +340,8 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
               <TableroEnVivo />
             </div>
 
-            <div style={{ position: 'relative', fontSize: '11.5px', color: 'rgba(234,242,236,.4)' }}>
-              Transporte especial habilitado · © 2026 Turify
+            <div style={{ position: 'relative', fontSize: '11.5px', color: 'rgba(234,242,236,.62)' }}>
+              Conductores de empresas de transporte especial habilitadas · © 2026 Turify
             </div>
           </div>
 
@@ -363,23 +365,25 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
 
                 <form onSubmit={handleSubmit}>
                   <div style={{ marginBottom: '14px' }}>
-                    <label style={estiloEtiqueta}>Correo</label>
-                    <input type="email" name="email" placeholder="tu@correo.com"
+                    <label htmlFor="login-correo" style={estiloEtiqueta}>Correo</label>
+                    <input id="login-correo" type="email" name="email" placeholder="tu@correo.com"
                       value={formData.email} onChange={handleChange}
                       onFocus={() => setCampoActivo('email')} onBlur={() => setCampoActivo(null)}
                       style={estiloCampo('email')} disabled={isLoading} autoComplete="email" />
                   </div>
 
                   <div style={{ marginBottom: '16px' }}>
-                    <label style={estiloEtiqueta}>Contraseña</label>
+                    <label htmlFor="login-clave" style={estiloEtiqueta}>Contraseña</label>
                     <div style={{ position: 'relative' }}>
-                      <input type={showPassword ? 'text' : 'password'} name="password"
+                      <input id="login-clave" type={showPassword ? 'text' : 'password'} name="password"
                         placeholder="••••••••" value={formData.password} onChange={handleChange}
                         onFocus={() => setCampoActivo('password')} onBlur={() => setCampoActivo(null)}
                         style={{ ...estiloCampo('password'), paddingRight: '46px' }}
                         disabled={isLoading} autoComplete="current-password" />
-                      <button type="button" className="t-foco" tabIndex={-1}
+                      <button type="button" className="t-foco"
                         onClick={() => setShowPassword(p => !p)}
+                        aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                        aria-pressed={showPassword}
                         title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                         style={{
                           position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
@@ -419,9 +423,17 @@ const Login = ({ irARegistro, onLoginSuccess, vistaInicial }) => {
                 {/* Se oculta sola si falta VITE_GOOGLE_CLIENT_ID (ver useEffect) —
                     el div igual queda montado para que Google tenga dónde pintar el botón. */}
                 <div ref={googleBtnRef} style={{
-                  display: 'flex', justifyContent: 'center', marginBottom: '14px',
+                  display: 'flex', justifyContent: 'center', marginBottom: '10px',
                   opacity: isLoading ? .5 : 1, pointerEvents: isLoading ? 'none' : 'auto',
                 }} />
+                {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+                  <p style={{ fontSize: '11.5px', lineHeight: 1.5, color: T.piedra, textAlign: 'center', margin: '0 0 14px' }}>
+                    Si aún no tenés cuenta, al continuar con Google se crea una y aceptás los{' '}
+                    <a href="/politicas#terminos" target="_blank" rel="opener" style={{ color: 'inherit' }}>Términos</a>{' '}
+                    y autorizás el tratamiento de tus datos según la{' '}
+                    <a href="/politicas#datos" target="_blank" rel="opener" style={{ color: 'inherit' }}>Política de datos</a>.
+                  </p>
+                )}
 
                 {errorBackend && (
                   <div style={{

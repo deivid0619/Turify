@@ -266,7 +266,7 @@ export const ModalReclamo = ({ abierto, onCerrar, onEnviar, enviando }) => {
                 </button>
                 <button type="button" disabled={!valido || enviando} className="t-foco"
                   onClick={async () => { const ok = await onEnviar(motivo.trim()); if (ok) setMotivo(''); }}
-                  style={{ flex: 1, background: valido && !enviando ? T.ruta : T.piedraClara, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: 700, fontSize: '14px', cursor: valido && !enviando ? 'pointer' : 'not-allowed' }}>
+                  style={{ flex: 1, background: valido && !enviando ? T.ruta : T.piedraClara, color: valido && !enviando ? 'var(--t-sobre-ruta)' : '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: 700, fontSize: '14px', cursor: valido && !enviando ? 'pointer' : 'not-allowed' }}>
                   {enviando ? 'Enviando…' : 'Enviar reclamo'}
                 </button>
               </div>
@@ -484,7 +484,7 @@ export const CuentaCobros = ({ token, nombreConductor, onExito, onError }) => {
               </button>
             )}
             <button type="submit" disabled={guardando} className="t-foco"
-              style={{ flex: 1, background: T.ruta, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontSize: '13.5px', fontFamily: T.display, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1 }}>
+              style={{ flex: 1, background: T.ruta, color: 'var(--t-sobre-ruta)', border: 'none', borderRadius: '8px', padding: '10px', fontSize: '13.5px', fontFamily: T.display, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1 }}>
               {guardando ? 'Guardando…' : 'Guardar cuenta'}
             </button>
           </div>

@@ -11,6 +11,7 @@ import {
   IconDocumento, IconDescargar, IconSalir, IconRecargar, IconPrecio,
 } from './diseno';
 import { cargarCuentasAdmin, cargarReclamosAdmin } from './pagos';
+import { comoBoton } from './teclado';
 
 const ETIQUETA_DOCUMENTO = {
   'SOAT': 'SOAT Vigente',
@@ -347,7 +348,7 @@ const AdminConductores = () => {
           {/* PANEL LATERAL — la cola de verificación */}
           <aside style={{ width: '330px', flexShrink: 0, background: T.monte, color: CLARO, display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '22px 20px 16px' }}>
-              <Rotulo style={{ color: claro(0.45), marginBottom: '10px' }}>Cola de verificación</Rotulo>
+              <Rotulo style={{ color: claro(0.62), marginBottom: '10px' }}>Cola de verificación</Rotulo>
               <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 800, fontFamily: T.display, letterSpacing: '-.02em', color: CLARO }}>Verificación</h1>
               <p style={{ margin: '4px 0 0', fontSize: '13px', color: claro(0.5) }}>Documentos y experiencia de conductores</p>
             </div>
@@ -392,6 +393,8 @@ const AdminConductores = () => {
                 return (
                   <motion.div key={conductor.user_id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                     onClick={() => setConductorSeleccionado(estaSeleccionado ? null : conductor)}
+                    {...comoBoton(() => setConductorSeleccionado(estaSeleccionado ? null : conductor))}
+                    aria-pressed={estaSeleccionado} className="t-foco"
                     style={{
                       display: 'flex', alignItems: 'center', gap: '11px', padding: '11px 10px', borderRadius: '11px',
                       cursor: 'pointer', marginBottom: '4px', transition: 'background .15s',
@@ -412,7 +415,7 @@ const AdminConductores = () => {
                           </span>
                         )}
                       </p>
-                      <p style={{ margin: '1px 0 0', fontSize: '12.5px', color: claro(0.45), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conductor.email}</p>
+                      <p style={{ margin: '1px 0 0', fontSize: '12.5px', color: claro(0.62), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conductor.email}</p>
                     </div>
                     <span style={{
                       flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -526,7 +529,7 @@ const AdminConductores = () => {
                               <motion.button whileTap={{ scale: 0.95 }} className="t-foco"
                                 onClick={() => verificarDocumento(doc.document_id, 'APPROVED', experienciaEditada[doc.document_id] ?? doc.years_experience)}
                                 disabled={procesando === doc.document_id}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: T.ruta, color: '#fff', border: '1px solid transparent', borderRadius: T.rControl, padding: '8px 14px', fontFamily: T.display, fontWeight: 700, fontSize: '13px', cursor: procesando === doc.document_id ? 'not-allowed' : 'pointer', opacity: procesando === doc.document_id ? 0.7 : 1 }}>
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: T.ruta, color: 'var(--t-sobre-ruta)', border: '1px solid transparent', borderRadius: T.rControl, padding: '8px 14px', fontFamily: T.display, fontWeight: 700, fontSize: '13px', cursor: procesando === doc.document_id ? 'not-allowed' : 'pointer', opacity: procesando === doc.document_id ? 0.7 : 1 }}>
                                 <IconVisto size={14} />{procesando === doc.document_id ? 'Guardando' : 'Aprobar'}
                               </motion.button>
                               <motion.button whileTap={{ scale: 0.95 }} className="t-foco"

@@ -13,6 +13,7 @@ export const T = {
   monteLinea:  'var(--t-monte-linea)',
   ruta:        'var(--t-ruta)',
   rutaHover:   'var(--t-ruta-hover)',
+  sobreRuta:   'var(--t-sobre-ruta)',
   musgo:       'var(--t-musgo)',
   musgoLinea:  'var(--t-musgo-linea)',
   musgoTexto:  'var(--t-musgo-texto)',
@@ -379,7 +380,7 @@ export const Boton = ({ variante = 'primario', ancho, children, style, ...rest }
     width: ancho ? '100%' : undefined, borderWidth: '1px', borderStyle: 'solid', borderColor: 'transparent',
   };
   const variantes = {
-    primario:  { background: T.ruta, color: '#fff' },
+    primario:  { background: T.ruta, color: T.sobreRuta },
     fantasma:  { background: 'transparent', color: T.tinta, borderColor: T.linea },
     monte:     { background: T.monte, color: '#fff' },
     peligro:   { background: T.alertaSuave, color: T.alertaTexto, borderColor: T.alertaLinea },

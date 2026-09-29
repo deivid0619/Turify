@@ -107,7 +107,7 @@ const PerfilConductorPagina = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '26px' }}>
               <div style={{ width: '104px', height: '104px', borderRadius: '50%', flexShrink: 0, background: 'rgba(255,255,255,0.12)', border: '3px solid rgba(240,253,244,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(240,253,244,0.7)', overflow: 'hidden' }}>
                 {datos.profile_photo_url
-                  ? <img src={datos.profile_photo_url} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ? <img src={datos.profile_photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : <IconPersona size={42} />}
               </div>
               <div style={{ minWidth: 0 }}>
