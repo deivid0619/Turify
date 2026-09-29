@@ -41,6 +41,10 @@ const CONFIG_ACCION = {
   REGISTER_DRIVER:   { tono: 'cielo',  Ico: IconAuto,       label: 'Registro de conductor' },
   UPLOAD_RUNT:       { tono: 'cielo',  Ico: IconClipboard,  label: 'RUNT enviado' },
   ROLE_CHANGE:       { tono: 'chiva',  Ico: IconEscudo,     label: 'Cambio de rol' },
+  // Ley 1581 — prueba de la autorización de datos (app/consentimiento.py)
+  ACEPTA_POLITICAS:   { tono: 'cielo', Ico: IconEscudo, label: 'Autorización de datos' },
+  AUTORIZA_CONDUCTOR: { tono: 'cielo', Ico: IconEscudo, label: 'Autorización de conductor' },
+  AUTORIZA_OCUPANTES: { tono: 'cielo', Ico: IconEscudo, label: 'Autorización de ocupantes' },
 };
 
 const FILTROS = [
@@ -53,6 +57,7 @@ const FILTROS = [
   { value: 'CREATE_OFFER', label: 'Ofertas' },
   { value: 'VERIFY_DOCUMENT', label: 'Verificaciones' },
   { value: 'ROLE_CHANGE', label: 'Cambios de rol' },
+  { value: 'ACEPTA_POLITICAS', label: 'Autorizaciones de datos' },
 ];
 
 // Fila de la bitácora: los datos oficiales van en monoespaciada.
@@ -130,7 +135,7 @@ const AdminLogs = () => {
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <BotonTema tema={tema} alternar={alternarTema} compacto />
           <motion.button whileTap={{ scale: 0.96 }} onClick={() => cargarLogs(filtroAccion)} className="t-foco"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: T.ruta, color: '#fff', border: '1px solid transparent', borderRadius: T.rControl, padding: '10px 16px', cursor: 'pointer', fontFamily: T.display, fontWeight: 700, fontSize: '13.5px' }}>
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: T.ruta, color: 'var(--t-sobre-ruta)', border: '1px solid transparent', borderRadius: T.rControl, padding: '10px 16px', cursor: 'pointer', fontFamily: T.display, fontWeight: 700, fontSize: '13.5px' }}>
             <IconRecargar size={15} />{cargando ? 'Actualizando' : 'Actualizar'}
           </motion.button>
         </div>

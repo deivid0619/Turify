@@ -13,8 +13,12 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.security import get_current_user, get_password_hash, verify_password, create_access_token
 from app.audit import registrar_log
 from app.rate_limit import limiter
+from app import consentimiento
 
 router = APIRouter(prefix="/users", tags=["Authentication"])
+
+MENSAJE_SIN_AUTORIZACION = ("Para crear tu cuenta debes aceptar los Términos y autorizar el tratamiento "
+                            "de tus datos según la Política de datos.")
 
 # Conexion con Google (login/registro con un click) - Client ID del proyecto
 # en Google Cloud Console (OAuth consent screen). Sin esto, /login-google
@@ -60,10 +64,15 @@ def _verificar_captcha(token: str | None, ip: str | None) -> bool:
 
 @router.post("/register", status_code=status.HTTP_201_CREATED, response_model=schemas.UserResponse)
 def register_passenger(user: schemas.UserCreate, request: Request, db: Session = Depends(get_db)):
+    # Ley 1581 — sin autorización no se guarda ningún dato.
+    if not user.acepta_politicas:
+        raise HTTPException(status_code=400, detail=MENSAJE_SIN_AUTORIZACION)
+
     existing_user = db.query(models.User).filter(models.User.email == user.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email is already registered in Turify")
 
+    ip = request.client.host if request.client else None
     hashed_password = security.get_password_hash(user.password)
     new_user = models.User(
         full_name=user.full_name,
@@ -73,6 +82,10 @@ def register_passenger(user: schemas.UserCreate, request: Request, db: Session =
         role="PASSENGER"
     )
     db.add(new_user)
+    db.flush()
+    consentimiento.registrar(db, consentimiento.ACEPTA_POLITICAS, new_user.user_id,
+                             "Aceptó los Términos y autorizó el tratamiento de sus datos al crear la cuenta con correo.",
+                             ip=ip)
     db.commit()
     db.refresh(new_user)
 
@@ -83,7 +96,7 @@ def register_passenger(user: schemas.UserCreate, request: Request, db: Session =
         entity="User",
         entity_id=new_user.user_id,
         detail=f"Nuevo pasajero registrado: {new_user.email}",
-        ip_address=request.client.host if request.client else None
+        ip_address=ip
     )
     return new_user
 
@@ -180,6 +193,9 @@ def login_google(payload: schemas.GoogleLoginRequest, request: Request, db: Sess
     user = db.query(models.User).filter(models.User.email == email).first()
     es_nuevo = user is None
 
+    if es_nuevo and not payload.acepta_politicas:
+        raise HTTPException(status_code=400, detail=MENSAJE_SIN_AUTORIZACION)
+
     if es_nuevo:
         user = models.User(
             full_name=(info.get("name") or email.split("@")[0])[:100],
@@ -196,6 +212,11 @@ def login_google(payload: schemas.GoogleLoginRequest, request: Request, db: Sess
             profile_photo_url=info.get("picture"),
         )
         db.add(user)
+        db.flush()
+        consentimiento.registrar(db, consentimiento.ACEPTA_POLITICAS, user.user_id,
+                                 "Aceptó los Términos y autorizó el tratamiento de sus datos al crear la cuenta "
+                                 "con Google (aviso junto al botón). Google entregó nombre, correo y foto.",
+                                 ip=ip)
         db.commit()
         db.refresh(user)
         registrar_log(
@@ -225,6 +246,25 @@ def login_google(payload: schemas.GoogleLoginRequest, request: Request, db: Sess
 @router.get("/me", response_model=schemas.UserResponse)
 def get_my_profile(current_user: models.User = Depends(get_current_user)):
     return current_user
+
+
+# Ley 1581 — quien creó la cuenta antes de la casilla de autorización, o antes
+# de un cambio en las políticas, la acepta desde la app (AvisoPoliticas.jsx).
+@router.get("/me/autorizacion-datos")
+def ver_autorizacion_datos(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    return {"vigente": consentimiento.politicas_vigentes(db, current_user.user_id),
+            "version": consentimiento.VERSION_POLITICAS}
+
+
+@router.post("/me/autorizacion-datos")
+def aceptar_politicas(request: Request, db: Session = Depends(get_db),
+                      current_user: models.User = Depends(get_current_user)):
+    if not consentimiento.politicas_vigentes(db, current_user.user_id):
+        consentimiento.registrar(db, consentimiento.ACEPTA_POLITICAS, current_user.user_id,
+                                 "Aceptó los Términos y autorizó el tratamiento de sus datos desde el aviso de la app.",
+                                 ip=request.client.host if request.client else None)
+        db.commit()
+    return {"vigente": True, "version": consentimiento.VERSION_POLITICAS}
 
 
 def _resumen_calificaciones(db: Session, user_id: int) -> dict:

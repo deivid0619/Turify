@@ -18,6 +18,7 @@ from app.pricing.service import obtener_precio_sugerido, registrar_resultado_via
 from app.pricing.peajes_antioquia import calcular_peajes_de_ruta
 from app.routers.drivers import get_supabase, upload_to_supabase, fotos_publicas_vehiculo
 from app.pagos import servicio as pagos
+from app import consentimiento
 
 router = APIRouter(prefix="/api/service-requests", tags=["Service Requests"])
 
@@ -2187,6 +2188,7 @@ def get_trip_status(
 def registrar_ocupantes(
     request_id: int,
     payload: schemas.TripPassengersCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user)
 ):
@@ -2199,6 +2201,11 @@ def registrar_ocupantes(
 
     if viaje.passenger_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Solo el pasajero del viaje puede registrar ocupantes.")
+
+    # Ley 1581 — son datos de otras personas: el pasajero declara que lo autorizaron.
+    if not payload.autorizacion_ocupantes:
+        raise HTTPException(status_code=400, detail="Confirma que los ocupantes (o quien los representa, si son "
+                                                    "menores) te autorizaron a compartir sus datos para el FUEC.")
 
     # SCRUM-255 — con el viaje en curso la lista ya no se toca.
     if viaje.status != 'ASSIGNED':
@@ -2231,6 +2238,11 @@ def registrar_ocupantes(
             document_number=p.document_number,
             es_representante=p.es_representante,
         ))
+    consentimiento.registrar(
+        db, consentimiento.AUTORIZA_OCUPANTES, current_user.user_id,
+        f"Declaró tener la autorización de {len(payload.passengers)} ocupante(s) para compartir sus datos "
+        "con el conductor y su empresa afiliada (FUEC).",
+        ip=request.client.host if request.client else None, entidad="ServiceRequest", entidad_id=request_id)
 
     db.commit()
 

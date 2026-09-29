@@ -86,9 +86,9 @@ def test_ocupantes_se_pueden_cambiar_con_mas_de_48h(
         client, crear_pasajero, crear_conductor_con_vehiculo, auth_headers, horas=72
     )
     url = f"/api/service-requests/{viaje['request_id']}/passengers"
-    assert client.post(url, json={"passengers": [_ocupante(representante=True)]}, headers=auth_headers(pasajero)).status_code == 201
+    assert client.post(url, json={"autorizacion_ocupantes": True, "passengers": [_ocupante(representante=True)]}, headers=auth_headers(pasajero)).status_code == 201
 
-    respuesta = client.post(url, json={"passengers": [
+    respuesta = client.post(url, json={"autorizacion_ocupantes": True, "passengers": [
         _ocupante(representante=True), _ocupante(numero='1003333333', nombre='Otro Ocupante'),
     ]}, headers=auth_headers(pasajero))
     assert respuesta.status_code == 201
@@ -102,9 +102,9 @@ def test_ocupantes_no_se_pueden_cambiar_con_menos_de_48h(
     )
     url = f"/api/service-requests/{viaje['request_id']}/passengers"
     # Primer registro: permitido aunque falten menos de 48 h (si no, nunca podría iniciar).
-    assert client.post(url, json={"passengers": [_ocupante(representante=True)]}, headers=auth_headers(pasajero)).status_code == 201
+    assert client.post(url, json={"autorizacion_ocupantes": True, "passengers": [_ocupante(representante=True)]}, headers=auth_headers(pasajero)).status_code == 201
 
-    respuesta = client.post(url, json={"passengers": [
+    respuesta = client.post(url, json={"autorizacion_ocupantes": True, "passengers": [
         _ocupante(representante=True), _ocupante(numero='1003333333', nombre='Otro Ocupante'),
     ]}, headers=auth_headers(pasajero))
     assert respuesta.status_code == 400
@@ -123,7 +123,7 @@ def test_ocupantes_no_se_pueden_cambiar_con_el_viaje_en_curso(
 
     respuesta = client.post(
         f"/api/service-requests/{viaje['request_id']}/passengers",
-        json={"passengers": [_ocupante(representante=True)]},
+        json={"autorizacion_ocupantes": True, "passengers": [_ocupante(representante=True)]},
         headers=auth_headers(pasajero),
     )
     assert respuesta.status_code == 400
@@ -140,7 +140,7 @@ def test_registrar_ocupantes_exitoso_con_representante(
 
     respuesta = client.post(
         f"/api/service-requests/{viaje['request_id']}/passengers",
-        json={"passengers": [
+        json={"autorizacion_ocupantes": True, "passengers": [
             _ocupante(representante=True, numero='1001111111', nombre='Pasajero Representante'),
             _ocupante(numero='1002222222', nombre='Acompanante Uno'),
         ]},
@@ -166,7 +166,7 @@ def test_registrar_ocupantes_rechaza_sin_representante(
 
     respuesta = client.post(
         f"/api/service-requests/{viaje['request_id']}/passengers",
-        json={"passengers": [_ocupante(numero='1003333333')]},
+        json={"autorizacion_ocupantes": True, "passengers": [_ocupante(numero='1003333333')]},
         headers=auth_headers(pasajero),
     )
 
@@ -183,7 +183,7 @@ def test_registrar_ocupantes_rechaza_dos_representantes(
 
     respuesta = client.post(
         f"/api/service-requests/{viaje['request_id']}/passengers",
-        json={"passengers": [
+        json={"autorizacion_ocupantes": True, "passengers": [
             _ocupante(representante=True, numero='1004444444', nombre='Representante Uno'),
             _ocupante(representante=True, numero='1005555555', nombre='Representante Dos'),
         ]},
@@ -203,7 +203,7 @@ def test_registrar_ocupantes_rechaza_representante_menor_con_ti(
 
     respuesta = client.post(
         f"/api/service-requests/{viaje['request_id']}/passengers",
-        json={"passengers": [
+        json={"autorizacion_ocupantes": True, "passengers": [
             _ocupante(representante=True, tipo='TI', numero='10066677', nombre='Menor Representante'),
         ]},
         headers=auth_headers(pasajero),
@@ -223,7 +223,7 @@ def test_registrar_ocupantes_rechaza_si_no_es_el_pasajero(
 
     respuesta = client.post(
         f"/api/service-requests/{viaje['request_id']}/passengers",
-        json={"passengers": [_ocupante(representante=True, numero='1007777777')]},
+        json={"autorizacion_ocupantes": True, "passengers": [_ocupante(representante=True, numero='1007777777')]},
         headers=auth_headers(intruso),
     )
 
@@ -393,7 +393,7 @@ def test_iniciar_viaje_exitoso_con_fuec_y_representante(
 
     registro = client.post(
         f"/api/service-requests/{viaje['request_id']}/passengers",
-        json={"passengers": [_ocupante(representante=True, numero='1009999999', nombre='Representante Del Viaje')]},
+        json={"autorizacion_ocupantes": True, "passengers": [_ocupante(representante=True, numero='1009999999', nombre='Representante Del Viaje')]},
         headers=auth_headers(pasajero),
     )
     assert registro.status_code == 201

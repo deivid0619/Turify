@@ -276,6 +276,8 @@ const FormularioConductor = () => {
     tiene_maletero_amplio: false, tiene_sillas_bebe: false,
     tiene_sillas_reclinables: false, tiene_cargador_usb: false, tiene_tv: false, tiene_buen_audio: false,
     acepta_mascotas: false,
+    // Ley 1581 — autorización para revisar los documentos y usar la ubicación.
+    autoriza_verificacion: false,
   });
 
   const datosUsuario = {
@@ -359,6 +361,11 @@ const FormularioConductor = () => {
       return;
     }
 
+    if (!formConductor.autoriza_verificacion) {
+      setErrorEnvio('Para enviar la solicitud, autoriza la revisión de tus documentos y el uso de tu ubicación.');
+      return;
+    }
+
     setEnviando(true);
     setErrorEnvio('');
 
@@ -387,6 +394,7 @@ const FormularioConductor = () => {
     formData.append('tiene_tv', formConductor.tiene_tv);
     formData.append('tiene_buen_audio', formConductor.tiene_buen_audio);
     formData.append('acepta_mascotas', formConductor.acepta_mascotas);
+    formData.append('autoriza_verificacion', formConductor.autoriza_verificacion);
     if (formConductor.profile_photo) formData.append('profile_photo', formConductor.profile_photo);
     if (formConductor.vehicle_photo) formData.append('vehicle_photo', formConductor.vehicle_photo);
     if (formConductor.doc_soat) formData.append('doc_soat', formConductor.doc_soat);
@@ -619,6 +627,17 @@ const FormularioConductor = () => {
                 </div>
               </div>
             </Seccion>
+
+            <label htmlFor="autoriza-verificacion" style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', marginBottom: '14px', padding: '12px 14px', background: T.niebla, border: `1px solid ${T.linea}`, borderRadius: T.rControl, fontSize: '13.5px', lineHeight: 1.5, color: T.piedra, cursor: 'pointer' }}>
+              <input id="autoriza-verificacion" type="checkbox" name="autoriza_verificacion"
+                checked={formConductor.autoriza_verificacion} onChange={handleInputConductor}
+                style={{ marginTop: '2px', width: '16px', height: '16px', flexShrink: 0, accentColor: 'var(--t-ruta)' }} />
+              <span>
+                Autorizo a Turify a revisar estos documentos, incluida mi cédula, para habilitarme como conductor,
+                y a usar mi ubicación mientras esté en línea o en un viaje, según la{' '}
+                <a href="/politicas#datos" target="_blank" rel="opener" style={{ color: T.tinta }}>Política de datos</a>.
+              </span>
+            </label>
 
             {errorEnvio && (
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', background: T.alertaSuave, border: `1px solid ${T.alertaLinea}`, borderRadius: T.rControl, padding: '11px 13px', marginBottom: '14px', color: T.alertaTexto, fontSize: '14px' }}>

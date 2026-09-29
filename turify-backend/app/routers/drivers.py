@@ -15,6 +15,7 @@ from app.security import get_current_user
 from app import models, schemas
 from app.audit import registrar_log
 from app.pagos import servicio as servicio_pagos
+from app import consentimiento
 from app.pricing.vehicle_categories import (
     RANGOS_CATEGORIA,
     calcular_categoria,
@@ -183,9 +184,19 @@ async def register_driver_info(
     doc_seguros: UploadFile = File(...),
     doc_cedula_frente: UploadFile = File(...),   # SCRUM-252
     doc_cedula_reverso: UploadFile = File(...),
+    # Ley 1581 — autorización para revisar los documentos (incluida la cédula)
+    # y usar la ubicación mientras el conductor está en línea o en un viaje.
+    autoriza_verificacion: bool = Form(False),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
+    if not autoriza_verificacion:
+        raise HTTPException(
+            status_code=400,
+            detail="Para registrarte como conductor debes autorizar la revisión de tus documentos y el uso de "
+                   "tu ubicación mientras estés en línea o en un viaje.",
+        )
+
     # ── Bloquear si ya tiene documentos PENDING o APPROVED ───────────────────
     docs_existentes = db.query(models.Document).filter(
         models.Document.user_id == current_user.user_id,
@@ -315,6 +326,11 @@ async def register_driver_info(
                     verification_status="PENDING"
                 ))
 
+        consentimiento.registrar(
+            db, consentimiento.AUTORIZA_CONDUCTOR, current_user.user_id,
+            "Autorizó la revisión de sus documentos (incluida la cédula) y el uso de su ubicación "
+            "mientras esté en línea o en un viaje.",
+            ip=request.client.host if request.client else None)
         db.commit()
 
         # HU seguridad (OWASP A09) — evento crítico: conductor envió sus

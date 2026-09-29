@@ -44,6 +44,9 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
     phone_number: str  # obligatorio
+    # Ley 1581 — la casilla de Términos y tratamiento de datos. Sin ella no se
+    # crea la cuenta (ver app/consentimiento.py).
+    acepta_politicas: bool = False
 
     @field_validator('full_name')
     @classmethod
@@ -120,7 +123,10 @@ class TokenResponse(BaseModel):
 # ni valida el token, solo lo reenvía tal cual lo entrega Google.
 class GoogleLoginRequest(BaseModel):
     credential: str
-    
+    # Solo importa si la cuenta es nueva: el botón de Google va junto al aviso
+    # "Al continuar aceptas los Términos...". Sin esto no se crea la cuenta.
+    acepta_politicas: bool = False
+
 class TripType(str, Enum):
     ONE_WAY = "ONE_WAY"
     ROUND_TRIP = "ROUND_TRIP"
@@ -397,6 +403,9 @@ class TripPassengerItem(BaseModel):
 
 class TripPassengersCreate(BaseModel):
     passengers: list[TripPassengerItem]
+    # Ley 1581 — el pasajero entrega datos de otras personas: declara que ellas
+    # (o quien las representa, si son menores) lo autorizaron para el FUEC.
+    autorizacion_ocupantes: bool = False
 
     @model_validator(mode='after')
     def _v_representante(self):
