@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { T, EstilosBase, LogoWordmark, IconAlerta, IconEquis } from './diseno';
 
-// Contenido legal — Términos, Habeas Data, Pagos, Cancelaciones y PQRS. Texto tomado
+// Contenido legal — Términos, Habeas Data, cookies, Pagos, Cancelaciones y PQRS. Texto tomado
 // tal cual del borrador que se viene trabajando (doc "Políticas Legales de
 // Turify"); si se corrige allá, hay que traer el cambio acá también, no hay
 // sincronización automática entre el doc de trabajo y esta página.
@@ -61,6 +61,7 @@ const Tabla = ({ encabezados, filas }) => (
 const SECCIONES_NAV = [
   { id: 'terminos', label: 'Términos y Condiciones' },
   { id: 'datos', label: 'Datos Personales' },
+  { id: 'cookies', label: 'Cookies' },
   { id: 'pagos', label: 'Pagos' },
   { id: 'cancelaciones', label: 'Cancelaciones' },
   { id: 'pqrs', label: 'PQRS' },
@@ -85,11 +86,11 @@ const Politicas = () => {
 
         <div style={{ maxWidth: '760px', margin: '0 auto', padding: 'clamp(28px, 5vw, 56px) 20px 80px' }}>
 
-          <p style={{ fontFamily: T.dato, fontSize: '11px', letterSpacing: '.14em', textTransform: 'uppercase', color: BRAND_GREEN, margin: '0 0 10px' }}>Turify</p>
+          <p style={{ fontFamily: T.dato, fontSize: '11px', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--t-musgo-texto)', margin: '0 0 10px' }}>Turify</p>
           <h1 style={{ fontFamily: T.display, fontWeight: 800, fontSize: 'clamp(28px, 4vw, 38px)', letterSpacing: '-.02em', color: 'var(--t-tinta)', margin: '0 0 6px' }}>
             Políticas legales
           </h1>
-          <p style={{ margin: '0 0 24px', fontSize: '13px', color: 'var(--t-piedra-clara)' }}>Última actualización: 27 de septiembre de 2026</p>
+          <p style={{ margin: '0 0 24px', fontSize: '13px', color: 'var(--t-piedra-clara)' }}>Última actualización y vigencia desde el 28 de septiembre de 2026</p>
 
           {/* AVISO DE BORRADOR — se quita cuando un abogado lo revise */}
           <div style={{ display: 'flex', gap: '10px', background: 'var(--t-chiva-suave)', border: '1px solid var(--t-chiva-linea)', borderRadius: '10px', padding: '14px 16px', marginBottom: '28px' }}>
@@ -100,6 +101,17 @@ const Politicas = () => {
               abogado antes de considerarse definitivo — sobre todo las secciones de datos personales y
               responsabilidad frente al transporte especial.
             </p>
+          </div>
+
+          {/* DATOS DE TURIFY — lo que existe hoy. La razón social, el NIT, la
+              dirección y el teléfono se agregan cuando se constituya la sociedad
+              (SCRUM-265): no se publica un dato que todavía no existe. */}
+          <div style={{ background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '10px', padding: '14px 16px', marginBottom: '28px', fontSize: '13.5px', lineHeight: 1.7, color: 'var(--t-piedra)' }}>
+            <b style={{ color: 'var(--t-tinta)' }}>Turify</b> · Medellín, Antioquia, Colombia · turifyco.com ·{' '}
+            <a href="mailto:soporte.turify@gmail.com" style={{ color: 'var(--t-tinta)' }}>soporte.turify@gmail.com</a>
+            <br />
+            Turify todavía no está constituida como sociedad. Cuando lo esté, aquí se publicarán su razón social,
+            NIT, dirección y teléfono.
           </div>
 
           {/* NAV RÁPIDA — scrollIntoView en vez de dejar que el navegador navegue el
@@ -166,7 +178,28 @@ const Politicas = () => {
               transportarla sin que eso cuente como incumplimiento suyo.
             </P>
 
-            <Sub>1.6 Ley aplicable</Sub>
+            <Sub>1.6 Identificación de los conductores</Sub>
+            <P>
+              Turify guarda el nombre, el documento de identidad y el teléfono de cada conductor. Si necesitas
+              presentar una queja o un reclamo sobre un viaje, te los entregamos, y también a la autoridad
+              competente que los pida.
+            </P>
+
+            <Sub>1.7 Tu cuenta</Sub>
+            <P>
+              La cuenta es personal. Cuida tu contraseña y avísanos a soporte.turify@gmail.com si crees que
+              alguien más entró a tu cuenta. Los datos que registras (tuyos, de tu vehículo o de tus ocupantes)
+              deben ser verdaderos.
+            </P>
+
+            <Sub>1.8 Aceptación y cambios</Sub>
+            <P>
+              Para crear una cuenta debes aceptar estos Términos y autorizar el tratamiento de tus datos (sección
+              2). Si los cambiamos de forma importante, te avisaremos en la app y te pediremos aceptarlos de nuevo
+              antes de seguir usándola.
+            </P>
+
+            <Sub>1.9 Ley aplicable</Sub>
             <P>
               Estos términos se rigen por las leyes de la República de Colombia. Cualquier controversia se
               someterá a la jurisdicción de los jueces colombianos.
@@ -177,7 +210,9 @@ const Politicas = () => {
           <Seccion id="datos" numero={2} titulo="Política de Tratamiento de Datos Personales">
             <P>
               Esta política aplica la Ley 1581 de 2012 y el Decreto 1377 de 2013 de Colombia (régimen de Habeas
-              Data). <b>Responsable del tratamiento:</b> Turify.
+              Data), hoy compilado en el Decreto 1074 de 2015. <b>Responsable del tratamiento:</b> Turify
+              (Medellín, Antioquia · soporte.turify@gmail.com). Sus datos de contacto están al comienzo de esta
+              página.
             </P>
 
             <Sub>2.1 Qué datos personales recoge Turify</Sub>
@@ -185,6 +220,7 @@ const Politicas = () => {
               encabezados={['Dato', 'De quién', 'Para qué']}
               filas={[
                 ['Nombre, correo, teléfono', 'Pasajeros y conductores', 'Crear la cuenta, contacto sobre el viaje'],
+                ['Nombre, correo y foto de perfil que entrega Google', 'Quien entra con Google', 'Crear la cuenta sin llenar el formulario'],
                 ['Documento de identidad, licencia, SOAT, tarjeta de operación, tecnomecánica, seguros', 'Conductores', 'Verificar habilitación legal para operar'],
                 ['Ubicación en tiempo real', 'Conductores (mientras están en línea o en viaje)', 'Mostrar el radar de viajes cercanos y el seguimiento en vivo'],
                 ['Nombre y número de documento de cada ocupante', 'Pasajeros (al registrar el viaje)', 'Cruzar contra el FUEC que expide la empresa afiliada'],
@@ -192,46 +228,100 @@ const Politicas = () => {
                 ['Cuenta de pagos: tipo, número, nombre y cédula del titular', 'Conductores', 'Mostrarles a sus pasajeros dónde pagarle, después de verificar que la cuenta esté a su nombre'],
                 ['Reportes y confirmaciones de pago, reclamos', 'Pasajeros y conductores', 'Llevar la cuenta de lo pagado en cada viaje y resolver reclamos'],
                 ['Ubicación al marcar cada etapa del viaje (código de abordaje, llegada al destino, regreso)', 'Conductores', 'Dejar evidencia en la bitácora del viaje para resolver reclamos'],
+                ['Dirección IP, fecha y hora de ingresos y acciones importantes', 'Todos', 'Seguridad de las cuentas y prueba de tu autorización'],
               ]}
             />
-
-            <Sub>2.2 Menores de edad</Sub>
             <P>
-              Un pasajero puede registrar a un menor de edad como ocupante de un viaje (por ejemplo, con Tarjeta
-              de Identidad). En ese caso, el pasajero que publica el viaje <b>declara actuar como responsable o
-              representante del menor</b> y garantiza contar con la autorización necesaria para compartir sus
-              datos con este fin. Turify no recoge datos de menores por ningún otro canal.
+              Turify <b>no pide datos sensibles</b> (salud, origen étnico, orientación sexual, creencias, etc.).
+              La foto de perfil y la de la cédula solo las mira una persona para verificar la identidad del
+              conductor: no hacemos reconocimiento facial ni biométrico. Si alguna vez te preguntamos por datos
+              sensibles o por datos de menores de edad, responder será opcional.
             </P>
 
-            <Sub>2.3 Con quién se comparten estos datos</Sub>
+            <Sub>2.2 Autorización</Sub>
+            <P>
+              Tratamos tus datos solo con tu autorización previa, expresa e informada. La das al crear tu cuenta,
+              marcando la casilla de Términos y Política de datos o, si entras con Google, con el aviso que
+              aparece junto al botón. El conductor autoriza además la revisión de sus documentos y el uso de su
+              ubicación al enviar su solicitud. Guardamos prueba de cada autorización (fecha, hora, dirección IP
+              y versión de esta política). Si la política cambia, te pedimos aceptarla de nuevo.
+            </P>
+
+            <Sub>2.3 Datos de otras personas y menores de edad</Sub>
+            <P>
+              Al registrar los ocupantes de un viaje, el pasajero entrega el nombre y el documento de otras
+              personas. Por eso, antes de guardarlos, <b>declara que ellas lo autorizaron</b> a compartirlos con el
+              conductor y su empresa afiliada para expedir el FUEC. Si registra a un menor de edad (por ejemplo,
+              con Tarjeta de Identidad), declara actuar como su responsable o representante. Turify no recoge
+              datos de menores por ningún otro canal y solo los usa para el FUEC de ese viaje.
+            </P>
+
+            <Sub>2.4 Con quién se comparten estos datos</Sub>
             <Lista items={[
               <><b>La empresa afiliada del conductor</b>, para la expedición y verificación del FUEC de cada viaje.</>,
               <><b>El pasajero de un viaje confirmado</b> ve la cuenta de pagos del conductor (solo si Turify ya verificó que está a nombre del conductor), para pagarle las etapas del viaje.</>,
               <><b>La pasarela de pagos</b> (cuando esté en operación), únicamente los datos necesarios para procesar el cobro.</>,
+              <><b>Proveedores que alojan o procesan datos por encargo de Turify</b>: Supabase (base de datos y archivos), Render (servidores de la aplicación) y Google (mapas, inicio de sesión, verificación reCAPTCHA y tipografías). Sus servidores pueden estar fuera de Colombia, por ejemplo en Estados Unidos. Solo reciben lo necesario para prestar su servicio.</>,
+              <><b>Autoridades</b>, cuando la ley lo exija o un juez lo ordene.</>,
               <>Turify <b>no vende ni cede</b> datos personales a terceros con fines comerciales o publicitarios.</>,
             ]} />
 
-            <Sub>2.4 Derechos del titular (derechos ARCO)</Sub>
+            <Sub>2.5 Tus derechos</Sub>
+            <P>Según el artículo 8 de la Ley 1581 de 2012, puedes:</P>
+            <Lista items={[
+              'Conocer, actualizar y rectificar tus datos.',
+              'Pedir prueba de la autorización que nos diste.',
+              'Saber qué uso le hemos dado a tus datos.',
+              'Revocar la autorización o pedir que borremos tus datos, salvo los que la ley o un contrato vigente nos obliguen a conservar.',
+              'Consultar gratis tus datos.',
+              'Presentar quejas ante la Superintendencia de Industria y Comercio, después de haber hecho tu consulta o reclamo ante Turify.',
+            ]} />
             <P>
-              Todo titular puede solicitar en cualquier momento: <b>Acceso</b> a sus datos, <b>Rectificación</b> de
-              datos incorrectos, <b>Cancelación</b> (eliminación) cuando ya no sean necesarios, y <b>Oposición</b>{' '}
-              al tratamiento cuando no exista una obligación legal de conservarlos. La solicitud se atenderá
-              dentro de los plazos que fija la Ley 1581 de 2012 (10 días hábiles para consultas, 15 para
-              reclamos).
-            </P>
-            <P>
-              <b>Canal para ejercer estos derechos:</b> escribir a{' '}
-              <a href="mailto:soporte.turify@gmail.com" style={{ color: BRAND_GREEN, fontWeight: 700 }}>soporte.turify@gmail.com</a>.
+              <b>Cómo ejercerlos:</b> escribe a{' '}
+              <a href="mailto:soporte.turify@gmail.com" style={{ color: 'var(--t-tinta)', fontWeight: 700 }}>soporte.turify@gmail.com</a>{' '}
+              desde el correo de tu cuenta, con tu nombre y lo que pides. Si es un reclamo (corregir, actualizar,
+              borrar o revocar), cuéntanos los hechos y adjunta lo que lo soporte. Respondemos las consultas en
+              máximo 10 días hábiles (prorrogables 5 más, avisándote el motivo) y los reclamos en máximo 15 días
+              hábiles (prorrogables 8 más). El área responsable de atenderte es el soporte de Turify.
             </P>
 
-            <Sub>2.5 Conservación y seguridad</Sub>
+            <Sub>2.6 Conservación, seguridad y vigencia</Sub>
             <P>
               Los documentos de conductores y los datos de cada viaje se conservan mientras la cuenta esté activa
-              y, después de eso, el tiempo que exija la trazabilidad legal del transporte especial. Turify aplica
-              cifrado de contraseñas (bcrypt), autenticación por token con expiración, controles de acceso a nivel
-              de fila en la base de datos (cada usuario solo puede ver lo que le corresponde) y un registro de
-              auditoría de eventos de seguridad.
+              y, después de eso, el tiempo que exijan las normas del transporte especial y las contables. Si pides
+              que borremos tus datos, lo hacemos salvo los que debamos conservar por ley. Turify aplica cifrado de
+              contraseñas (bcrypt), autenticación por token con expiración, control de acceso en cada consulta del
+              servidor (cada usuario solo ve lo que le corresponde), la base de datos cerrada al acceso público
+              directo, documentos en almacenamiento privado y un registro de auditoría de eventos de seguridad.
             </P>
+            <P>
+              Esta política rige desde la fecha que aparece arriba. Las bases de datos se conservan mientras se
+              cumplan las finalidades descritas aquí.
+            </P>
+
+            <div id="cookies" style={{ scrollMarginTop: '90px' }}>
+              <Sub>2.7 Cookies y almacenamiento del navegador</Sub>
+              <P>
+                Turify <b>no usa cookies de publicidad ni de analítica</b>. Solo guarda en tu navegador lo necesario
+                para que la app funcione, y usa servicios de Google que pueden poner sus propias cookies:
+              </P>
+              <Tabla
+                encabezados={['Qué', 'De quién', 'Para qué', 'Cuánto dura']}
+                filas={[
+                  ['token (almacenamiento local)', 'Turify', 'Mantener tu sesión iniciada', 'Hasta que cierres sesión o venza'],
+                  ['turify-tema (almacenamiento local)', 'Turify', 'Recordar si prefieres el tema claro u oscuro', 'Hasta que lo borres'],
+                  ['turify-aviso-cookies (almacenamiento local)', 'Turify', 'Recordar que ya viste el aviso de cookies', 'Hasta que lo borres'],
+                  ['Cookies de reCAPTCHA', 'Google', 'Verificar que no eres un robot cuando hay varios intentos fallidos de entrar. Se carga en todas las páginas.', 'Las define Google'],
+                  ['Cookies del inicio de sesión con Google', 'Google', 'Entrar con tu cuenta de Google', 'Las define Google'],
+                  ['Google Maps y Google Fonts', 'Google', 'Mostrar el mapa y las tipografías (reciben tu dirección IP)', '—'],
+                ]}
+              />
+              <P>
+                Puedes borrar o bloquear estos datos desde la configuración de tu navegador, pero sin ellos no
+                podrás mantener la sesión iniciada ni usar el mapa. Si algún día usamos analítica o publicidad, te
+                pediremos permiso antes de activarlas.
+              </P>
+            </div>
           </Seccion>
 
           {/* 3. PAGOS */}
@@ -275,8 +365,9 @@ const Politicas = () => {
             <P>
               Cada paso del viaje queda registrado con fecha y hora: la confirmación, cada pago y cada
               confirmación, el código de abordaje, la llegada al destino, el regreso y las cancelaciones. Cuando el
-              conductor marca una etapa también se guarda su ubicación. Nadie puede editar ni borrar la bitácora,
-              ni siquiera Turify, y es la evidencia con la que se resuelven los reclamos.
+              conductor marca una etapa también se guarda su ubicación. La bitácora no se puede editar ni borrar
+              desde la app, ni siquiera por un administrador: la base de datos lo impide. Es la evidencia con la
+              que se resuelven los reclamos.
             </P>
 
             <Sub>3.5 Comisión de Turify</Sub>
@@ -322,11 +413,27 @@ const Politicas = () => {
               de 24 horas.
             </P>
 
-            <Sub>4.2 Devoluciones</Sub>
+            <Sub>4.2 Reembolsos</Sub>
+            <P>Te devolvemos lo que pagaste cuando:</P>
+            <Lista items={[
+              'Cancelas con 24 horas o más de anticipación: el anticipo completo.',
+              'Cancelas por fuerza mayor documentada: el anticipo completo, sin importar cuánto falte para la salida.',
+              'El conductor cancela: todo lo que le hayas pagado.',
+              'Un administrador resuelve un reclamo a tu favor.',
+            ]} />
             <P>
-              Devuelve el dinero quien lo recibió: hoy, el conductor. La app le muestra lo que debe devolver, él
-              marca la devolución y el pasajero confirma que le llegó. Si no le llega, el pasajero abre un reclamo
-              y lo revisa un administrador (sección 3.6).
+              <b>Hoy</b> devuelve el dinero quien lo recibió: el conductor. La app le muestra lo que debe devolver,
+              él marca la devolución y tú confirmas que te llegó. Si no te llega, abres un reclamo y lo revisa un
+              administrador (sección 3.6).
+            </P>
+            <P>
+              <b>Cuando el anticipo se pague dentro de la app</b>, Turify hará el reembolso al mismo medio de pago y
+              te devolverá el <b>100 %</b>: la comisión que cobra la pasarela de pagos la asume Turify. El tiempo en
+              que se refleje depende de tu banco o billetera.
+            </P>
+            <P>
+              Esta política no limita los derechos que te da la ley como consumidor, como el derecho de retracto
+              y la reversión del pago cuando apliquen (Ley 1480 de 2011, artículos 47 y 51).
             </P>
 
             <Sub>4.3 Reincidencia</Sub>
@@ -349,13 +456,13 @@ const Politicas = () => {
             <Lista items={[
               'Quejas sobre un viaje, un conductor o una empresa afiliada.',
               'Reclamos por cobros, cancelaciones o penalizaciones que el usuario considere incorrectos. Los reclamos sobre un pago de un viaje también se pueden abrir desde el viaje en la app (sección 3.6).',
-              'El ejercicio de los derechos de acceso, rectificación, cancelación y oposición sobre datos personales (los mismos de la sección 2.4 — es el mismo canal, no hace falta uno aparte).',
+              'Consultas y reclamos sobre tus datos personales (los derechos de la sección 2.5 — es el mismo canal, no hace falta uno aparte).',
               'Sugerencias generales sobre la plataforma.',
             ]} />
 
             <Sub>5.2 Canal y plazos</Sub>
             <P>
-              <a href="mailto:soporte.turify@gmail.com" style={{ color: BRAND_GREEN, fontWeight: 700 }}>soporte.turify@gmail.com</a> — el mismo canal de la sección 2.4 sirve para ambas cosas.
+              <a href="mailto:soporte.turify@gmail.com" style={{ color: 'var(--t-tinta)', fontWeight: 700 }}>soporte.turify@gmail.com</a> — el mismo canal de la sección 2.5 sirve para ambas cosas.
             </P>
             <P>
               Turify confirma la recepción de toda PQR y responde de fondo dentro de los <b>15 días hábiles</b>{' '}
@@ -369,7 +476,8 @@ const Politicas = () => {
             <P>
               Si la respuesta no resuelve la solicitud, el usuario puede acudir a la Superintendencia de Industria
               y Comercio (SIC), autoridad de protección al consumidor y de protección de datos personales en
-              Colombia.
+              Colombia. Si la queja es sobre la prestación del servicio de transporte, también puede acudir a la
+              Superintendencia de Transporte.
             </P>
           </Seccion>
 
