@@ -1851,17 +1851,17 @@ const Dashboard = () => {
               </AnimatePresence>
             </div>
             <div style={{ position: 'relative' }}>
-              <div onClick={() => setMostrarPasajeros(!mostrarPasajeros)}
-                {...comoBoton(() => setMostrarPasajeros(!mostrarPasajeros))} aria-expanded={mostrarPasajeros} className="t-foco"
-                style={{ ...fieldBoxStyle, cursor: 'pointer', userSelect: 'none', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={fieldLabelStyle}>Quién</div>
+              <button type="button" onClick={() => setMostrarPasajeros(!mostrarPasajeros)}
+                aria-expanded={mostrarPasajeros} className="t-foco"
+                style={{ ...fieldBoxStyle, width: '100%', textAlign: 'left', color: 'inherit', cursor: 'pointer', userSelect: 'none', justifyContent: 'space-between' }}>
+                <span>
+                  <span style={{ ...fieldLabelStyle, display: 'block' }}>Quién</span>
                   <span style={{ fontSize: '14px', color: 'var(--t-tinta)' }}>{textoViajeros}</span>
-                </div>
+                </span>
                 <span style={{ display: 'flex', color: 'var(--t-piedra-clara)' }}>
                   <IconTrazo size={14}><path d="M6 9.5l6 5.5 6-5.5" /></IconTrazo>
                 </span>
-              </div>
+              </button>
               <AnimatePresence>
                 {mostrarPasajeros && (
                   <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} transition={{ duration: 0.2 }}

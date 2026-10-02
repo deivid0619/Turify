@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { comoBoton } from './teclado';
 
 const BRAND_GREEN = 'var(--t-ruta)';
 
@@ -129,26 +128,26 @@ export default function SelectorFechaHora({ label, value, onChange, min, placeho
   };
 
   const bonito = formatearBonito(value);
-  const fieldBoxStyle = { display: 'flex', alignItems: 'center', border: '1px solid #e8e4db', borderRadius: '12px', padding: '11px 14px', backgroundColor: 'var(--t-papel)', cursor: 'pointer' };
+  const fieldBoxStyle = { display: 'flex', alignItems: 'center', border: '1px solid var(--t-linea)', borderRadius: '12px', padding: '11px 14px', backgroundColor: 'var(--t-papel)', cursor: 'pointer' };
   const fieldLabelStyle = { fontSize: '11px', fontWeight: '700', color: 'var(--t-piedra-clara)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '5px' };
 
   return (
     <div ref={contenedorRef} style={{ position: 'relative', width: ancho || '100%' }}>
-      <div style={{ ...fieldBoxStyle, flexDirection: 'column', alignItems: 'flex-start' }} onClick={() => setAbierto(o => !o)}
-        {...comoBoton(() => setAbierto(o => !o))} aria-expanded={abierto} aria-haspopup="dialog"
-        aria-label={`${label || 'Fecha y hora'}: ${bonito || 'sin elegir'}`} className="t-foco">
-        {label && <div style={fieldLabelStyle}>{label}</div>}
-        <div style={{ fontSize: '14px', color: bonito ? 'var(--t-tinta)' : 'var(--t-piedra-clara)', display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
+      <button type="button" onClick={() => setAbierto(o => !o)} aria-expanded={abierto} aria-haspopup="dialog"
+        aria-label={`${label || 'Fecha y hora'}: ${bonito || 'sin elegir'}`} className="t-foco"
+        style={{ ...fieldBoxStyle, flexDirection: 'column', alignItems: 'flex-start', width: '100%', textAlign: 'left', color: 'inherit' }}>
+        {label && <span style={{ ...fieldLabelStyle, display: 'block' }}>{label}</span>}
+        <span style={{ fontSize: '14px', color: bonito ? 'var(--t-tinta)' : 'var(--t-piedra-clara)', display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a8578" strokeWidth="2" style={{ flexShrink: 0 }}>
             <rect x="3" y="5" width="18" height="16" rx="2" />
             <path d="M3 10h18M8 3v4M16 3v4" strokeLinecap="round" />
           </svg>
           {bonito || placeholder}
-        </div>
-        {/* input oculto solo para que el atributo required funcione con el submit del formulario */}
-        <input type="text" value={value || ''} required={required} readOnly tabIndex={-1}
-          style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }} />
-      </div>
+        </span>
+      </button>
+      {/* input oculto solo para que el atributo required funcione con el submit del formulario */}
+      <input type="text" value={value || ''} required={required} readOnly tabIndex={-1} aria-hidden="true"
+        style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }} />
 
       <AnimatePresence>
         {abierto && (

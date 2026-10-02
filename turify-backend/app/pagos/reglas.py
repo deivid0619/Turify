@@ -82,7 +82,8 @@ def comision_vigente(canal: str):
 
 def calcular_comision(precio_total, porcentaje, tope):
     """Comisión en pesos enteros, nunca mayor que el anticipo del que sale."""
-    comision = (Decimal(str(precio_total)) * Decimal(porcentaje) / 100).quantize(Decimal("1"), ROUND_HALF_UP)
+    bruta = Decimal(str(precio_total)) * Decimal(porcentaje) / 100
+    comision = Decimal(bruta).quantize(Decimal("1"), ROUND_HALF_UP)
     if comision > tope:
         logger.warning("La comisión (%s) supera el anticipo (%s); se limita al anticipo.", comision, tope)
         return Decimal(tope)

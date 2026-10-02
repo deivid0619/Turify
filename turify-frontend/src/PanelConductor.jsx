@@ -16,7 +16,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleMap, MarkerF, PolylineF, useJsApiLoader } from '@react-google-maps/api';
 import { AuthContext } from './AuthContext';
 import { ToastContainer, useToast } from './Toast';
-import { comoBoton } from './teclado';
 import { SkeletonTarjetaViaje } from './Skeleton';
 import PerfilDrawer from './PerfilDrawer';
 
@@ -1337,12 +1336,11 @@ const PanelConductor = ({ onVerRuta }) => {
                     {/* Mascotas */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <p style={{ margin: 0, fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>Solo con mascotas <IconMascota size={13} /></p>
-                      <div onClick={() => setFiltros(f => ({ ...f, mascotas: !f.mascotas }))}
-                        {...comoBoton(() => setFiltros(f => ({ ...f, mascotas: !f.mascotas })))}
+                      <button type="button" onClick={() => setFiltros(f => ({ ...f, mascotas: !f.mascotas }))}
                         role="switch" aria-checked={filtros.mascotas} aria-label="Solo con mascotas" className="t-foco"
-                        style={{ width: '36px', height: '20px', borderRadius: '10px', backgroundColor: filtros.mascotas ? BRAND_GREEN : 'var(--t-linea)', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
-                        <div style={{ position: 'absolute', top: '2px', left: filtros.mascotas ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: 'var(--t-papel)', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-                      </div>
+                        style={{ width: '36px', height: '20px', borderRadius: '10px', border: 'none', padding: 0, flexShrink: 0, backgroundColor: filtros.mascotas ? BRAND_GREEN : 'var(--t-linea)', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
+                        <span style={{ position: 'absolute', top: '2px', left: filtros.mascotas ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: 'var(--t-papel)', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                      </button>
                     </div>
                   </motion.div>
                 )}

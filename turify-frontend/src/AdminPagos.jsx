@@ -317,9 +317,9 @@ const TarjetaReclamo = ({ reclamo, procesando, onResolver }) => {
                       border: `1px solid ${activa ? T.ruta : T.linea}`, background: activa ? T.musgo : T.papel, transition: 'background .18s, border-color .18s' }}>
                     <input type="radio" id={`decision-${id}-${clave}`} name={`decision-${id}`} value={clave}
                       checked={activa} onChange={() => setDecision(clave)} style={{ marginTop: '3px', accentColor: 'var(--t-ruta)' }} />
-                    <span>
-                      <span style={{ display: 'block', fontSize: '14px', color: T.tinta }}>{DECISION[clave].label}</span>
-                      <span style={{ display: 'block', fontSize: '12.5px', color: T.piedra, marginTop: '2px' }}>{ayudaDecision(clave, reclamo)}</span>
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '14px', color: T.tinta }}>
+                      {DECISION[clave].label}
+                      <span style={{ fontSize: '12.5px', color: T.piedra }}>{ayudaDecision(clave, reclamo)}</span>
                     </span>
                   </label>
                 );
@@ -339,9 +339,9 @@ const TarjetaReclamo = ({ reclamo, procesando, onResolver }) => {
             <label htmlFor={`penalizar-${id}`} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', fontSize: '13.5px', color: T.tinta, cursor: 'pointer' }}>
               <input type="checkbox" id={`penalizar-${id}`} checked={penalizar} onChange={e => setPenalizar(e.target.checked)}
                 style={{ marginTop: '3px', accentColor: 'var(--t-alerta)' }} />
-              <span>
-                Contar como cancelación injustificada del conductor
-                <span style={{ display: 'block', fontSize: '12.5px', color: T.piedra, marginTop: '2px' }}>Por ejemplo, si no volvió por el grupo. Baja su confiabilidad.</span>
+              <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span>Contar como cancelación injustificada del conductor</span>
+                <span style={{ fontSize: '12.5px', color: T.piedra }}>Por ejemplo, si no volvió por el grupo. Baja su confiabilidad.</span>
               </span>
             </label>
           )}
