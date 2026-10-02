@@ -540,6 +540,16 @@ class MotivoOpcional(BaseModel):
     motivo: Optional[str] = Field(None, max_length=500)
 
 
+class ConfirmarWompi(BaseModel):
+    """SCRUM-180 — el id de la transacción con el que Wompi devuelve al pasajero."""
+    transaccion_id: str = Field(..., min_length=1, max_length=64, pattern=r"^[A-Za-z0-9-]+$")
+
+
+class NotaAdmin(BaseModel):
+    """Comprobante o comentario del administrador al mover un anticipo."""
+    nota: Optional[str] = Field(None, max_length=500)
+
+
 class ReclamoCreate(BaseModel):
     motivo: str = Field(..., min_length=5, max_length=1000)
     pago_id: Optional[int] = None

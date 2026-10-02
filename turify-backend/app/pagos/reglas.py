@@ -33,9 +33,15 @@ HORAS_CANCELACION_LIBRE = 24
 MAX_INTENTOS_CODIGO = 5
 MINUTOS_BLOQUEO_CODIGO = 15
 
-# Mientras Wompi no esté integrado (SCRUM-179), el anticipo también se le
-# paga directo al conductor. Cuando esté, esto pasa a 'APP'.
-CANAL_ANTICIPO = "DIRECTO"
+# SCRUM-179 — por dónde se paga el anticipo de los viajes que se confirman
+# desde ahora. Con las llaves de Wompi en el entorno pasa por la app (Turify
+# lo retiene hasta la llegada y descuenta su comisión); sin ellas se le paga
+# directo al conductor, como antes. Los viajes ya confirmados conservan el
+# canal con el que se crearon.
+def canal_anticipo() -> str:
+    from app.pagos import wompi
+    return "APP" if wompi.configurado() else "DIRECTO"
+
 
 COMISION_POR_DEFECTO = Decimal("10")
 

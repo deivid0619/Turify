@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleMap, MarkerF, PolylineF, useJsApiLoader } from '@react-google-maps/api';
 import { AuthContext } from './AuthContext';
 import { ToastContainer, useToast } from './Toast';
+import { codigoViaje, municipioDe, fechaViaje } from './viajes';
 import { SkeletonTarjetaViaje } from './Skeleton';
 import PerfilDrawer from './PerfilDrawer';
 
@@ -880,8 +881,9 @@ const PanelConductor = ({ onVerRuta }) => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || 'No se pudo cancelar el viaje.');
 
-      toast.success(data.monto_a_devolver > 0
-        ? `Viaje cancelado. Debes devolverle ${cop(data.monto_a_devolver)} al pasajero: márcalo en "Pagos pendientes" cuando lo hagas.`
+      const porDevolver = data.monto_a_devolver - (data.reembolso_turify || 0);
+      toast.success(porDevolver > 0
+        ? `Viaje cancelado. Debes devolverle ${cop(porDevolver)} al pasajero: márcalo en "Pagos pendientes" cuando lo hagas.`
         : 'Viaje cancelado. Volvió a quedar disponible para otro conductor.');
       setModalCancelarViaje(null);
       cargarViajesActivos();
@@ -1030,11 +1032,6 @@ const PanelConductor = ({ onVerRuta }) => {
       trazarRutaConductor(sol);
       if (onVerRuta) onVerRuta(sol.origin, sol.destination);
     }
-  };
-
-  const formatearFecha = (f) => {
-    try { return new Date(f).toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
-    catch { return f; }
   };
 
   const estadoConfig = (estado) => {
@@ -1446,7 +1443,7 @@ const PanelConductor = ({ onVerRuta }) => {
                       </div>
                     )}
                     <div style={{ fontSize: '13px', color: 'var(--t-piedra)', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconCalendario size={12} />{formatearFecha(sol.departure_time)}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconCalendario size={12} />{fechaViaje(sol.departure_time)}</span>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><IconPersonas size={12} />{(sol.adults_count || 1) + (sol.children_count || 0)} pasajero(s){sol.has_pets && <><IconMascota size={12} />en guacal</>}</span>
                     </div>
                     {/* HU55.1 — filtro exclusivo: si esta tarjeta te aparece en el radar es
@@ -1546,11 +1543,12 @@ const PanelConductor = ({ onVerRuta }) => {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '8px' }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <TableroRuta origen={viaje.origin} destino={viaje.destination} size={11} />
-                      <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>{formatearFecha(viaje.departure_time)}</p>
+                      <span style={{ display: 'block', fontFamily: T.dato, fontSize: '11.5px', letterSpacing: '.08em', color: 'var(--t-piedra)', marginBottom: '6px' }}>Viaje {codigoViaje(viaje.request_id)}</span>
+                      <TableroRuta origen={municipioDe(viaje.origin)} destino={municipioDe(viaje.destination)} size={11} />
+                      <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>{fechaViaje(viaje.departure_time)}</p>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <p style={{ margin: 0, fontWeight: '700', fontSize: '16px', color: BRAND_GREEN }}>${Number(viaje.offered_price).toLocaleString()}</p>
+                      <p style={{ margin: 0, fontWeight: '700', fontSize: '16px', color: 'var(--t-musgo-texto)' }}>{cop(viaje.offered_price)}</p>
                       <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--t-piedra-clara)' }}>
                         {esContraoferta ? 'Precio del pasajero' : 'Tu oferta'}
                       </p>

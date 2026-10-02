@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { T, Chip, Rotulo, Dato, IconAlerta, IconEscudo } from './diseno';
 import { cop, cargarCuentaPagos, guardarCuentaPagos } from './pagos';
+import { codigoViaje, municipioDe } from './viajes';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  PAGOS DEL VIAJE — ÉPICA 6 (SCRUM-178)
@@ -13,8 +14,8 @@ import { cop, cargarCuentaPagos, guardarCuentaPagos } from './pagos';
 const ESTADO = {
   PAGO_REPORTADO:       { tono: 'cielo',  label: 'Reportado',  barra: T.cielo },
   CONFIRMADO:           { tono: 'verde',  label: 'Pagado',     barra: T.ruta },
-  RETENIDO:             { tono: 'verde',  label: 'Retenido',   barra: T.ruta },
-  LIBERADO:             { tono: 'verde',  label: 'Entregado',  barra: T.ruta },
+  RETENIDO:             { tono: 'verde',  label: 'Pagado',     barra: T.ruta },
+  LIBERADO:             { tono: 'verde',  label: 'Pagado',     barra: T.ruta },
   EN_RECLAMO:           { tono: 'alerta', label: 'En reclamo', barra: T.alerta },
   DEVOLUCION_PENDIENTE: { tono: 'chiva',  label: 'Por devolver', barra: T.chiva },
   DEVOLUCION_REPORTADA: { tono: 'cielo',  label: 'Devolución reportada', barra: T.cielo },
@@ -32,6 +33,7 @@ const estadoDe = (pago) => {
 };
 
 const ACCION = {
+  PAGAR_EN_LINEA:         { label: (p) => `Pagar ${cop(p.monto)} en línea`, variante: 'primario', ocupado: 'Abriendo Wompi…' },
   REPORTAR_PAGO:          { label: () => 'Ya pagué', variante: 'primario' },
   CONFIRMAR_RECIBIDO:     { label: (p) => `Recibí ${cop(p.monto)}`, variante: 'primario',
                             confirmar: (p) => `¿Confirmas que recibiste ${cop(p.monto)}? No se puede deshacer.` },
@@ -53,7 +55,7 @@ const estiloBoton = (variante, deshabilitado) => ({
     ? { background: T.alertaSuave, color: T.alertaTexto, borderColor: T.alertaLinea }
     : variante === 'fantasma'
       ? { background: 'transparent', color: T.piedra, borderColor: T.linea }
-      : { background: T.ruta, color: '#fff' }),
+      : { background: T.ruta, color: T.sobreRuta }),
 });
 
 // Barra de pagos: cada tramo ocupa su porcentaje del precio (20/50/30 o
@@ -103,11 +105,18 @@ const FilaPago = ({ pago, onAccion, procesando }) => {
               <button key={accion} type="button" className="t-foco" disabled={!!procesando}
                 onClick={() => (cfg.confirmar ? setConfirmando(accion) : ejecutar(accion))}
                 style={estiloBoton(cfg.variante, !!procesando)}>
-                {ocupadoAccion ? 'Guardando…' : cfg.label(pago)}
+                {ocupadoAccion ? (cfg.ocupado || 'Guardando…') : cfg.label(pago)}
               </button>
             );
           })}
         </div>
+      )}
+
+      {pago.acciones?.includes('PAGAR_EN_LINEA') && !confirmando && (
+        <p style={{ margin: '6px 0 0', fontSize: '11.5px', color: T.piedra, lineHeight: 1.45, display: 'flex', gap: '5px', alignItems: 'flex-start' }}>
+          <IconEscudo size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
+          Pagas en Wompi con tarjeta, PSE, Nequi o Bancolombia. Turify guarda el anticipo y se lo entrega al conductor cuando lleguen al destino.
+        </p>
       )}
 
       {confirmando && (
@@ -179,7 +188,7 @@ export const PagosPendientes = ({ pendientes, onAccion, procesando, titulo }) =>
       {pendientes.map(({ viaje, pago }) => (
         <div key={pago.pago_id} style={{ marginTop: '6px', background: T.papel, borderRadius: '9px', padding: '4px 11px', border: `1px solid ${T.linea}` }}>
           <div style={{ fontSize: '11.5px', color: T.piedra, paddingTop: '6px' }}>
-            {viaje.origin} → {viaje.destination}{viaje.status === 'CANCELLED' ? ' · viaje cancelado' : ''}
+            {codigoViaje(viaje.request_id)} · {municipioDe(viaje.origin)} → {municipioDe(viaje.destination)}{viaje.status === 'CANCELLED' ? ' · viaje cancelado' : ''}
           </div>
           <FilaPago pago={pago} onAccion={onAccion} procesando={procesando} />
         </div>
@@ -214,12 +223,15 @@ export const CodigoAbordaje = ({ codigo, para, bloqueadoHasta }) => {
   );
 };
 
-export const CuentaParaPagar = ({ cuenta, hayPagosPorHacer }) => {
+// anticipoEnApp: el anticipo se paga en Wompi, no al conductor (SCRUM-179);
+// la cuenta es solo para los pagos que van directo a él.
+export const CuentaParaPagar = ({ cuenta, hayPagosPorHacer, anticipoEnApp = false }) => {
   if (!cuenta) {
     if (!hayPagosPorHacer) return null;
     return (
       <p style={{ margin: '10px 0 0', fontSize: '12px', color: T.piedra, lineHeight: 1.5 }}>
         Págale al conductor en efectivo o por transferencia y registra cada pago aquí con “Ya pagué”: así queda constancia para los dos.
+        {anticipoEnApp && ' El anticipo no: ese se paga en la app con “Pagar en línea”.'}
       </p>
     );
   }
@@ -233,6 +245,11 @@ export const CuentaParaPagar = ({ cuenta, hayPagosPorHacer }) => {
         <Dato style={{ fontSize: '13px' }}>{cuenta.numero}</Dato>
         <span style={{ color: T.piedra }}>{cuenta.titular_nombre}</span>
       </div>
+      {anticipoEnApp && (
+        <p style={{ margin: '5px 0 0', fontSize: '11.5px', color: T.musgoTexto, lineHeight: 1.45 }}>
+          Es para los pagos que van directo al conductor. El anticipo se paga en la app con “Pagar en línea”.
+        </p>
+      )}
     </div>
   );
 };
