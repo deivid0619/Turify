@@ -110,3 +110,13 @@ def test_registro_de_conductor_exige_autorizar_documentos_y_ubicacion(
 
     assert respuesta.status_code == 400
     assert "ubicación" in respuesta.json()["detail"]
+
+
+def test_bitacora_y_notificaciones_se_guardan_sin_returning():
+    """En producción el backend entra como turify_app, que respeta RLS, y
+    Postgres exige poder leer la fila que devuelve INSERT ... RETURNING. La
+    bitácora y las notificaciones se escriben para otros usuarios (o sin
+    sesión), así que con RETURNING el INSERT falla. Esta suite corre como
+    postgres, que se salta RLS y no lo vería: por eso se prueba la tabla."""
+    assert models.AuditLog.__table__.implicit_returning is False
+    assert models.Notification.__table__.implicit_returning is False
