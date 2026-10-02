@@ -13,6 +13,9 @@
 
   --t-ruta:         #16A34A;
   --t-ruta-hover:   #128A3E;
+  /* Texto e iconos sobre el verde de la marca: el blanco se queda en 3,3:1 y
+     este verde casi negro llega a 5,2:1 (en oscuro, 7,5:1). */
+  --t-sobre-ruta:   #08210F;
 
   --t-musgo:        #E6F1E8;
   --t-musgo-linea:  #C9E3D0;
@@ -22,14 +25,21 @@
   --t-niebla-2:     #EDEEE8;
   --t-papel:        #FFFFFF;
 
-  --t-chiva:        #E9A13B;
-  --t-chiva-suave:  #FBF1DE;
-  --t-chiva-linea:  #EBD5A9;
-  --t-chiva-texto:  #8A5A12;
+  /* Naranja del lema "Tu CAMINO, con precio CLARO." (#FF9000): el acento de
+     la marca — destino, lo pendiente y las palabras clave de los títulos. */
+  --t-chiva:        #FF9000;
+  --t-chiva-suave:  #FFF1E0;
+  --t-chiva-linea:  #FFD3A1;
+  --t-chiva-texto:  #9A4A00;
+  /* Palabras resaltadas de un título sobre fondo claro: el mismo naranja un
+     punto más hondo, porque #FF9000 sobre blanco queda en 2,3:1 y no se lee
+     (este llega a 3,1:1, el mínimo para texto grande). */
+  --t-resalte:      #DB7800;
 
   --t-tinta:        #131A16;
-  --t-piedra:       #6B7A72;
-  --t-piedra-clara: #9AA79F;
+  /* Grises de texto: los dos pasan 4,5:1 (WCAG AA) sobre papel y niebla. */
+  --t-piedra:       #56625C;
+  --t-piedra-clara: #5F6D65;
   --t-linea:        #E2E4DC;
 
   --t-cielo:        #2563EB;
@@ -54,6 +64,7 @@
 
   --t-ruta:         #22C55E;
   --t-ruta-hover:   #34D871;
+  --t-sobre-ruta:   #08210F;
 
   --t-musgo:        #102E1D;
   --t-musgo-linea:  #22553A;
@@ -63,14 +74,16 @@
   --t-niebla-2:     #102A1E;
   --t-papel:        #12291F;
 
-  --t-chiva:        #F0B45E;
-  --t-chiva-suave:  #2E2211;
-  --t-chiva-linea:  #57411D;
-  --t-chiva-texto:  #F0B45E;
+  /* Sobre el monte oscuro el naranja del lema se lee tal cual (6,6:1). */
+  --t-chiva:        #FF9000;
+  --t-chiva-suave:  #2E1C08;
+  --t-chiva-linea:  #5C3A10;
+  --t-chiva-texto:  #FFA940;
+  --t-resalte:      #FF9000;
 
   --t-tinta:        #E8EFE9;
   --t-piedra:       #93A69A;
-  --t-piedra-clara: #6F8177;
+  --t-piedra-clara: #809288;
   --t-linea:        #22402F;
 
   --t-cielo:        #60A5FA;
@@ -92,9 +105,28 @@ html, body, #root {
   box-sizing: border-box;
   background-color: var(--t-niebla);
   color: var(--t-tinta);
-  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  font-family: 'Questrial', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   transition: background-color .25s ease, color .25s ease;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DOS TIPOGRAFÍAS, LAS DE LA MARCA — como el lema "Tu CAMINO, con precio CLARO."
+   · Questrial: todo el texto (párrafos, formularios, descripciones).
+   · Syne negrilla: todo lo que resalta (títulos, botones, cifras, etiquetas).
+   El contraste lo da el cambio de letra, no solo el peso. Questrial tiene un
+   solo peso, así que (1) el navegador nunca inventa una negrilla falsa, y
+   (2) todo texto que pida negrilla pasa a Syne — también el que la pide en un
+   estilo en línea (font-weight 600/700/800), sin tener que tocar cada uno.
+   ───────────────────────────────────────────────────────────────────────────── */
+html { font-synthesis: none; }
+
+input, textarea, select, button { font-family: inherit; }
+
+h1, h2, h3, h4, h5, h6, b, strong, th,
+[style*="font-weight: 600"], [style*="font-weight: 700"],
+[style*="font-weight: 800"], [style*="font-weight: bold"] {
+  font-family: 'Syne', system-ui, -apple-system, sans-serif;
 }
 
 *, *::before, *::after { box-sizing: inherit; }

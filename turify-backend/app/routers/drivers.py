@@ -14,6 +14,8 @@ from app.database import get_db
 from app.security import get_current_user
 from app import models, schemas
 from app.audit import registrar_log
+from app.pagos import servicio as servicio_pagos
+from app import consentimiento
 from app.pricing.vehicle_categories import (
     RANGOS_CATEGORIA,
     calcular_categoria,
@@ -182,9 +184,19 @@ async def register_driver_info(
     doc_seguros: UploadFile = File(...),
     doc_cedula_frente: UploadFile = File(...),   # SCRUM-252
     doc_cedula_reverso: UploadFile = File(...),
+    # Ley 1581 — autorización para revisar los documentos (incluida la cédula)
+    # y usar la ubicación mientras el conductor está en línea o en un viaje.
+    autoriza_verificacion: bool = Form(False),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
+    if not autoriza_verificacion:
+        raise HTTPException(
+            status_code=400,
+            detail="Para registrarte como conductor debes autorizar la revisión de tus documentos y el uso de "
+                   "tu ubicación mientras estés en línea o en un viaje.",
+        )
+
     # ── Bloquear si ya tiene documentos PENDING o APPROVED ───────────────────
     docs_existentes = db.query(models.Document).filter(
         models.Document.user_id == current_user.user_id,
@@ -314,6 +326,11 @@ async def register_driver_info(
                     verification_status="PENDING"
                 ))
 
+        consentimiento.registrar(
+            db, consentimiento.AUTORIZA_CONDUCTOR, current_user.user_id,
+            "Autorizó la revisión de sus documentos (incluida la cédula) y el uso de su ubicación "
+            "mientras esté en línea o en un viaje.",
+            ip=request.client.host if request.client else None)
         db.commit()
 
         # HU seguridad (OWASP A09) — evento crítico: conductor envió sus
@@ -778,7 +795,63 @@ def get_driver_earnings(
         "calificacion_cantidad": cantidad_rating or 0,
         "horarios_activos": horarios,   # conteo de viajes por hora del día (0-23)
         "top_rutas": [{"ruta": r, "viajes": c} for r, c in top_rutas],
+        **_resumen_de_pagos(db, current_user, inicio_mes),
     }
+
+
+def _resumen_de_pagos(db: Session, conductor, inicio_mes) -> dict:
+    """SCRUM-262 — lo que de verdad le queda al conductor según el plan de
+    pagos de cada viaje: lo recibido este mes (neto de comisión), lo que le
+    deben, lo que está en reclamo y lo que tiene que devolver."""
+    filas = (
+        db.query(models.PagoViaje, models.ServiceRequest, models.DriverOffer)
+        .join(models.ServiceRequest, models.ServiceRequest.request_id == models.PagoViaje.request_id)
+        .join(models.DriverOffer, models.DriverOffer.offer_id == models.PagoViaje.offer_id)
+        .filter(models.PagoViaje.driver_id == conductor.user_id)
+        .order_by(models.PagoViaje.orden)
+        .all()
+    )
+
+    resumen = {"recibido_mes": 0, "comision_mes": 0, "compensaciones_mes": 0,
+               "por_cobrar": 0, "en_reclamo": 0, "por_devolver": 0}
+    por_viaje = {}
+    for pago, viaje, oferta in filas:
+        neto = servicio_pagos.pesos(pago.monto) - servicio_pagos.pesos(pago.comision)
+        confirmado = servicio_pagos.con_zona(pago.confirmado_at)
+        if pago.estado in ("CONFIRMADO", "LIBERADO") and confirmado and confirmado >= inicio_mes:
+            resumen["recibido_mes"] += neto
+            resumen["comision_mes"] += servicio_pagos.pesos(pago.comision)
+            if viaje.status == "CANCELLED":
+                resumen["compensaciones_mes"] += neto
+        if pago.estado in ("PENDIENTE", "PAGO_REPORTADO") and pago.exigible_desde is not None:
+            resumen["por_cobrar"] += neto
+        if pago.estado == "EN_RECLAMO":
+            resumen["en_reclamo"] += servicio_pagos.pesos(pago.monto)
+        if pago.estado in servicio_pagos.ESTADOS_DEVOLUCION:
+            resumen["por_devolver"] += servicio_pagos.pesos(pago.monto)
+
+        detalle = por_viaje.setdefault(oferta.offer_id, {
+            "request_id": viaje.request_id,
+            "origin": viaje.origin,
+            "destination": viaje.destination,
+            "departure_time": viaje.departure_time.isoformat() if viaje.departure_time else None,
+            "trip_status": viaje.status if oferta.status == "ACCEPTED" or viaje.status == "CANCELLED" else "CANCELADO_POR_TI",
+            "_orden": servicio_pagos.con_zona(viaje.departure_time),
+            "precio": 0, "comision": 0, "pagos": [],
+        })
+        detalle["precio"] += servicio_pagos.pesos(pago.monto)
+        if pago.estado not in ("ANULADO", "DEVUELTO", "REEMBOLSADO"):
+            detalle["comision"] += servicio_pagos.pesos(pago.comision)
+        vigente = oferta.status == "ACCEPTED" and viaje.status != "CANCELLED"
+        detalle["pagos"].append(servicio_pagos.serializar_pago(pago, viaje, "CONDUCTOR", vigente))
+
+    viajes_detalle = sorted(por_viaje.values(), key=lambda v: v["_orden"] or inicio_mes, reverse=True)[:15]
+    for v in viajes_detalle:
+        v.pop("_orden")
+        cobrado = sum(p["monto"] for p in v["pagos"] if p["estado"] not in ("ANULADO", "DEVUELTO", "REEMBOLSADO"))
+        v["neto"] = cobrado - v["comision"]
+
+    return {**resumen, "viajes_pagos": viajes_detalle}
 
 
 # ── HU38 — Perfil público del conductor (lo ve el pasajero desde una oferta) ─

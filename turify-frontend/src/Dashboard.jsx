@@ -9,10 +9,16 @@ import InputDireccion from './InputDireccion';
 import SelectorFechaHora from './SelectorFechaHora';
 import PerfilDrawer from './PerfilDrawer';
 import { ToastContainer, useToast } from './Toast';
+import { comoBoton } from './teclado';
 import { SkeletonDashboard, SkeletonTarjetaConfirmado, ErrorConexion } from './Skeleton';
 
 const BRAND_GREEN = T.ruta;
 import API_BASE_URL from './api';
+import { PlanPagos, PagosPendientes, CodigoAbordaje, CuentaParaPagar, ModalReclamo } from './PagosViaje';
+import {
+  cop, ejecutarAccionPago, abrirReclamo, cargarPagosPendientes, MENSAJE_ACCION,
+  hayPagoPorHacer, anticipoDe, anticipoPagado,
+} from './pagos';
 import {
   T, EstilosBase, TableroRuta, Icono,
   IconReloj, IconVisto, IconBandera, IconAuto, IconCalendario, IconPersonas,
@@ -88,7 +94,7 @@ const ModalErrorDireccion = ({ textoDireccion, onCerrar, onContinuar }) => (
         </p>
       </div>
       <button onClick={onContinuar}
-        style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', padding: '13px', borderRadius: '10px', fontWeight: '700', fontSize: '15px', cursor: 'pointer', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+        style={{ width: '100%', background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', border: 'none', padding: '13px', borderRadius: '10px', fontWeight: '700', fontSize: '15px', cursor: 'pointer', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
         <IconVisto size={15} />Continuar con esta dirección
       </button>
       <button onClick={onCerrar}
@@ -192,6 +198,11 @@ const Dashboard = () => {
   const [mostrarMisSolicitudes, setMostrarMisSolicitudes] = useState(false);
   const [listaSolicitudes, setListaSolicitudes] = useState([]);
   const [viajesConfirmados, setViajesConfirmados] = useState([]);
+  // ÉPICA 6 — pagos del viaje (SCRUM-178)
+  const [pagosPendientes, setPagosPendientes] = useState([]);
+  const [procesandoPago, setProcesandoPago] = useState(null);
+  const [reclamoViajeId, setReclamoViajeId] = useState(null);
+  const [enviandoReclamo, setEnviandoReclamo] = useState(false);
 
   // HU43 — Tracking en el MAPA GRANDE. Cuando hay un viaje en curso con
   // coordenadas, se traza su ruta una sola vez y se guarda para pintarla en el
@@ -258,6 +269,8 @@ const Dashboard = () => {
   }, [notificaciones]);
   const [mostrarPerfil, setMostrarPerfil] = useState(false);
   const [modalFuec, setModalFuec] = useState(null); // request_id del viaje a registrar
+  // Ley 1581 — son datos de otras personas: el pasajero declara que lo autorizaron.
+  const [autorizaOcupantes, setAutorizaOcupantes] = useState(false);
   // HU46 — Calificaciones bidireccionales
   const [modalCalificar, setModalCalificar] = useState(null); // request_id del viaje a calificar
   const [estrellasCalificar, setEstrellasCalificar] = useState(0);
@@ -847,6 +860,7 @@ const Dashboard = () => {
   // HU10: Enviar FUEC
   const enviarFuec = async () => {
     if (!ocupantesValidos) { toast.warning('Revisa los datos: hay ocupantes con información incompleta o inválida.'); return; }
+    if (!autorizaOcupantes) { toast.warning('Confirma que los ocupantes te autorizaron a compartir sus datos.'); return; }
     const payloadOcupantes = ocupantesFuec.map(o => ({
       full_name: o.full_name.trim(),
       document_type: o.document_type,
@@ -862,7 +876,7 @@ const Dashboard = () => {
           'Content-Type': 'application/json',
           'ngrok-skip-browser-warning': 'true'
         },
-        body: JSON.stringify({ passengers: payloadOcupantes })
+        body: JSON.stringify({ passengers: payloadOcupantes, autorizacion_ocupantes: autorizaOcupantes })
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
       setFuecEnviado(prev => ({ ...prev, [modalFuec]: true }));
@@ -948,6 +962,7 @@ const Dashboard = () => {
       { full_name: usuario?.full_name || '', document_type: 'CC', document_number: '', es_representante: true },
       ...Array.from({ length: Math.max(0, n - 1) }, slotOcupanteVacio),
     ]);
+    setAutorizaOcupantes(false);
     setModalFuec(viaje.id);
   };
 
@@ -1091,9 +1106,22 @@ const Dashboard = () => {
             // El conductor lo sube (ver PanelConductor.jsx); acá solo se muestra si ya existe.
             fuec_url: v.fuec_url || null,
             ocupantes_registrados: v.ocupantes_registrados || 0,
+            // ÉPICA 6 — etapas del viaje, código de abordaje y plan de pagos
+            trip_type: v.trip_type,
+            tramo: v.tramo || null,
+            cerrado_sin_regreso: !!v.cerrado_sin_regreso,
+            plan_pagos: v.plan_pagos || null,
+            codigo_abordaje: v.codigo_abordaje || null,
+            codigo_para: v.codigo_para || null,
+            codigo_bloqueado_hasta: v.codigo_bloqueado_hasta || null,
+            cuenta_conductor: v.cuenta_conductor || null,
           })));
         }
       } catch {}
+
+      // SCRUM-181 — devoluciones y reclamos de viajes cancelados o que
+      // volvieron a buscar conductor: ya no salen en ninguna tarjeta.
+      try { setPagosPendientes(await cargarPagosPendientes(token)); } catch { /* no bloquea la lista */ }
 
       // Orden: el último viaje buscado (created_at más reciente) siempre de primero.
       const ordenados = [...viajesConOfertas].sort(
@@ -1111,6 +1139,36 @@ const Dashboard = () => {
       await cargarMisViajes();
     } finally {
       setActualizandoViajes(false);
+    }
+  };
+
+  // ÉPICA 6 — acciones sobre un pago: reportar, confirmar o reclamar
+  const accionPago = async (pago, accion) => {
+    setProcesandoPago(`${pago.pago_id}:${accion}`);
+    try {
+      await ejecutarAccionPago(token, pago.pago_id, accion);
+      toast.success(MENSAJE_ACCION[accion]);
+      await cargarMisViajes();
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setProcesandoPago(null);
+    }
+  };
+
+  const enviarReclamo = async (motivo) => {
+    setEnviandoReclamo(true);
+    try {
+      await abrirReclamo(token, reclamoViajeId, motivo);
+      toast.success('Reclamo enviado. Un administrador lo revisará y les responderá a los dos.');
+      setReclamoViajeId(null);
+      await cargarMisViajes();
+      return true;
+    } catch (error) {
+      toast.error(error.message);
+      return false;
+    } finally {
+      setEnviandoReclamo(false);
     }
   };
 
@@ -1153,15 +1211,29 @@ const Dashboard = () => {
     }
   };
 
-  // HU59 — según cuánto falte para la salida: libre, 30% o 50% de
-  // penalización sobre el precio acordado (SCRUM-211). Es solo una vista
-  // previa en el cliente; el backend recalcula lo mismo al confirmar, que es
-  // lo que de verdad queda registrado.
-  const calcularPreviewPenalizacion = (departureTimeISO) => {
-    const horas = (new Date(departureTimeISO) - new Date()) / 3600000;
-    if (horas >= 24) return { pct: 0, label: 'Cancelación gratuita', detalle: 'Faltan 24 horas o más para tu viaje.' };
-    if (horas >= 2) return { pct: 30, label: '30% de penalización', detalle: 'Estás cancelando entre 24 y 2 horas antes del viaje.' };
-    return { pct: 50, label: '50% de penalización', detalle: horas >= 0 ? 'Estás cancelando con menos de 2 horas de anticipación.' : 'La hora de salida ya pasó.' };
+  // SCRUM-181 — la penalización es el anticipo: con 24 h o más se devuelve
+  // todo; con menos, se pierde lo que ya se pagó de anticipo. Es solo una
+  // vista previa; el backend aplica la misma regla al confirmar.
+  const calcularPreviewPenalizacion = (viaje) => {
+    const horas = (new Date(viaje.departure_time) - new Date()) / 3600000;
+    const anticipo = anticipoDe(viaje.plan_pagos);
+    const pagado = anticipoPagado(viaje.plan_pagos);
+    const monto = anticipo ? anticipo.monto : 0;
+    if (horas >= 24) {
+      return {
+        pierde: 0, label: 'Cancelación gratuita',
+        detalle: pagado
+          ? `Faltan 24 horas o más: el conductor te devuelve el anticipo (${cop(monto)}).`
+          : 'Faltan 24 horas o más para tu viaje.',
+      };
+    }
+    if (pagado) {
+      return {
+        pierde: monto, label: 'Pierdes el anticipo',
+        detalle: `Faltan menos de 24 horas: el anticipo (${cop(monto)}) queda para el conductor como compensación.`,
+      };
+    }
+    return { pierde: 0, label: 'Sin penalización', detalle: 'Todavía no pagaste el anticipo, así que no hay nada que perder.' };
   };
 
   const abrirModalCancelarViaje = (viaje) => {
@@ -1192,10 +1264,13 @@ const Dashboard = () => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || 'No se pudo cancelar el viaje.');
 
-      const monto = data.penalty_amount || 0;
-      toast.success(monto > 0
-        ? `Viaje cancelado. Penalización: ${data.penalty_percentage}% ($${Number(monto).toLocaleString()}).`
-        : 'Viaje cancelado sin penalización.');
+      if (data.penalty_amount > 0) {
+        toast.success(`Viaje cancelado. El anticipo (${cop(data.penalty_amount)}) queda para el conductor.`);
+      } else if (data.monto_a_devolver > 0) {
+        toast.success(`Viaje cancelado. El conductor debe devolverte ${cop(data.monto_a_devolver)}: confírmalo en Mis viajes cuando te llegue.`);
+      } else {
+        toast.success('Viaje cancelado sin penalización.');
+      }
       setModalCancelarViaje(null);
       cargarMisViajes();
     } catch (error) {
@@ -1454,9 +1529,9 @@ const Dashboard = () => {
           <div style={{ fontSize: '14px', color: 'var(--t-piedra)', marginTop: '2px' }}>{subtitulo}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => actualizarPasajeros(tipo, 'restar')} style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>-</motion.button>
+          <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => actualizarPasajeros(tipo, 'restar')} aria-label={`Menos ${titulo.toLowerCase()}`} style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>-</motion.button>
           <span style={{ width: '20px', textAlign: 'center', fontSize: '16px' }}>{pasajeros[tipo]}</span>
-          <motion.button whileTap={!deshabilitado ? { scale: 0.9 } : {}} type="button" onClick={() => actualizarPasajeros(tipo, 'sumar')} disabled={deshabilitado} style={{ width: '30px', height: '30px', borderRadius: '50%', border: deshabilitado ? '1px solid #eee' : '1px solid #777', background: 'var(--t-papel)', cursor: deshabilitado ? 'not-allowed' : 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: deshabilitado ? 'var(--t-piedra-clara)' : 'var(--t-tinta)' }}>+</motion.button>
+          <motion.button whileTap={!deshabilitado ? { scale: 0.9 } : {}} type="button" onClick={() => actualizarPasajeros(tipo, 'sumar')} aria-label={`Más ${titulo.toLowerCase()}`} disabled={deshabilitado} style={{ width: '30px', height: '30px', borderRadius: '50%', border: deshabilitado ? '1px solid #eee' : '1px solid #777', background: 'var(--t-papel)', cursor: deshabilitado ? 'not-allowed' : 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: deshabilitado ? 'var(--t-piedra-clara)' : 'var(--t-tinta)' }}>+</motion.button>
         </div>
       </div>
     );
@@ -1544,7 +1619,7 @@ const Dashboard = () => {
         border-radius: 8px;
         color: var(--t-musgo) !important;
         font-size: 13px;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Questrial', system-ui, sans-serif;
         box-sizing: border-box;
         outline: none;
         min-width: 0;
@@ -1605,7 +1680,7 @@ const Dashboard = () => {
       }
 
       /* ── PANEL "MIS VIAJES" — pasajes de viaje ── */
-      @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700&family=Questrial&display=swap');
       @keyframes pulse {
         0%, 100% { opacity: 1; transform: scale(1); }
         50% { opacity: 0.45; transform: scale(0.7); }
@@ -1654,7 +1729,7 @@ const Dashboard = () => {
         cursor: pointer;
         font-weight: 700;
         font-size: 11.5px;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Questrial', system-ui, sans-serif;
         letter-spacing: 0.01em;
         transition: background-color 0.18s, color 0.18s;
       }
@@ -1671,7 +1746,7 @@ const Dashboard = () => {
               <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
                 onClick={() => navigate('/registro-conductor')}
                 title="Conviértete en conductor de Turify"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: BRAND_GREEN, border: 'none', color: '#fff', borderRadius: '20px', padding: '6px 12px', fontSize: '12.5px', fontWeight: 700, fontFamily: T.ui, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: BRAND_GREEN, border: 'none', color: 'var(--t-sobre-ruta)', borderRadius: '20px', padding: '6px 12px', fontSize: '12.5px', fontWeight: 700, fontFamily: T.display, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
                 <IconAuto size={14} />Ser conductor
               </motion.button>
             )}
@@ -1679,6 +1754,8 @@ const Dashboard = () => {
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
               onClick={() => { setMostrarNotificaciones(true); }}
+              {...comoBoton(() => setMostrarNotificaciones(true))} className="t-foco"
+              aria-label={`Notificaciones${notificaciones.some(n => !n.is_read) ? `: ${notificaciones.filter(n => !n.is_read).length} sin leer` : ''}`}
               style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '35px', height: '35px', borderRadius: '50%', background: 'var(--t-papel)', border: '1px solid var(--t-linea)' }}>
               <motion.span
                 animate={campanaSacudida ? { rotate: [0, -14, 11, -8, 5, -2, 0] } : { rotate: 0 }}
@@ -1701,10 +1778,11 @@ const Dashboard = () => {
             </motion.div>
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
               onClick={() => setMostrarPerfil(true)}
+              {...comoBoton(() => setMostrarPerfil(true))} className="t-foco" aria-label="Abrir tu perfil"
               style={{ border: '1px solid var(--t-linea)', borderRadius: '20px', padding: '5px 12px', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center', background: 'var(--t-papel)' }}>
               <div style={{ background: 'var(--t-niebla-2)', borderRadius: '50%', width: '25px', height: '25px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {usuario?.profile_photo_url
-                  ? <img src={usuario.profile_photo_url} alt="perfil" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ? <img src={usuario.profile_photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : <IconPersona size={15} color="var(--t-piedra)" />}
               </div>
             </motion.div>
@@ -1717,8 +1795,8 @@ const Dashboard = () => {
 
           <form onSubmit={buscarRuta} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ display: 'flex', gap: '4px' }}>
-              <button type="button" onClick={() => setTipoViaje('ida')} style={{ flex: 1, padding: '8px 12px', borderRadius: '20px', backgroundColor: tipoViaje === 'ida' ? BRAND_GREEN : 'var(--t-papel)', color: tipoViaje === 'ida' ? '#fff' : 'var(--t-piedra)', border: tipoViaje === 'ida' ? 'none' : '1px solid var(--t-linea)', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>Solo ida</button>
-              <button type="button" onClick={() => setTipoViaje('redondo')} style={{ flex: 1, padding: '8px 12px', borderRadius: '20px', backgroundColor: tipoViaje === 'redondo' ? BRAND_GREEN : 'var(--t-papel)', color: tipoViaje === 'redondo' ? '#fff' : 'var(--t-piedra)', border: tipoViaje === 'redondo' ? 'none' : '1px solid var(--t-linea)', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>Ida y vuelta</button>
+              <button type="button" onClick={() => setTipoViaje('ida')} style={{ flex: 1, padding: '8px 12px', borderRadius: '20px', backgroundColor: tipoViaje === 'ida' ? BRAND_GREEN : 'var(--t-papel)', color: tipoViaje === 'ida' ? 'var(--t-sobre-ruta)' : 'var(--t-piedra)', border: tipoViaje === 'ida' ? 'none' : '1px solid var(--t-linea)', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>Solo ida</button>
+              <button type="button" onClick={() => setTipoViaje('redondo')} style={{ flex: 1, padding: '8px 12px', borderRadius: '20px', backgroundColor: tipoViaje === 'redondo' ? BRAND_GREEN : 'var(--t-papel)', color: tipoViaje === 'redondo' ? 'var(--t-sobre-ruta)' : 'var(--t-piedra)', border: tipoViaje === 'redondo' ? 'none' : '1px solid var(--t-linea)', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>Ida y vuelta</button>
             </div>
             <div style={dividerStyle} />
             <div style={fieldBoxStyle}>
@@ -1727,7 +1805,7 @@ const Dashboard = () => {
                 <InputDireccion name="origen" placeholder="¿Desde dónde sales?" value={busqueda.origen} onChange={handleBusqueda} esOrigen={true} onUbicacionActual={handleUbicacionActual} mapsLoaded={mapsLoaded} ancho="260px" />
                 <button type="button" onClick={() => setMarcandoEnMapa(marcandoEnMapa === 'origen' ? null : 'origen')}
                   className="t-foco" title="Marcar el origen en el mapa"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '5px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '11.5px', fontWeight: 600, fontFamily: T.ui, color: marcandoEnMapa === 'origen' ? T.ruta : T.piedraClara }}>
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '5px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '11.5px', fontWeight: 600, fontFamily: T.display, color: marcandoEnMapa === 'origen' ? T.ruta : T.piedraClara }}>
                   <IconPin size={12} />{marcandoEnMapa === 'origen' ? 'Tocá el mapa…' : 'Marcar en el mapa'}
                 </button>
               </div>
@@ -1738,7 +1816,7 @@ const Dashboard = () => {
                 <InputDireccion name="destino" placeholder="¿A dónde vas?" value={busqueda.destino} onChange={handleBusqueda} mapsLoaded={mapsLoaded} ancho="260px" />
                 <button type="button" onClick={() => setMarcandoEnMapa(marcandoEnMapa === 'destino' ? null : 'destino')}
                   className="t-foco" title="Marcar el destino en el mapa"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '5px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '11.5px', fontWeight: 600, fontFamily: T.ui, color: marcandoEnMapa === 'destino' ? T.ruta : T.piedraClara }}>
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '5px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '11.5px', fontWeight: 600, fontFamily: T.display, color: marcandoEnMapa === 'destino' ? T.ruta : T.piedraClara }}>
                   <IconPin size={12} />{marcandoEnMapa === 'destino' ? 'Tocá el mapa…' : 'Marcar en el mapa'}
                 </button>
               </div>
@@ -1773,15 +1851,17 @@ const Dashboard = () => {
               </AnimatePresence>
             </div>
             <div style={{ position: 'relative' }}>
-              <div onClick={() => setMostrarPasajeros(!mostrarPasajeros)} style={{ ...fieldBoxStyle, cursor: 'pointer', userSelect: 'none', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={fieldLabelStyle}>Quién</div>
+              <button type="button" onClick={() => setMostrarPasajeros(!mostrarPasajeros)}
+                aria-expanded={mostrarPasajeros} className="t-foco"
+                style={{ ...fieldBoxStyle, width: '100%', textAlign: 'left', color: 'inherit', cursor: 'pointer', userSelect: 'none', justifyContent: 'space-between' }}>
+                <span>
+                  <span style={{ ...fieldLabelStyle, display: 'block' }}>Quién</span>
                   <span style={{ fontSize: '14px', color: 'var(--t-tinta)' }}>{textoViajeros}</span>
-                </div>
+                </span>
                 <span style={{ display: 'flex', color: 'var(--t-piedra-clara)' }}>
                   <IconTrazo size={14}><path d="M6 9.5l6 5.5 6-5.5" /></IconTrazo>
                 </span>
-              </div>
+              </button>
               <AnimatePresence>
                 {mostrarPasajeros && (
                   <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} transition={{ duration: 0.2 }}
@@ -1822,10 +1902,10 @@ const Dashboard = () => {
                         <div style={{ fontSize: '14px', color: 'var(--t-piedra)', marginTop: '2px' }}>¿Necesitás el vehículo varios días?</div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setNumDias(d => Math.max(1, d - 1))}
+                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setNumDias(d => Math.max(1, d - 1))} aria-label="Menos días"
                           style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>-</motion.button>
                         <span style={{ width: '20px', textAlign: 'center', fontSize: '16px' }}>{numDias}</span>
-                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setNumDias(d => Math.min(30, d + 1))}
+                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setNumDias(d => Math.min(30, d + 1))} aria-label="Más días"
                           style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>+</motion.button>
                       </div>
                     </div>
@@ -1838,21 +1918,21 @@ const Dashboard = () => {
                         <div style={{ fontSize: '14px', color: 'var(--t-piedra)', marginTop: '2px' }}>Horas de espera estimadas</div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setTiempoEsperaHoras(h => Math.max(0, h - 0.5))}
+                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setTiempoEsperaHoras(h => Math.max(0, h - 0.5))} aria-label="Menos horas de espera"
                           style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>-</motion.button>
                         <span style={{ width: '28px', textAlign: 'center', fontSize: '16px' }}>{tiempoEsperaHoras}</span>
-                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setTiempoEsperaHoras(h => Math.min(48, h + 0.5))}
+                        <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={() => setTiempoEsperaHoras(h => Math.min(48, h + 0.5))} aria-label="Más horas de espera"
                           style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid var(--t-linea)', background: 'var(--t-papel)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)' }}>+</motion.button>
                       </div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '15px' }}>
-                      <motion.button whileTap={{ scale: 0.95 }} onClick={() => setMostrarPasajeros(false)} type="button" style={{ background: BRAND_GREEN, color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Cerrar</motion.button>
+                      <motion.button whileTap={{ scale: 0.95 }} onClick={() => setMostrarPasajeros(false)} type="button" style={{ background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', border: 'none', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Cerrar</motion.button>
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" style={{ background: BRAND_GREEN, border: 'none', borderRadius: '12px', padding: '13px', color: '#fff', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: '700', marginTop: '4px' }}>
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" style={{ background: BRAND_GREEN, border: 'none', borderRadius: '12px', padding: '13px', color: 'var(--t-sobre-ruta)', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: '700', marginTop: '4px' }}>
               {cargandoMapa ? 'Buscando ruta…' : <><IconRadar size={15} />Buscar ruta</>}
             </motion.button>
           </form>
@@ -1864,7 +1944,7 @@ const Dashboard = () => {
               <IconClipboard size={15} />
               <span style={{ flex: 1 }}>Mis viajes</span>
               {listaSolicitudes.length > 0 && (
-                <span style={{ background: BRAND_GREEN, color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <span style={{ background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', borderRadius: '50%', width: '18px', height: '18px', fontSize: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                   {listaSolicitudes.reduce((acc, v) => acc + (v.ofertas?.length || 0), 0)}
                 </span>
               )}
@@ -1959,7 +2039,7 @@ const Dashboard = () => {
               <div style={{ position: 'absolute', top: '16px', left: '50%', transform: 'translateX(-50%)', zIndex: 20, display: 'flex', alignItems: 'center', gap: '10px', background: T.monte, color: '#EAF2EC', borderRadius: T.rControl, padding: '10px 14px', boxShadow: '0 6px 18px rgba(0,0,0,.28)', fontSize: '13px' }}>
                 <IconPin size={15} color={T.chiva} />
                 Tocá en el mapa el {marcandoEnMapa === 'origen' ? 'punto de partida' : 'destino'}
-                <button onClick={() => setMarcandoEnMapa(null)} className="t-foco"
+                <button onClick={() => setMarcandoEnMapa(null)} className="t-foco" aria-label="Dejar de marcar en el mapa"
                   style={{ background: 'none', border: 'none', color: 'rgba(234,242,236,.6)', cursor: 'pointer', display: 'flex', padding: 0, marginLeft: '2px' }}>
                   <IconEquis size={15} />
                 </button>
@@ -2140,7 +2220,7 @@ const Dashboard = () => {
                   <button
                     onClick={() => (avisoSinConductores ? crearViaje(true) : intentarPublicar(true))}
                     disabled={enviandoSolicitud || verificandoComodidades || cargandoPrecio}
-                    style={{ flex: 2, background: (enviandoSolicitud || verificandoComodidades || cargandoPrecio) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: (enviandoSolicitud || verificandoComodidades || cargandoPrecio) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                    style={{ flex: 2, background: (enviandoSolicitud || verificandoComodidades || cargandoPrecio) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: (enviandoSolicitud || verificandoComodidades || cargandoPrecio) ? '#fff' : 'var(--t-sobre-ruta)', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: (enviandoSolicitud || verificandoComodidades || cargandoPrecio) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
                     {enviandoSolicitud
                       ? 'Procesando...'
                       : verificandoComodidades
@@ -2216,7 +2296,7 @@ const Dashboard = () => {
                   Cancelar
                 </button>
                 <button onClick={enviarContraoferta} disabled={enviandoContraoferta}
-                  style={{ flex: 1, background: enviandoContraoferta ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: enviandoContraoferta ? 'not-allowed' : 'pointer' }}>
+                  style={{ flex: 1, background: enviandoContraoferta ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: enviandoContraoferta ? '#fff' : 'var(--t-sobre-ruta)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: enviandoContraoferta ? 'not-allowed' : 'pointer' }}>
                   {enviandoContraoferta ? 'Enviando...' : 'Enviar oferta'}
                 </button>
               </div>
@@ -2267,7 +2347,7 @@ const Dashboard = () => {
                     <button key={tab.id} className="pestana-mv" onClick={() => setPestanaViajes(tab.id)}
                       style={{
                         backgroundColor: pestanaViajes === tab.id ? BRAND_GREEN : 'var(--t-niebla-2)',
-                        color: pestanaViajes === tab.id ? '#fff' : 'var(--t-piedra)' }}>
+                        color: pestanaViajes === tab.id ? 'var(--t-sobre-ruta)' : 'var(--t-piedra)' }}>
                       <tab.icon size={13} />
                       {tab.label}
                       {tab.count > 0 && <span style={{ background: pestanaViajes === tab.id ? 'rgba(255,255,255,0.28)' : 'var(--t-linea)', color: pestanaViajes === tab.id ? '#fff' : 'var(--t-piedra)', borderRadius: '10px', padding: '1px 6px', fontSize: '11px' }}>{tab.count}</span>}
@@ -2282,6 +2362,12 @@ const Dashboard = () => {
                 </div>
               )}
               <div style={{ padding: '18px', overflowY: 'auto', flex: 1 }}>
+
+                {/* SCRUM-181 — devoluciones de viajes cancelados */}
+                {!viajeSeleccionado && (
+                  <PagosPendientes pendientes={pagosPendientes} onAccion={accionPago} procesando={procesandoPago}
+                    titulo="Tienes pagos pendientes de viajes cancelados" />
+                )}
 
                 {/* PESTAÑA: EN BÚSQUEDA */}
                 {!viajeSeleccionado && pestanaViajes === 'activos' && listaSolicitudes.length === 0 && (
@@ -2298,7 +2384,7 @@ const Dashboard = () => {
                   return (
                   <motion.div key={viaje.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.04, ease: [0.23, 1, 0.32, 1] }}
-                    onClick={() => setViajeSeleccionado(viaje)} className="viaje-pasaje" style={{ cursor: 'pointer', padding: '13px 16px' }}>
+                    onClick={() => setViajeSeleccionado(viaje)} {...comoBoton(() => setViajeSeleccionado(viaje))} className="viaje-pasaje t-foco" style={{ cursor: 'pointer', padding: '13px 16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                       <TableroRuta origen={viaje.origin} destino={viaje.destination} size={11} style={{ flex: 1 }} />
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, marginLeft: '8px', color: viaje.ofertas.length > 0 ? BRAND_GREEN : 'var(--t-chiva-texto)', fontSize: '12px', fontWeight: '700' }}>
@@ -2322,7 +2408,7 @@ const Dashboard = () => {
                           <span>Llevas {MINUTOS_AVISO_SIN_OFERTAS} min sin ofertas — puede que muy pocas busetas tengan las comodidades que pediste.</span>
                         </div>
                         <button onClick={() => republicarComoEstandar(viaje)} disabled={republicandoId === viaje.id}
-                          style={{ width: '100%', background: republicandoId === viaje.id ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '7px', padding: '7px', fontSize: '12px', fontWeight: '700', cursor: republicandoId === viaje.id ? 'not-allowed' : 'pointer' }}>
+                          style={{ width: '100%', background: republicandoId === viaje.id ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: republicandoId === viaje.id ? '#fff' : 'var(--t-sobre-ruta)', border: 'none', borderRadius: '7px', padding: '7px', fontSize: '12px', fontWeight: '700', cursor: republicandoId === viaje.id ? 'not-allowed' : 'pointer' }}>
                           {republicandoId === viaje.id ? 'Republicando…' : 'Publicar como Estándar'}
                         </button>
                       </div>
@@ -2419,12 +2505,20 @@ const Dashboard = () => {
                             absorbe el aviso de estado: el detalle cuelga del paso actual,
                             así la tarjeta pierde una caja y gana claridad. */}
                         {(() => {
-                          const pasos = [
-                            { key: 'ASSIGNED',    label: 'Confirmado',  detalle: 'El conductor aceptó tu viaje.' },
-                            { key: 'IN_PROGRESS', label: 'En camino',   detalle: 'Va hacia el punto de recogida.' },
-                            { key: 'COMPLETED',   label: 'Completado',  detalle: 'Viaje finalizado.' },
+                          // SCRUM-259 — ida y vuelta tiene más etapas: llegada al destino y regreso.
+                          const pasos = viaje.trip_type === 'ROUND_TRIP' ? [
+                            { key: 'ASSIGNED',   label: 'Confirmado',    detalle: 'El conductor aceptó tu viaje.' },
+                            { key: 'IDA',        label: 'Ida',           detalle: 'Van hacia el destino.' },
+                            { key: 'EN_DESTINO', label: 'En el destino', detalle: 'El conductor espera para el regreso.' },
+                            { key: 'REGRESO',    label: 'Regreso',       detalle: 'Van de vuelta.' },
+                            { key: 'COMPLETED',  label: 'Completado',    detalle: viaje.cerrado_sin_regreso ? 'Cerrado sin regreso.' : 'Viaje finalizado.' },
+                          ] : [
+                            { key: 'ASSIGNED',   label: 'Confirmado',    detalle: 'El conductor aceptó tu viaje.' },
+                            { key: 'IDA',        label: 'En camino',     detalle: 'Van hacia el destino.' },
+                            { key: 'COMPLETED',  label: 'Completado',    detalle: 'Viaje finalizado.' },
                           ];
-                          const idxActual = pasos.findIndex(p => p.key === viaje.trip_status);
+                          const claveActual = viaje.trip_status === 'IN_PROGRESS' ? (viaje.tramo || 'IDA') : viaje.trip_status;
+                          const idxActual = pasos.findIndex(p => p.key === claveActual);
                           return (
                             <div style={{ marginBottom: '13px' }}>
                               {pasos.map((paso, idx) => {
@@ -2470,11 +2564,13 @@ const Dashboard = () => {
                         })()}
                         {/* Info conductor */}
                         <div onClick={() => viaje.driver_id && abrirPerfilConductor(viaje.driver_id)}
+                          {...(viaje.driver_id ? comoBoton(() => abrirPerfilConductor(viaje.driver_id)) : {})}
+                          className={viaje.driver_id ? 't-foco' : undefined}
                           title={viaje.driver_id ? 'Ver perfil del conductor' : undefined}
                           style={{ backgroundColor: 'var(--t-niebla)', borderRadius: '9px', padding: '10px 12px', border: `1px solid ${cfg.color}33`, display: 'flex', alignItems: 'center', gap: '10px', cursor: viaje.driver_id ? 'pointer' : 'default' }}>
                           <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'var(--t-linea)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t-piedra)', flexShrink: 0 }}>
                             {viaje.conductor_foto
-                              ? <img src={viaje.conductor_foto} alt="conductor" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ? <img src={viaje.conductor_foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                               : <IconAuto size={17} />}
                           </div>
                           <div>
@@ -2504,6 +2600,21 @@ const Dashboard = () => {
                           <p style={{ margin: '10px 0 0', fontSize: '12px', color: 'var(--t-piedra-clara)', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
                             <IconRadar size={12} />Esperando la ubicación del conductor...
                           </p>
+                        )}
+
+                        {/* SCRUM-259 — código que el pasajero le dicta al conductor al subir */}
+                        <CodigoAbordaje codigo={viaje.codigo_abordaje} para={viaje.codigo_para}
+                          bloqueadoHasta={viaje.codigo_bloqueado_hasta} />
+
+                        {/* SCRUM-258/260/263 — plan de pagos y a dónde pagarle al conductor */}
+                        {viaje.plan_pagos && (
+                          <>
+                            {viaje.trip_status !== 'COMPLETED' && (
+                              <CuentaParaPagar cuenta={viaje.cuenta_conductor} hayPagosPorHacer={hayPagoPorHacer(viaje.plan_pagos)} />
+                            )}
+                            <PlanPagos plan={viaje.plan_pagos} onAccion={accionPago} procesando={procesandoPago}
+                              onReclamo={() => setReclamoViajeId(viaje.id)} />
+                          </>
                         )}
 
                       {/* Botón FUEC — SCRUM-255: la lista se congela 48 h antes de
@@ -2631,10 +2742,11 @@ const Dashboard = () => {
                           style={{ border: '1px solid var(--t-linea)', borderRadius: '14px', padding: '16px', marginBottom: '14px', background: 'var(--t-papel)', boxShadow: '0 1px 2px rgba(15,23,42,0.04)' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px' }}>
                             <div onClick={() => abrirPerfilConductor(oferta.driverId)}
+                              {...comoBoton(() => abrirPerfilConductor(oferta.driverId))} className="t-foco"
                               style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', minWidth: 0 }}
                               title="Ver perfil del conductor">
                               <div style={{ width: '40px', height: '40px', backgroundColor: 'var(--t-linea)', borderRadius: '50%', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'var(--t-piedra)', flexShrink: 0 }}>
-                                {oferta.foto ? <img src={oferta.foto} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <IconPersonas size={18} />}
+                                {oferta.foto ? <img src={oferta.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <IconPersonas size={18} />}
                               </div>
                               <div style={{ minWidth: 0 }}>
                                 <div style={{ fontWeight: '700', fontSize: '15.5px', textDecoration: 'underline', textDecorationColor: 'var(--t-linea)', textUnderlineOffset: '3px', display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -2711,7 +2823,7 @@ const Dashboard = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--t-piedra-clara)', marginBottom: '4px' }}><IconReloj size={11} />Oferta enviada {tiempoRelativo(oferta.created_at)}</div>
                           )}
                           <div style={{ display: 'flex', gap: '8px', marginTop: '13px' }}>
-                            <button onClick={() => handleAceptarOferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: BRAND_GREEN, color: '#fff', border: 'none', padding: '10px', borderRadius: '9px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Aceptar</button>
+                            <button onClick={() => handleAceptarOferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', border: 'none', padding: '10px', borderRadius: '9px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Aceptar</button>
                             <button onClick={() => handleContraoferta(viajeActualizado.id, oferta.id)} style={{ flex: 1, background: 'var(--t-cielo-suave)', color: 'var(--t-cielo-texto)', border: 'none', padding: '10px', borderRadius: '9px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Contra ofertar</button>
                             <button onClick={() => handleRechazarOferta(viajeActualizado.id, oferta.id)} disabled={rechazandoOfertaId === oferta.id} title="Rechazar oferta" style={{ background: 'var(--t-alerta-suave)', color: 'var(--t-alerta-texto)', border: 'none', padding: '10px 13px', borderRadius: '9px', display: 'flex', alignItems: 'center', cursor: rechazandoOfertaId === oferta.id ? 'not-allowed' : 'pointer', opacity: rechazandoOfertaId === oferta.id ? 0.6 : 1 }}>
                               {rechazandoOfertaId === oferta.id
@@ -2751,7 +2863,7 @@ const Dashboard = () => {
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {notificaciones.filter(n => !n.is_read).length > 0 && (
                     <button onClick={marcarTodasLeidas}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '8px', padding: '6px 10px', fontSize: '12px', fontWeight: 600, color: 'var(--t-piedra)', cursor: 'pointer', fontFamily: T.ui }}>
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'var(--t-papel)', border: '1px solid var(--t-linea)', borderRadius: '8px', padding: '6px 10px', fontSize: '12px', fontWeight: 600, color: 'var(--t-piedra)', cursor: 'pointer', fontFamily: T.display }}>
                       <IconVisto size={12} />Leer todas
                     </button>
                   )}
@@ -2848,7 +2960,7 @@ const Dashboard = () => {
                     <p style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: BRAND_GREEN }}>Documento de viaje</p>
                     <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: 'var(--t-musgo)', fontFamily: T.display }}>Registrar ocupantes</h3>
                   </div>
-                  <button onClick={() => setModalFuec(null)}
+                  <button onClick={() => setModalFuec(null)} aria-label="Cerrar" className="t-foco"
                     style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '30px', height: '30px', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '17px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
                 </div>
                 <p style={{ margin: '8px 0 0', fontSize: '14px', color: 'rgba(255,255,255,0.45)' }}>
@@ -2864,12 +2976,12 @@ const Dashboard = () => {
               {/* CONTENIDO — scrollable */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', backgroundColor: 'var(--t-monte)' }}>
                 {ocupantesFuec.map((ocupante, idx) => (
-                  <div key={idx} style={{ backgroundColor: ocupante.es_representante ? 'rgba(233,161,59,0.06)' : 'rgba(34,197,94,0.05)', border: ocupante.es_representante ? '1px solid rgba(233,161,59,0.35)' : '1px solid rgba(34,197,94,0.12)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
+                  <div key={idx} style={{ backgroundColor: ocupante.es_representante ? 'rgba(255,144,0,0.06)' : 'rgba(34,197,94,0.05)', border: ocupante.es_representante ? '1px solid rgba(255,144,0,0.35)' : '1px solid rgba(34,197,94,0.12)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: ocupante.es_representante ? '2px' : '10px' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ fontSize: '13px', fontWeight: '700', color: 'rgba(255,255,255,0.5)' }}>Ocupante {idx + 1}</span>
                         {ocupante.es_representante && (
-                          <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--t-chiva)', background: 'rgba(233,161,59,0.15)', border: '1px solid rgba(233,161,59,0.35)', borderRadius: '20px', padding: '2px 8px' }}>
+                          <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--t-chiva)', background: 'rgba(255,144,0,0.15)', border: '1px solid rgba(255,144,0,0.35)', borderRadius: '20px', padding: '2px 8px' }}>
                             Representante del viaje
                           </span>
                         )}
@@ -2888,16 +3000,16 @@ const Dashboard = () => {
                     )}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 130px', gap: '8px', minWidth: 0 }}>
                       <div>
-                        <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Nombre completo</label>
-                        <input value={ocupante.full_name}
+                        <label htmlFor={`ocupante-${idx}-nombre`} style={{ fontSize: '12px', color: 'rgba(255,255,255,0.62)', display: 'block', marginBottom: '5px' }}>Nombre completo</label>
+                        <input id={`ocupante-${idx}-nombre`} value={ocupante.full_name}
                           onChange={e => actualizarOcupante(idx, 'full_name', e.target.value)}
                           placeholder="Juan Pérez" maxLength={100}
                           className={erroresOcupantes[idx]?.full_name ? 'fuec-input fuec-input--error' : 'fuec-input'} style={{}} />
                         {erroresOcupantes[idx]?.full_name && <div className="fuec-error-msg">{erroresOcupantes[idx].full_name}</div>}
                       </div>
                       <div>
-                        <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Tipo</label>
-                        <select value={ocupante.document_type}
+                        <label htmlFor={`ocupante-${idx}-tipo`} style={{ fontSize: '12px', color: 'rgba(255,255,255,0.62)', display: 'block', marginBottom: '5px' }}>Tipo</label>
+                        <select id={`ocupante-${idx}-tipo`} value={ocupante.document_type}
                           onChange={e => actualizarOcupante(idx, 'document_type', e.target.value)}
                           className="fuec-select" style={{}}>
                           <option value="CC">CC</option>
@@ -2908,8 +3020,8 @@ const Dashboard = () => {
                         {erroresOcupantes[idx]?.document_type && <div className="fuec-error-msg">{erroresOcupantes[idx].document_type}</div>}
                       </div>
                       <div>
-                        <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '5px' }}>Número</label>
-                        <input value={ocupante.document_number}
+                        <label htmlFor={`ocupante-${idx}-numero`} style={{ fontSize: '12px', color: 'rgba(255,255,255,0.62)', display: 'block', marginBottom: '5px' }}>Número</label>
+                        <input id={`ocupante-${idx}-numero`} value={ocupante.document_number}
                           onChange={e => actualizarOcupante(idx, 'document_number', e.target.value)}
                           inputMode={(ocupante.document_type === 'CC' || ocupante.document_type === 'TI') ? 'numeric' : 'text'}
                           placeholder={(ocupante.document_type === 'CC' || ocupante.document_type === 'TI') ? '1234567890' : 'AB123456'}
@@ -2925,6 +3037,18 @@ const Dashboard = () => {
                   style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px dashed rgba(34,197,94,0.3)', borderRadius: '10px', color: ocupantesFuec.length >= MAX_OCUPANTES ? 'rgba(255,255,255,0.3)' : BRAND_GREEN, fontSize: '14px', fontWeight: '600', cursor: ocupantesFuec.length >= MAX_OCUPANTES ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}>
                   {ocupantesFuec.length >= MAX_OCUPANTES ? 'Máximo de ocupantes alcanzado' : '+ Agregar otro ocupante'}
                 </button>
+
+                <label htmlFor="autoriza-ocupantes" style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', marginTop: '14px', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', fontSize: '13px', lineHeight: 1.5, color: 'rgba(255,255,255,0.78)', cursor: 'pointer' }}>
+                  <input id="autoriza-ocupantes" type="checkbox" checked={autorizaOcupantes}
+                    onChange={e => setAutorizaOcupantes(e.target.checked)}
+                    style={{ marginTop: '2px', width: '16px', height: '16px', flexShrink: 0, accentColor: 'var(--t-ruta)' }} />
+                  <span>
+                    Confirmo que estas personas (o quien las representa, si son menores de edad) me autorizaron a
+                    compartir su nombre y documento con el conductor y su empresa afiliada para expedir el FUEC,
+                    según la{' '}
+                    <a href="/politicas#datos" target="_blank" rel="opener" style={{ color: 'inherit' }}>Política de datos</a>.
+                  </span>
+                </label>
               </div>
 
               {/* FOOTER — fijo abajo, siempre visible */}
@@ -2933,8 +3057,8 @@ const Dashboard = () => {
                   style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', color: 'rgba(255,255,255,0.6)', fontWeight: '600', fontSize: '15px', cursor: 'pointer' }}>
                   Cancelar
                 </button>
-                <button onClick={enviarFuec} disabled={enviandoFuec || !ocupantesValidos}
-                  style={{ flex: 2, padding: '12px', background: (enviandoFuec || !ocupantesValidos) ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${BRAND_GREEN}, var(--t-ruta))`, border: 'none', borderRadius: '9px', color: (enviandoFuec || !ocupantesValidos) ? 'rgba(255,255,255,0.4)' : '#08210F', fontWeight: 700, fontSize: '15px', cursor: (enviandoFuec || !ocupantesValidos) ? 'not-allowed' : 'pointer', fontFamily: T.display, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                <button onClick={enviarFuec} disabled={enviandoFuec || !ocupantesValidos || !autorizaOcupantes}
+                  style={{ flex: 2, padding: '12px', background: (enviandoFuec || !ocupantesValidos || !autorizaOcupantes) ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${BRAND_GREEN}, var(--t-ruta))`, border: 'none', borderRadius: '9px', color: (enviandoFuec || !ocupantesValidos || !autorizaOcupantes) ? 'rgba(255,255,255,0.4)' : '#08210F', fontWeight: 700, fontSize: '15px', cursor: (enviandoFuec || !ocupantesValidos || !autorizaOcupantes) ? 'not-allowed' : 'pointer', fontFamily: T.display, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                   {enviandoFuec ? 'Guardando…' : <><IconVisto size={15} />Confirmar ocupantes</>}
                 </button>
               </div>
@@ -2979,7 +3103,7 @@ const Dashboard = () => {
                   Cancelar
                 </button>
                 <button onClick={enviarCalificacion} disabled={enviandoCalificacion || estrellasCalificar < 1}
-                  style={{ flex: 1, background: (enviandoCalificacion || estrellasCalificar < 1) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: (enviandoCalificacion || estrellasCalificar < 1) ? 'not-allowed' : 'pointer' }}>
+                  style={{ flex: 1, background: (enviandoCalificacion || estrellasCalificar < 1) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: (enviandoCalificacion || estrellasCalificar < 1) ? '#fff' : 'var(--t-sobre-ruta)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: (enviandoCalificacion || estrellasCalificar < 1) ? 'not-allowed' : 'pointer' }}>
                   {enviandoCalificacion ? 'Enviando...' : 'Enviar calificación'}
                 </button>
               </div>
@@ -2988,18 +3112,23 @@ const Dashboard = () => {
         )}
       </AnimatePresence>
 
+      {/* RECLAMO SOBRE LOS PAGOS — SCRUM-264 */}
+      <ModalReclamo abierto={!!reclamoViajeId} onCerrar={() => setReclamoViajeId(null)}
+        onEnviar={enviarReclamo} enviando={enviandoReclamo} />
+
       {/* MODAL CANCELAR VIAJE — HU59 (SCRUM-211) */}
       <AnimatePresence>
         {modalCancelarViaje && (() => {
-          const preview = calcularPreviewPenalizacion(modalCancelarViaje.departure_time);
-          const montoEstimado = fuerzaMayorCancelacion ? 0 : Math.round((modalCancelarViaje.precio_acordado || 0) * preview.pct / 100);
+          const preview = calcularPreviewPenalizacion(modalCancelarViaje);
           return (
             <>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 onClick={() => !enviandoCancelacion && setModalCancelarViaje(null)}
                 style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
+              {/* Centrado con contenedor flex (ver el mismo modal en PanelConductor). */}
+              <div style={{ position: 'fixed', inset: 0, zIndex: 3001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', boxSizing: 'border-box', pointerEvents: 'none' }}>
               <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
-                style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '380px', maxWidth: '92vw', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: T.ui }}>
+                style={{ pointerEvents: 'auto', maxHeight: '100%', overflowY: 'auto', boxSizing: 'border-box', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', width: '380px', maxWidth: '100%', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: T.ui }}>
                 <h3 style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px', fontFamily: T.display, fontWeight: 800, letterSpacing: '-.01em', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <IconAlerta size={17} color="var(--t-alerta-linea)" />Cancelar viaje
                 </h3>
@@ -3008,12 +3137,9 @@ const Dashboard = () => {
                 </p>
 
                 {!fuerzaMayorCancelacion && (
-                  <div style={{ padding: '10px 12px', borderRadius: '8px', marginBottom: '14px', background: preview.pct === 0 ? 'rgba(34,197,94,0.08)' : 'var(--t-alerta-suave)', border: `1px solid ${preview.pct === 0 ? 'rgba(34,197,94,0.3)' : 'var(--t-alerta-linea)'}` }}>
-                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: preview.pct === 0 ? BRAND_GREEN : 'var(--t-alerta-texto)' }}>{preview.label}</p>
+                  <div style={{ padding: '10px 12px', borderRadius: '8px', marginBottom: '14px', background: preview.pierde === 0 ? 'rgba(34,197,94,0.08)' : 'var(--t-alerta-suave)', border: `1px solid ${preview.pierde === 0 ? 'rgba(34,197,94,0.3)' : 'var(--t-alerta-linea)'}` }}>
+                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: preview.pierde === 0 ? BRAND_GREEN : 'var(--t-alerta-texto)' }}>{preview.label}</p>
                     <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>{preview.detalle}</p>
-                    {montoEstimado > 0 && (
-                      <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>Monto estimado: <strong>${montoEstimado.toLocaleString()}</strong></p>
-                    )}
                   </div>
                 )}
 
@@ -3026,7 +3152,7 @@ const Dashboard = () => {
                 {fuerzaMayorCancelacion && (
                   <div style={{ marginBottom: '10px' }}>
                     <p style={{ margin: '0 0 6px', fontSize: '12px', color: 'var(--t-piedra)' }}>
-                      Sin penalización si adjuntas una evidencia (foto, certificado médico, reporte, etc.).
+                      Sin penalización si adjuntas una evidencia (foto, certificado médico, reporte, etc.): se te devuelve todo lo que hayas pagado.
                     </p>
                     <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp"
                       onChange={e => setEvidenciaCancelacion(e.target.files?.[0] || null)}
@@ -3050,6 +3176,7 @@ const Dashboard = () => {
                   </button>
                 </div>
               </motion.div>
+              </div>
             </>
           );
         })()}

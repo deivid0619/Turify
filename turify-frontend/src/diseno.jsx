@@ -13,6 +13,7 @@ export const T = {
   monteLinea:  'var(--t-monte-linea)',
   ruta:        'var(--t-ruta)',
   rutaHover:   'var(--t-ruta-hover)',
+  sobreRuta:   'var(--t-sobre-ruta)',
   musgo:       'var(--t-musgo)',
   musgoLinea:  'var(--t-musgo-linea)',
   musgoTexto:  'var(--t-musgo-texto)',
@@ -35,11 +36,19 @@ export const T = {
   alertaSuave: 'var(--t-alerta-suave)',
   alertaLinea: 'var(--t-alerta-linea)',
   alertaTexto: 'var(--t-alerta-texto)',
+  resalte:     'var(--t-resalte)',
 
-  // ── Tipografía ──
+  // ── Tipografía: solo las dos de la marca ──
+  // Syne negrilla para todo lo que resalta (títulos, botones, cifras,
+  // etiquetas, placas y códigos) y Questrial para el texto. Las frases de
+  // marca las mezclan: palabras normales en Questrial y las clave en Syne,
+  // mayúsculas y naranja — como el lema "Tu CAMINO, con precio CLARO."
+  // (ver <Resalte>). Questrial tiene un solo peso: si un texto pide negrilla,
+  // index.css lo pasa a Syne.
   display: "'Syne', system-ui, sans-serif",
-  ui:      "'DM Sans', system-ui, sans-serif",
-  dato:    "'IBM Plex Mono', ui-monospace, monospace",
+  frase:   "'Questrial', system-ui, sans-serif",
+  ui:      "'Questrial', system-ui, sans-serif",
+  dato:    "'Syne', system-ui, sans-serif",
 
   // ── Radios ──
   rDato: '4px', rControl: '10px', rTarjeta: '14px', rChip: '999px',
@@ -48,7 +57,7 @@ export const T = {
 // Colores fijos — SOLO para donde no llega el CSS: marcadores de Google Maps,
 // el favicon y cualquier export a imagen. El logo NO los usa: sigue el tema,
 // porque un verde de marca distinto al de los botones se lee como un error.
-export const FIJO = { ruta: '#16A34A', chiva: '#E9A13B', monte: '#0E2A1E', tinta: '#131A16', cielo: '#2563EB' };
+export const FIJO = { ruta: '#16A34A', chiva: '#FF9000', monte: '#0E2A1E', tinta: '#131A16', cielo: '#2563EB' };
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -152,8 +161,12 @@ export const MAPA_CONTRASTE = [
   { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
 ];
 
+// Solo las dos tipografías de la marca. Syne se carga SOLO en 700 (negrilla):
+// cualquier estilo que pida otro peso de Syne cae a 700, así toda la app
+// queda en la misma negrilla sin tocar cada estilo.
+// El mismo enlace está en index.html (carga temprana): si cambia uno, cambia el otro.
 export const FUENTES_URL =
-  "https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap";
+  "https://fonts.googleapis.com/css2?family=Syne:wght@700&family=Questrial&display=swap";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Estilos globales — se monta una vez por pantalla.
@@ -215,7 +228,7 @@ export const BotonTema = ({ tema, alternar, compacto = false }) => (
       display: 'inline-flex', alignItems: 'center', gap: compacto ? 0 : '8px',
       background: T.papel, border: `1px solid ${T.linea}`, borderRadius: T.rControl,
       padding: compacto ? '8px' : '9px 12px', cursor: 'pointer', color: T.piedra,
-      fontFamily: T.ui, fontSize: '12px', fontWeight: 600,
+      fontFamily: "'Syne', system-ui, sans-serif", fontSize: '12px', fontWeight: 600,
       transition: 'border-color .18s, color .18s',
     }}>
     {tema === 'oscuro' ? <IconSol size={15} /> : <IconLuna size={15} />}
@@ -359,13 +372,15 @@ export const TableroRuta = ({ origen, destino, oscuro = false, size = 12.5, styl
 export const Boton = ({ variante = 'primario', ancho, children, style, ...rest }) => {
   const base = {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-    borderRadius: T.rControl, padding: '12px 18px', fontFamily: T.ui,
+    borderRadius: T.rControl, padding: '12px 18px', fontFamily: T.display,
     fontWeight: 700, fontSize: '13.5px', cursor: 'pointer',
     transition: 'background .18s, border-color .18s, color .18s',
-    width: ancho ? '100%' : undefined, border: '1px solid transparent',
+    // Borde en propiedades separadas: las variantes solo cambian el color, y
+    // mezclarlo con el atajo `border` hace que React avise al cambiar de variante.
+    width: ancho ? '100%' : undefined, borderWidth: '1px', borderStyle: 'solid', borderColor: 'transparent',
   };
   const variantes = {
-    primario:  { background: T.ruta, color: '#fff' },
+    primario:  { background: T.ruta, color: T.sobreRuta },
     fantasma:  { background: 'transparent', color: T.tinta, borderColor: T.linea },
     monte:     { background: T.monte, color: '#fff' },
     peligro:   { background: T.alertaSuave, color: T.alertaTexto, borderColor: T.alertaLinea },
@@ -381,16 +396,16 @@ export const Boton = ({ variante = 'primario', ancho, children, style, ...rest }
 export const Chip = ({ tono = 'neutro', children, style }) => {
   const tonos = {
     neutro: { background: T.niebla, borderColor: T.linea,       color: T.piedra },
-    verde:  { background: T.musgo,  borderColor: T.musgoLinea,  color: T.musgoTexto,  fontWeight: 700 },
-    chiva:  { background: T.chivaSuave, borderColor: T.chivaLinea, color: T.chivaTexto, fontWeight: 700 },
-    cielo:  { background: T.cieloSuave, borderColor: T.cieloLinea, color: T.cieloTexto, fontWeight: 700 },
-    alerta: { background: T.alertaSuave, borderColor: T.alertaLinea, color: T.alertaTexto, fontWeight: 700 },
+    verde:  { background: T.musgo,  borderColor: T.musgoLinea,  color: T.musgoTexto },
+    chiva:  { background: T.chivaSuave, borderColor: T.chivaLinea, color: T.chivaTexto },
+    cielo:  { background: T.cieloSuave, borderColor: T.cieloLinea, color: T.cieloTexto },
+    alerta: { background: T.alertaSuave, borderColor: T.alertaLinea, color: T.alertaTexto },
   };
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: '5px',
       borderRadius: T.rChip, padding: '3px 9px', fontSize: '10.5px',
-      fontWeight: 500, border: '1px solid', ...tonos[tono], ...style,
+      fontFamily: T.display, fontWeight: 700, border: '1px solid', ...tonos[tono], ...style,
     }}>{children}</span>
   );
 };
@@ -400,6 +415,18 @@ export const Dato = ({ children, style }) => (
   <span style={{ fontFamily: T.dato, fontWeight: 600, letterSpacing: '.08em', fontSize: '11.5px', ...style }}>
     {children}
   </span>
+);
+
+// Palabra clave de una frase de marca — Syne negrilla, mayúsculas, naranja:
+//   <h2 style={{ fontFamily: T.frase, fontWeight: 400 }}>Tu <Resalte>camino,</Resalte> con precio <Resalte>claro.</Resalte></h2>
+// El resto de la frase va en T.frase (Questrial). Sobre un fondo oscuro fijo
+// (el monte de la portada) se usa el naranja exacto del lema; sobre papel, el
+// token --t-resalte, que es el mismo naranja con el contraste suficiente.
+export const Resalte = ({ children, sobreOscuro = false, style }) => (
+  <span style={{
+    fontFamily: T.display, fontWeight: 700, textTransform: 'uppercase',
+    color: sobreOscuro ? T.chiva : T.resalte, ...style,
+  }}>{children}</span>
 );
 
 // Rótulo de sección — mayúsculas espaciadas, en monoespaciada.

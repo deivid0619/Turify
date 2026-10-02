@@ -21,6 +21,11 @@ import PerfilDrawer from './PerfilDrawer';
 
 const BRAND_GREEN = 'var(--t-ruta)';
 import API_BASE_URL from './api';
+import { PlanPagos, PagosPendientes, ModalReclamo, ResumenCobros, CuentaCobros } from './PagosViaje';
+import {
+  cop, ejecutarAccionPago, abrirReclamo, cargarPagosPendientes, MENSAJE_ACCION,
+  anticipoDe, anticipoPagado,
+} from './pagos';
 
 // Mismo id/libraries que usa Dashboard.jsx — useJsApiLoader reutiliza el script ya
 // cargado en vez de inyectarlo de nuevo (evita warnings de "google maps already loaded").
@@ -578,6 +583,22 @@ const PanelConductor = ({ onVerRuta }) => {
   const [evidenciaCancelacion, setEvidenciaCancelacion] = useState(null);
   const [enviandoCancelacion, setEnviandoCancelacion] = useState(false);
 
+  // ÉPICA 6 — pagos y etapas del viaje (SCRUM-258/259/260)
+  const [pagosPendientes, setPagosPendientes] = useState([]);
+  const [procesandoPago, setProcesandoPago] = useState(null);
+  const [reclamoViajeId, setReclamoViajeId] = useState(null);
+  const [enviandoReclamo, setEnviandoReclamo] = useState(false);
+  // Código de abordaje que dicta el pasajero: { viaje, accion: 'start' | 'start-return' }
+  const [modalCodigo, setModalCodigo] = useState(null);
+  const [codigoIngresado, setCodigoIngresado] = useState('');
+  const [errorCodigo, setErrorCodigo] = useState('');
+  const [enviandoCodigo, setEnviandoCodigo] = useState(false);
+  const [confirmandoLlegada, setConfirmandoLlegada] = useState(null); // request_id
+  const [modalSinRegreso, setModalSinRegreso] = useState(null);       // el viaje
+  const [motivoSinRegreso, setMotivoSinRegreso] = useState('');
+  const [enviandoSinRegreso, setEnviandoSinRegreso] = useState(false);
+  const [descargandoRecibo, setDescargandoRecibo] = useState(null);
+
   // FUEC — el archivo lo expide la empresa afiliada y lo sube el conductor acá
   // (ver POST /{request_id}/fuec). Un solo input oculto reutilizado por todas
   // las tarjetas: abrirSelectorFuec guarda para cuál viaje es antes de abrir
@@ -707,6 +728,130 @@ const PanelConductor = ({ onVerRuta }) => {
     }
   };
 
+  // ── ÉPICA 6 — pagos y etapas del viaje ─────────────────────────────────
+  const refrescarPagosPendientes = async () => {
+    try { setPagosPendientes(await cargarPagosPendientes(token)); } catch { /* sin red: no se muestran */ }
+  };
+
+  useEffect(() => {
+    if (!token || (pestanaActiva !== 'activos' && pestanaActiva !== 'ganancias')) return undefined;
+    let vigente = true;
+    cargarPagosPendientes(token)
+      .then(pendientes => { if (vigente) setPagosPendientes(pendientes); })
+      .catch(() => { /* sin red: no se muestran */ });
+    return () => { vigente = false; };
+  }, [token, pestanaActiva]);
+
+  const accionPago = async (pago, accion) => {
+    setProcesandoPago(`${pago.pago_id}:${accion}`);
+    try {
+      await ejecutarAccionPago(token, pago.pago_id, accion);
+      toast.success(MENSAJE_ACCION[accion]);
+      cargarViajesActivos();
+      refrescarPagosPendientes();
+      if (pestanaActiva === 'ganancias') cargarGanancias();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setProcesandoPago(null);
+    }
+  };
+
+  const enviarReclamo = async (motivo) => {
+    setEnviandoReclamo(true);
+    try {
+      await abrirReclamo(token, reclamoViajeId, motivo);
+      toast.success('Reclamo enviado. Un administrador lo revisará y les responderá a los dos.');
+      setReclamoViajeId(null);
+      cargarViajesActivos();
+      return true;
+    } catch (e) {
+      toast.error(e.message);
+      return false;
+    } finally {
+      setEnviandoReclamo(false);
+    }
+  };
+
+  const abrirModalCodigo = (viaje, accion) => {
+    setCodigoIngresado('');
+    setErrorCodigo('');
+    setModalCodigo({ viaje, accion });
+  };
+
+  // SCRUM-259 — la ida y el regreso solo arrancan con el código que el
+  // pasajero ve en su app y le dicta al conductor al subir.
+  const enviarCodigo = async () => {
+    if (!modalCodigo || codigoIngresado.length !== 4) return;
+    setEnviandoCodigo(true);
+    setErrorCodigo('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${modalCodigo.viaje.request_id}/${modalCodigo.accion}`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ codigo: codigoIngresado }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCodigoIngresado('');
+        throw new Error(typeof data.detail === 'string' ? data.detail : 'El código tiene que tener 4 dígitos.');
+      }
+      toast.success(data.message);
+      setModalCodigo(null);
+      cargarViajesActivos();
+    } catch (e) {
+      setErrorCodigo(e.message);
+    } finally {
+      setEnviandoCodigo(false);
+    }
+  };
+
+  const cerrarSinRegreso = async () => {
+    if (!modalSinRegreso || motivoSinRegreso.trim().length < 5) return;
+    setEnviandoSinRegreso(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${modalSinRegreso.request_id}/close-without-return`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ motivo: motivoSinRegreso.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'No se pudo cerrar el viaje.');
+      toast.success(data.message);
+      setModalSinRegreso(null);
+      setMotivoSinRegreso('');
+      cargarViajesActivos();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setEnviandoSinRegreso(false);
+    }
+  };
+
+  // SCRUM-258 — el recibo es para los dos: el conductor también lo descarga.
+  const descargarRecibo = async (requestId) => {
+    setDescargandoRecibo(requestId);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/service-requests/${requestId}/receipt`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'No se pudo generar el recibo.');
+      }
+      const url = URL.createObjectURL(await res.blob());
+      const enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.download = `turify_recibo_${requestId}.pdf`;
+      enlace.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setDescargandoRecibo(null);
+    }
+  };
+
   const abrirModalCancelarViaje = (viaje) => {
     setMotivoCancelacion('');
     setFuerzaMayorCancelacion(false);
@@ -735,9 +880,12 @@ const PanelConductor = ({ onVerRuta }) => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || 'No se pudo cancelar el viaje.');
 
-      toast.success('Viaje cancelado. Volvió a quedar disponible para otro conductor.');
+      toast.success(data.monto_a_devolver > 0
+        ? `Viaje cancelado. Debes devolverle ${cop(data.monto_a_devolver)} al pasajero: márcalo en "Pagos pendientes" cuando lo hagas.`
+        : 'Viaje cancelado. Volvió a quedar disponible para otro conductor.');
       setModalCancelarViaje(null);
       cargarViajesActivos();
+      refrescarPagosPendientes();
     } catch (error) {
       toast.error(`Error: ${error.message}`);
     } finally {
@@ -939,7 +1087,7 @@ const PanelConductor = ({ onVerRuta }) => {
         border-radius: 8px;
         color: var(--t-musgo) !important;
         font-size: 13px;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Questrial', system-ui, sans-serif;
         box-sizing: border-box;
         outline: none;
         min-width: 0;
@@ -1021,7 +1169,7 @@ const PanelConductor = ({ onVerRuta }) => {
           </p>
           {!ubicacionActual && (
             <button onClick={reportarUbicacion} className="t-foco"
-              style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '7px', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.monteLinea}`, color: '#EAF2EC', borderRadius: T.rControl, padding: '9px 14px', cursor: 'pointer', fontSize: '13.5px', fontWeight: 600, fontFamily: T.ui }}>
+              style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '7px', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.monteLinea}`, color: '#EAF2EC', borderRadius: T.rControl, padding: '9px 14px', cursor: 'pointer', fontSize: '13.5px', fontWeight: 600, fontFamily: T.display }}>
               <IconPin size={14} />Usar mi ubicación
             </button>
           )}
@@ -1030,7 +1178,7 @@ const PanelConductor = ({ onVerRuta }) => {
 
       {/* SCRUM-252 — aviso para subir la cédula (conductores registrados antes) */}
       {(estadoCedula === 'FALTA' || estadoCedula === 'RECHAZADA') && (
-        <div style={{ margin: '0 20px 14px', padding: '12px 14px', borderRadius: T.rControl, background: 'rgba(233,161,59,0.12)', border: '1px solid rgba(233,161,59,0.45)', fontFamily: T.ui }}>
+        <div style={{ margin: '0 20px 14px', padding: '12px 14px', borderRadius: T.rControl, background: 'rgba(255,144,0,0.12)', border: '1px solid rgba(255,144,0,0.45)', fontFamily: T.ui }}>
           <p style={{ margin: 0, fontSize: '13.5px', fontWeight: 700, color: '#EAF2EC', display: 'flex', alignItems: 'center', gap: '7px' }}>
             <IconAlerta size={14} color={T.chiva} />
             {estadoCedula === 'RECHAZADA' ? 'Tu cédula fue rechazada: vuelve a subirla' : 'Completa tu registro: sube tu cédula'}
@@ -1041,7 +1189,7 @@ const PanelConductor = ({ onVerRuta }) => {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
             {[['frente', 'Frente'], ['reverso', 'Reverso']].map(([lado, etiqueta]) => (
               <button key={lado} type="button" className="t-foco" onClick={() => cedulaInputRefs[lado].current?.click()}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px', borderRadius: T.rControl, cursor: 'pointer', fontSize: '12.5px', fontWeight: 700, fontFamily: T.ui,
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px', borderRadius: T.rControl, cursor: 'pointer', fontSize: '12.5px', fontWeight: 700, fontFamily: T.display,
                          background: cedula[lado] ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)',
                          border: `1px solid ${cedula[lado] ? 'rgba(34,197,94,0.5)' : T.monteLinea}`, color: '#EAF2EC' }}>
                 {cedula[lado] ? <IconVisto size={13} /> : <IconRecibo size={13} />}
@@ -1053,9 +1201,9 @@ const PanelConductor = ({ onVerRuta }) => {
                 onChange={(e) => { const archivo = e.target.files?.[0] || null; e.target.value = ''; setCedula(c => ({ ...c, [lado]: archivo })); }} />
             ))}
             <button type="button" className="t-foco" onClick={enviarCedula} disabled={enviandoCedula || !cedula.frente || !cedula.reverso}
-              style={{ padding: '8px 14px', borderRadius: T.rControl, border: 'none', fontSize: '12.5px', fontWeight: 700, fontFamily: T.ui,
+              style={{ padding: '8px 14px', borderRadius: T.rControl, border: 'none', fontSize: '12.5px', fontWeight: 700, fontFamily: T.display,
                        cursor: (enviandoCedula || !cedula.frente || !cedula.reverso) ? 'not-allowed' : 'pointer',
-                       background: (cedula.frente && cedula.reverso) ? BRAND_GREEN : 'rgba(255,255,255,0.12)', color: '#fff' }}>
+                       background: (cedula.frente && cedula.reverso) ? BRAND_GREEN : 'rgba(255,255,255,0.12)', color: (cedula.frente && cedula.reverso) ? 'var(--t-sobre-ruta)' : '#fff'}}>
               {enviandoCedula ? 'Enviando…' : 'Enviar cédula'}
             </button>
           </div>
@@ -1069,7 +1217,7 @@ const PanelConductor = ({ onVerRuta }) => {
             Sube fotos reales de tu vehículo ({(vehiculo.fotos || []).length} de {vehiculo.minimo_fotos || 3}): los pasajeros las ven antes de aceptar tu oferta.
           </span>
           <button type="button" className="t-foco" onClick={() => setPestanaActiva('vehiculo')}
-            style={{ padding: '6px 12px', borderRadius: T.rControl, border: 'none', background: BRAND_GREEN, color: '#fff', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: T.ui }}>
+            style={{ padding: '6px 12px', borderRadius: T.rControl, border: 'none', background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: T.display }}>
             Subir fotos
           </button>
         </div>
@@ -1082,9 +1230,9 @@ const PanelConductor = ({ onVerRuta }) => {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '0 20px 16px' }}>
         {[{ id: 'radar', Ico: IconRadar, label: 'Radar', count: solicitudesDisponibles.length }, { id: 'activos', Ico: IconClipboard, label: 'Ofertas', count: viajesActivos.length }, { id: 'historial', Ico: IconCalendario, label: 'Historial', count: 0 }, { id: 'ganancias', Ico: IconGrafico, label: 'Ganancias', count: 0 }, { id: 'vehiculo', Ico: IconAuto, label: 'Vehículo', count: 0 }].map(tab => (
           <button key={tab.id} onClick={() => setPestanaActiva(tab.id)}
-            style={{ flex: '1 1 28%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px 6px', borderRadius: '9px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '12px', fontFamily: T.ui, whiteSpace: 'nowrap', minWidth: 0, transition: 'background-color .18s, color .18s', backgroundColor: pestanaActiva === tab.id ? '#fff' : 'rgba(255,255,255,0.08)', color: pestanaActiva === tab.id ? T.monte : 'rgba(255,255,255,0.7)' }}>
+            style={{ flex: '1 1 28%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px 6px', borderRadius: '9px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '12px', fontFamily: T.display, whiteSpace: 'nowrap', minWidth: 0, transition: 'background-color .18s, color .18s', backgroundColor: pestanaActiva === tab.id ? '#fff' : 'rgba(255,255,255,0.08)', color: pestanaActiva === tab.id ? T.monte : 'rgba(255,255,255,0.7)' }}>
             <tab.Ico size={13} />{tab.label}
-            {tab.count > 0 && <span style={{ background: pestanaActiva === tab.id ? BRAND_GREEN : 'rgba(255,255,255,0.25)', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '11px', marginLeft: '4px' }}>{tab.count}</span>}
+            {tab.count > 0 && <span style={{ background: pestanaActiva === tab.id ? BRAND_GREEN : 'rgba(255,255,255,0.25)', color: pestanaActiva === tab.id ? 'var(--t-sobre-ruta)' : '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '11px', marginLeft: '4px' }}>{tab.count}</span>}
           </button>
         ))}
       </div>
@@ -1113,7 +1261,7 @@ const PanelConductor = ({ onVerRuta }) => {
                 <p style={{ margin: '2px 0', fontWeight: '700', fontSize: '14px', color: BRAND_GREEN }}>→ {solicitudModal.destination}</p>
                 <p style={{ margin: '4px 0 0', fontSize: '12px', color: T.piedra, display: 'flex', alignItems: 'center', gap: '6px' }}><IconPersonas size={13} />{(solicitudModal.adults_count || 1) + (solicitudModal.children_count || 0)} pasajero(s){solicitudModal.has_pets && <> · <IconMascota size={12} />mascota en guacal</>}</p>
               </div>
-              <button onClick={() => { setSolicitudModal(null); setPrecio(''); setErrorPrecio(''); }}
+              <button onClick={() => { setSolicitudModal(null); setPrecio(''); setErrorPrecio(''); }} aria-label="Cerrar" className="t-foco"
                 style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--t-piedra-clara)' }}>×</button>
             </div>
             <p style={{ margin: '0 0 8px', fontSize: '13px', color: 'var(--t-piedra)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '7px' }}><IconPrecio size={14} />¿Cuánto cobrarías por este viaje?</p>
@@ -1128,7 +1276,7 @@ const PanelConductor = ({ onVerRuta }) => {
                 {errorPrecio && <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#C2410C' }}>{errorPrecio}</p>}
               </div>
               <motion.button whileTap={{ scale: 0.95 }} onClick={enviarOferta} disabled={enviandoOferta}
-                style={{ background: enviandoOferta ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 16px', fontWeight: '700', fontSize: '14px', cursor: enviandoOferta ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
+                style={{ background: enviandoOferta ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: enviandoOferta ? '#fff' : 'var(--t-sobre-ruta)', border: 'none', borderRadius: '8px', padding: '10px 16px', fontWeight: '700', fontSize: '14px', cursor: enviandoOferta ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
                 {enviandoOferta ? '...' : 'Enviar'}
               </motion.button>
             </div>
@@ -1148,7 +1296,7 @@ const PanelConductor = ({ onVerRuta }) => {
                 <button onClick={() => setMostrarFiltros(f => !f)}
                   style={{ display: 'flex', alignItems: 'center', gap: '6px', background: filtrosActivos ? 'var(--t-musgo)' : 'var(--t-niebla)', border: `1px solid ${filtrosActivos ? BRAND_GREEN : 'var(--t-linea)'}`, borderRadius: '8px', padding: '6px 12px', fontSize: '13px', fontWeight: '600', color: filtrosActivos ? BRAND_GREEN : 'var(--t-piedra)', cursor: 'pointer' }}>
                   <IconFiltros size={14} /> Filtros
-                  {filtrosActivos && <span style={{ background: BRAND_GREEN, color: '#fff', borderRadius: '50%', width: '16px', height: '16px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconVisto size={10} color="#fff" grosor={2.6} /></span>}
+                  {filtrosActivos && <span style={{ background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', borderRadius: '50%', width: '16px', height: '16px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconVisto size={10} color="var(--t-sobre-ruta)" grosor={2.6} /></span>}
                 </button>
                 {filtrosActivos && (
                   <button onClick={() => setFiltros({ tipo: 'todos', pasajeros: 'todos', mascotas: false })}
@@ -1168,7 +1316,7 @@ const PanelConductor = ({ onVerRuta }) => {
                     <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
                       {[{ val: 'todos', label: 'Todos' }, { val: 'ONE_WAY', label: '→ Solo ida' }, { val: 'ROUND_TRIP', label: '↩ Ida y vuelta' }].map(op => (
                         <button key={op.val} onClick={() => setFiltros(f => ({ ...f, tipo: op.val }))}
-                          style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '600', transition: 'all 0.15s', backgroundColor: filtros.tipo === op.val ? BRAND_GREEN : 'var(--t-linea)', color: filtros.tipo === op.val ? '#fff' : 'var(--t-piedra)' }}>
+                          style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '600', transition: 'all 0.15s', backgroundColor: filtros.tipo === op.val ? BRAND_GREEN : 'var(--t-linea)', color: filtros.tipo === op.val ? 'var(--t-sobre-ruta)' : 'var(--t-piedra)' }}>
                           {op.label}
                         </button>
                       ))}
@@ -1179,7 +1327,7 @@ const PanelConductor = ({ onVerRuta }) => {
                     <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
                       {[{ val: 'todos', label: 'Todos' }, { val: '1', label: '1 pasajero' }, { val: '2-4', label: '2–4' }, { val: '5+', label: '5 o más' }].map(op => (
                         <button key={op.val} onClick={() => setFiltros(f => ({ ...f, pasajeros: op.val }))}
-                          style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '600', transition: 'all 0.15s', backgroundColor: filtros.pasajeros === op.val ? BRAND_GREEN : 'var(--t-linea)', color: filtros.pasajeros === op.val ? '#fff' : 'var(--t-piedra)' }}>
+                          style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '600', transition: 'all 0.15s', backgroundColor: filtros.pasajeros === op.val ? BRAND_GREEN : 'var(--t-linea)', color: filtros.pasajeros === op.val ? 'var(--t-sobre-ruta)' : 'var(--t-piedra)' }}>
                           {op.label}
                         </button>
                       ))}
@@ -1188,10 +1336,11 @@ const PanelConductor = ({ onVerRuta }) => {
                     {/* Mascotas */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <p style={{ margin: 0, fontSize: '12px', fontWeight: '700', color: 'var(--t-piedra)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>Solo con mascotas <IconMascota size={13} /></p>
-                      <div onClick={() => setFiltros(f => ({ ...f, mascotas: !f.mascotas }))}
-                        style={{ width: '36px', height: '20px', borderRadius: '10px', backgroundColor: filtros.mascotas ? BRAND_GREEN : 'var(--t-linea)', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
-                        <div style={{ position: 'absolute', top: '2px', left: filtros.mascotas ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: 'var(--t-papel)', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-                      </div>
+                      <button type="button" onClick={() => setFiltros(f => ({ ...f, mascotas: !f.mascotas }))}
+                        role="switch" aria-checked={filtros.mascotas} aria-label="Solo con mascotas" className="t-foco"
+                        style={{ width: '36px', height: '20px', borderRadius: '10px', border: 'none', padding: 0, flexShrink: 0, backgroundColor: filtros.mascotas ? BRAND_GREEN : 'var(--t-linea)', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
+                        <span style={{ position: 'absolute', top: '2px', left: filtros.mascotas ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: 'var(--t-papel)', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                      </button>
                     </div>
                   </motion.div>
                 )}
@@ -1240,7 +1389,7 @@ const PanelConductor = ({ onVerRuta }) => {
                     : <>Apenas alguien publique un viaje cerca, aparece acá.<br />Te llega también una notificación.</>}
                 </p>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={cargarSolicitudes}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '9px', padding: '10px 18px', fontWeight: 600, fontSize: '14px', cursor: 'pointer', fontFamily: T.ui }}>
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', border: 'none', borderRadius: '9px', padding: '10px 18px', fontWeight: 600, fontSize: '14px', cursor: 'pointer', fontFamily: T.display }}>
                   <IconGirar size={14} />Verificar de nuevo
                 </motion.button>
               </motion.div>
@@ -1321,13 +1470,13 @@ const PanelConductor = ({ onVerRuta }) => {
                       <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                         onClick={(e) => { e.stopPropagation(); aceptarPrecioFijo(sol); }}
                         disabled={aceptandoPrecioFijo === sol.request_id}
-                        style={{ width: '100%', background: aceptandoPrecioFijo === sol.request_id ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: aceptandoPrecioFijo === sol.request_id ? 'not-allowed' : 'pointer' }}>
+                        style={{ width: '100%', background: aceptandoPrecioFijo === sol.request_id ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: aceptandoPrecioFijo === sol.request_id ? '#fff' : 'var(--t-sobre-ruta)', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: aceptandoPrecioFijo === sol.request_id ? 'not-allowed' : 'pointer' }}>
                         <IconVisto size={15} />{aceptandoPrecioFijo === sol.request_id ? 'Aceptando…' : `Aceptar viaje — $${Number(sol.suggested_price).toLocaleString('es-CO')}`}
                       </motion.button>
                     ) : (
                       <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                         onClick={(e) => { e.stopPropagation(); setSolicitudModal(sol); setPrecio(''); setErrorPrecio(''); }}
-                        style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                        style={{ width: '100%', background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
                         <IconPrecio size={15} />Hacer oferta
                       </motion.button>
                     )}
@@ -1343,11 +1492,15 @@ const PanelConductor = ({ onVerRuta }) => {
         {pestanaActiva === 'activos' && (
           <>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
-              <button onClick={cargarViajesActivos}
+              <button onClick={() => { cargarViajesActivos(); refrescarPagosPendientes(); }}
                 style={{ background: 'none', border: `1px solid ${BRAND_GREEN}`, color: BRAND_GREEN, padding: '5px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
                 <IconGirar size={14} />Actualizar
               </button>
             </div>
+
+            {/* SCRUM-181 — devoluciones de viajes que cancelaste o que te cancelaron */}
+            <PagosPendientes pendientes={pagosPendientes} onAccion={accionPago} procesando={procesandoPago}
+              titulo="Pagos pendientes de viajes cancelados" />
 
             {viajesActivos.length === 0 && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', padding: '40px 20px' }}>
@@ -1375,7 +1528,15 @@ const PanelConductor = ({ onVerRuta }) => {
                 COMPLETED:   { bg: '#e0e7ff', color: 'var(--t-cielo-texto)', Ico: IconBandera, label: 'Viaje completado' },
               };
               const estadoViaje = viaje.trip_status;
-              const est = cfgEstado[viaje.status] || { bg: 'var(--t-niebla-2)', color: 'var(--t-piedra)', label: viaje.status };
+              // Con la oferta ya aceptada, el chip sigue la etapa del viaje (SCRUM-259)
+              // en vez de quedarse en "listo para iniciar" durante todo el recorrido.
+              const ETIQUETA_TRAMO = { IDA: 'En curso · ida', EN_DESTINO: 'En el destino', REGRESO: 'En curso · regreso' };
+              let est = cfgEstado[viaje.status] || { bg: 'var(--t-niebla-2)', color: 'var(--t-piedra)', label: viaje.status };
+              if (esAceptado && estadoViaje === 'IN_PROGRESS') {
+                est = { ...cfgViaje.IN_PROGRESS, label: ETIQUETA_TRAMO[viaje.tramo] || cfgViaje.IN_PROGRESS.label };
+              } else if (esAceptado && estadoViaje === 'COMPLETED') {
+                est = { ...cfgViaje.COMPLETED, label: viaje.cerrado_sin_regreso ? 'Cerrado sin regreso' : cfgViaje.COMPLETED.label };
+              }
 
               return (
                 <motion.div key={viaje.offer_id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -1406,7 +1567,7 @@ const PanelConductor = ({ onVerRuta }) => {
                       <motion.button whileTap={{ scale: 0.96 }}
                         onClick={() => resolverContraoferta(viaje.offer_id, 'ACCEPT')}
                         disabled={resolviendoOferta === viaje.offer_id + 'ACCEPT'}
-                        style={{ flex: 1, background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                        style={{ flex: 1, background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
                         {resolviendoOferta === viaje.offer_id + 'ACCEPT' ? '...' : <><IconVisto size={14} />Aceptar precio</>}
                       </motion.button>
                       <motion.button whileTap={{ scale: 0.96 }}
@@ -1462,14 +1623,20 @@ const PanelConductor = ({ onVerRuta }) => {
                       <div style={{ marginTop: '10px' }}>
                         <div style={{ backgroundColor: puedeIniciar ? 'var(--t-musgo)' : 'var(--t-chiva-suave)', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '13px', color: puedeIniciar ? 'var(--t-musgo-texto)' : 'var(--t-chiva-texto)', fontWeight: '600' }}>
                           {puedeIniciar
-                            ? <><IconVisto size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Viaje confirmado. Cuando recojas al pasajero, iniciá el viaje.</>
+                            ? <><IconVisto size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Viaje confirmado. Cuando el grupo se suba, pídele al pasajero el código de abordaje e inicia el viaje.</>
                             : <><IconAlerta size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Antes de iniciar falta: {faltantes.join(', ')}.</>}
                         </div>
+                        {/* SCRUM-181 — sin anticipo no hay reserva: se le avisa al conductor */}
+                        {viaje.plan_pagos && !anticipoPagado(viaje.plan_pagos) && (
+                          <p style={{ margin: '0 0 8px', fontSize: '12px', color: 'var(--t-piedra)', lineHeight: 1.5 }}>
+                            El pasajero todavía no ha pagado el anticipo ({cop(anticipoDe(viaje.plan_pagos)?.monto)}). Sin anticipo puedes cancelar sin que cuente en tu confiabilidad.
+                          </p>
+                        )}
                         <motion.button whileTap={{ scale: 0.96 }}
-                          onClick={() => gestionarViaje(viaje.request_id, 'start')}
-                          disabled={gestionandoViaje === viaje.request_id + 'start' || !puedeIniciar}
+                          onClick={() => abrirModalCodigo(viaje, 'start')}
+                          disabled={!puedeIniciar}
                           style={{ width: '100%', background: puedeIniciar ? '#2563eb' : 'var(--t-piedra-clara)', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '14px', cursor: puedeIniciar ? 'pointer' : 'not-allowed' }}>
-                          {gestionandoViaje === viaje.request_id + 'start' ? '...' : <><IconAuto size={15} />Iniciar viaje</>}
+                          <IconAuto size={15} />Iniciar viaje
                         </motion.button>
                       </div>
                     );
@@ -1491,24 +1658,88 @@ const PanelConductor = ({ onVerRuta }) => {
                     </button>
                   )}
 
-                  {esAceptado && estadoViaje === 'IN_PROGRESS' && (
-                    <div style={{ marginTop: '10px' }}>
-                      <div style={{ backgroundColor: 'var(--t-cielo-suave)', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '13px', color: 'var(--t-cielo-texto)', fontWeight: '600' }}>
-                        <IconAuto size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Viaje en curso. Finalizá cuando llegues al destino.
+                  {/* SCRUM-259 — el viaje avanza por etapas: ida, llegada al
+                      destino, regreso (con otro código) y fin. */}
+                  {esAceptado && estadoViaje === 'IN_PROGRESS' && (() => {
+                    const idaYVuelta = viaje.trip_type === 'ROUND_TRIP';
+                    const tramo = viaje.tramo;
+                    const aviso = (texto) => (
+                      <div style={{ backgroundColor: 'var(--t-cielo-suave)', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', fontSize: '13px', color: 'var(--t-cielo-texto)', fontWeight: '600', lineHeight: 1.45 }}>
+                        <IconAuto size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />{texto}
                       </div>
-                      <motion.button whileTap={{ scale: 0.96 }}
-                        onClick={() => gestionarViaje(viaje.request_id, 'complete')}
-                        disabled={gestionandoViaje === viaje.request_id + 'complete'}
-                        style={{ width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
-                        {gestionandoViaje === viaje.request_id + 'complete' ? '...' : <><IconBandera size={15} />Finalizar viaje</>}
-                      </motion.button>
-                    </div>
-                  )}
+                    );
+                    const botonPrincipal = { width: '100%', background: BRAND_GREEN, color: '#fff', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' };
+                    const llegando = gestionandoViaje === viaje.request_id + 'arrive';
+
+                    if (idaYVuelta && tramo === 'IDA') {
+                      return (
+                        <div style={{ marginTop: '10px' }}>
+                          {aviso(`Van hacia ${viaje.destination}. Al llegar, márcalo: toca el pago de la llegada y el pasajero recibe el código del regreso.`)}
+                          {confirmandoLlegada === viaje.request_id ? (
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <motion.button whileTap={{ scale: 0.96 }} disabled={llegando}
+                                onClick={() => { setConfirmandoLlegada(null); gestionarViaje(viaje.request_id, 'arrive'); }}
+                                style={{ ...botonPrincipal, flex: 1 }}>
+                                Sí, ya llegamos
+                              </motion.button>
+                              <button onClick={() => setConfirmandoLlegada(null)}
+                                style={{ flex: 1, background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', borderRadius: '8px', padding: '10px', fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>
+                                Todavía no
+                              </button>
+                            </div>
+                          ) : (
+                            <motion.button whileTap={{ scale: 0.96 }} disabled={llegando}
+                              onClick={() => setConfirmandoLlegada(viaje.request_id)} style={botonPrincipal}>
+                              {llegando ? '...' : <><IconPin size={15} />Llegamos al destino</>}
+                            </motion.button>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    if (tramo === 'EN_DESTINO') {
+                      return (
+                        <div style={{ marginTop: '10px' }}>
+                          {aviso('En el destino. Cuando recojas al grupo para volver, pídele al pasajero el código nuevo del regreso.')}
+                          <motion.button whileTap={{ scale: 0.96 }} onClick={() => abrirModalCodigo(viaje, 'start-return')}
+                            style={{ ...botonPrincipal, background: '#2563eb' }}>
+                            <IconAuto size={15} />Iniciar regreso
+                          </motion.button>
+                          <button onClick={() => { setMotivoSinRegreso(''); setModalSinRegreso(viaje); }}
+                            style={{ marginTop: '8px', width: '100%', padding: '9px', background: 'none', border: '1px solid var(--t-linea)', borderRadius: '8px', color: 'var(--t-piedra)', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+                            El grupo no regresa conmigo
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    let texto = 'Viaje en curso. Finaliza el viaje cuando lleguen.';
+                    if (tramo === 'REGRESO') texto = 'Van de regreso. Al llegar, finaliza el viaje.';
+                    else if (!idaYVuelta && tramo === 'IDA') texto = 'Viaje en curso. Al dejarlos en el destino, finaliza el viaje: toca el pago de la llegada.';
+                    return (
+                      <div style={{ marginTop: '10px' }}>
+                        {aviso(texto)}
+                        <motion.button whileTap={{ scale: 0.96 }}
+                          onClick={() => gestionarViaje(viaje.request_id, 'complete')}
+                          disabled={gestionandoViaje === viaje.request_id + 'complete'}
+                          style={botonPrincipal}>
+                          {gestionandoViaje === viaje.request_id + 'complete' ? '...' : <><IconBandera size={15} />Finalizar viaje</>}
+                        </motion.button>
+                      </div>
+                    );
+                  })()}
 
                   {esAceptado && estadoViaje === 'COMPLETED' && (
                     <div style={{ marginTop: '10px', backgroundColor: 'var(--t-cielo-suave)', borderRadius: '8px', padding: '10px 12px', fontSize: '13px', color: 'var(--t-cielo-texto)', fontWeight: '600', textAlign: 'center' }}>
-                      <IconBandera size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Viaje completado.
+                      <IconBandera size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />
+                      {viaje.cerrado_sin_regreso ? 'Viaje cerrado sin regreso.' : 'Viaje completado.'}
                     </div>
+                  )}
+
+                  {/* SCRUM-258/260 — pagos del viaje: el conductor confirma lo que recibe */}
+                  {esAceptado && viaje.plan_pagos && (
+                    <PlanPagos plan={viaje.plan_pagos} onAccion={accionPago} procesando={procesandoPago}
+                      onReclamo={() => setReclamoViajeId(viaje.request_id)} />
                   )}
 
                   {/* Botón calificar pasajero — HU46 (SCRUM-194) */}
@@ -1525,6 +1756,13 @@ const PanelConductor = ({ onVerRuta }) => {
                         fontSize: '13px', fontWeight: '700', cursor: viaje.ya_califico ? 'default' : 'pointer'
                       }}>
                       {viaje.ya_califico ? <><IconVisto size={14} />Ya calificaste a este pasajero</> : <><IconEstrella size={14} />Calificar pasajero</>}
+                    </button>
+                  )}
+
+                  {esAceptado && estadoViaje === 'COMPLETED' && (
+                    <button onClick={() => descargarRecibo(viaje.request_id)} disabled={descargandoRecibo === viaje.request_id}
+                      style={{ marginTop: '8px', width: '100%', padding: '10px', background: 'var(--t-cielo-suave)', border: '1px solid var(--t-cielo-linea)', borderRadius: '8px', color: 'var(--t-cielo-texto)', fontSize: '13px', fontWeight: '700', cursor: descargandoRecibo === viaje.request_id ? 'default' : 'pointer' }}>
+                      <IconRecibo size={14} />{descargandoRecibo === viaje.request_id ? 'Generando recibo…' : 'Descargar recibo (PDF)'}
                     </button>
                   )}
                 </motion.div>
@@ -1578,6 +1816,13 @@ const PanelConductor = ({ onVerRuta }) => {
                     </p>
                   </div>
                 </div>
+
+                {/* SCRUM-262/263 — lo que de verdad recibe el conductor y a dónde */}
+                <PagosPendientes pendientes={pagosPendientes} onAccion={accionPago} procesando={procesandoPago}
+                  titulo="Pagos pendientes de viajes cancelados" />
+                <ResumenCobros ganancias={ganancias} />
+                <CuentaCobros token={token} nombreConductor={usuario?.full_name}
+                  onExito={(m) => toast.success(m)} onError={(m) => toast.error(m)} />
 
                 {ganancias.viajes_completados === 0 ? (
                   <div style={{ textAlign: 'center', padding: '30px 20px' }}>
@@ -1803,7 +2048,7 @@ const PanelConductor = ({ onVerRuta }) => {
                 </label>
 
                 <button onClick={guardarVehiculo} disabled={guardandoVehiculo}
-                  style={{ width: '100%', padding: '11px', borderRadius: '10px', border: 'none', background: BRAND_GREEN, color: '#fff', fontSize: '14px', fontWeight: '700', cursor: guardandoVehiculo ? 'default' : 'pointer', opacity: guardandoVehiculo ? 0.6 : 1 }}>
+                  style={{ width: '100%', padding: '11px', borderRadius: '10px', border: 'none', background: BRAND_GREEN, color: 'var(--t-sobre-ruta)', fontSize: '14px', fontWeight: '700', cursor: guardandoVehiculo ? 'default' : 'pointer', opacity: guardandoVehiculo ? 0.6 : 1 }}>
                   {guardandoVehiculo ? 'Guardando...' : 'Guardar cambios'}
                 </button>
               </>
@@ -1895,7 +2140,7 @@ const PanelConductor = ({ onVerRuta }) => {
               onClick={() => setMostrarNotifPanel(false)}
               style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 3000 }} />
             <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }}
-              style={{ position: 'fixed', top: 0, right: 0, width: '420px', maxWidth: '100vw', height: '100vh', backgroundColor: 'var(--t-papel)', zIndex: 3001, boxShadow: '-5px 0 25px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+              style={{ position: 'fixed', top: 0, right: 0, width: '420px', maxWidth: '100vw', height: '100vh', backgroundColor: 'var(--t-papel)', zIndex: 3001, boxShadow: '-5px 0 25px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', fontFamily: "'Questrial', system-ui, sans-serif" }}>
 
               {/* Header notif */}
               <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--t-linea)', backgroundColor: 'var(--t-niebla)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1977,13 +2222,13 @@ const PanelConductor = ({ onVerRuta }) => {
               style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9000 }} />
             <div style={{ position: 'fixed', inset: 0, zIndex: 9001, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              style={{ pointerEvents: 'all', width: '440px', maxWidth: '95vw', maxHeight: '80vh', backgroundColor: T.monteAlto, border: '1px solid rgba(34,197,94,0.2)', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', sans-serif" }}>
+              style={{ pointerEvents: 'all', width: '440px', maxWidth: '95vw', maxHeight: '80vh', backgroundColor: T.monteAlto, border: '1px solid rgba(34,197,94,0.2)', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', fontFamily: "'Questrial', system-ui, sans-serif" }}>
               <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <p style={{ margin: '0 0 2px', fontSize: '12px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: BRAND_GREEN }}>Documento de viaje</p>
                   <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: 'var(--t-musgo)', fontFamily: "'Syne', sans-serif" }}>Ocupantes registrados</h3>
                 </div>
-                <button onClick={() => setModalOcupantesId(null)}
+                <button onClick={() => setModalOcupantesId(null)} aria-label="Cerrar" className="t-foco"
                   style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '30px', height: '30px', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '17px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
@@ -2025,8 +2270,9 @@ const PanelConductor = ({ onVerRuta }) => {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setModalCalificar(null)}
               style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
+            <div style={{ position: 'fixed', inset: 0, zIndex: 3001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', boxSizing: 'border-box', pointerEvents: 'none' }}>
             <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
-              style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '360px', maxWidth: '90vw', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+              style={{ pointerEvents: 'auto', maxHeight: '100%', overflowY: 'auto', boxSizing: 'border-box', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', width: '360px', maxWidth: '100%', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: "'Questrial', system-ui, sans-serif" }}>
               <h3 style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px', fontFamily: T.display, fontWeight: 800, letterSpacing: '-.01em', display: 'flex', alignItems: 'center', gap: '8px' }}><IconEstrella size={17} color={T.chiva} />¿Cómo estuvo tu pasajero?</h3>
               <p style={{ margin: '0 0 18px', color: 'var(--t-piedra)', fontSize: '14px' }}>Tu calificación queda registrada en su perfil.</p>
 
@@ -2052,11 +2298,12 @@ const PanelConductor = ({ onVerRuta }) => {
                   Cancelar
                 </button>
                 <button onClick={enviarCalificacion} disabled={enviandoCalificacion || estrellasCalificar < 1}
-                  style={{ flex: 1, background: (enviandoCalificacion || estrellasCalificar < 1) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: (enviandoCalificacion || estrellasCalificar < 1) ? 'not-allowed' : 'pointer' }}>
+                  style={{ flex: 1, background: (enviandoCalificacion || estrellasCalificar < 1) ? 'var(--t-piedra-clara)' : BRAND_GREEN, color: (enviandoCalificacion || estrellasCalificar < 1) ? '#fff' : 'var(--t-sobre-ruta)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: (enviandoCalificacion || estrellasCalificar < 1) ? 'not-allowed' : 'pointer' }}>
                   {enviandoCalificacion ? 'Enviando...' : 'Enviar calificación'}
                 </button>
               </div>
             </motion.div>
+            </div>
           </>
         )}
       </AnimatePresence>
@@ -2068,8 +2315,12 @@ const PanelConductor = ({ onVerRuta }) => {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => !enviandoCancelacion && setModalCancelarViaje(null)}
               style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
+            {/* Centrado con un contenedor flex: con top/left 50% + translate, Framer
+                Motion pisaba el transform al animar la escala y la ventana quedaba
+                corrida hacia abajo y cortada. Si no cabe (pantallas bajas), hace scroll. */}
+            <div style={{ position: 'fixed', inset: 0, zIndex: 3001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', boxSizing: 'border-box', pointerEvents: 'none' }}>
             <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
-              style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', zIndex: 3001, width: '380px', maxWidth: '92vw', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+              style={{ pointerEvents: 'auto', maxHeight: '100%', overflowY: 'auto', boxSizing: 'border-box', backgroundColor: 'var(--t-papel)', borderRadius: '16px', padding: '28px', width: '380px', maxWidth: '100%', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', fontFamily: "'Questrial', system-ui, sans-serif" }}>
               <h3 style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px', fontFamily: T.display, fontWeight: 800, letterSpacing: '-.01em', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <IconAlerta size={17} color="var(--t-alerta-linea)" />Cancelar viaje
               </h3>
@@ -2077,14 +2328,23 @@ const PanelConductor = ({ onVerRuta }) => {
                 {modalCancelarViaje.origin} → {modalCancelarViaje.destination}
               </p>
 
-              {!fuerzaMayorCancelacion && (
+              {/* SCRUM-181 — si el pasajero ya pagó el anticipo, se le devuelve completo
+                  y la cancelación cuenta; sin anticipo, el conductor la suelta libre. */}
+              {!fuerzaMayorCancelacion && (anticipoPagado(modalCancelarViaje.plan_pagos) ? (
                 <div style={{ padding: '10px 12px', borderRadius: '8px', marginBottom: '14px', background: 'var(--t-alerta-suave)', border: '1px solid var(--t-alerta-linea)' }}>
                   <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'var(--t-alerta-texto)' }}>Esto queda registrado como cancelación</p>
-                  <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--t-piedra)' }}>
-                    Sin fuerza mayor, afecta tu confiabilidad como conductor. El pasajero no queda varado: el viaje vuelve a quedar disponible para otro conductor.
+                  <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--t-piedra)', lineHeight: 1.5 }}>
+                    El pasajero ya te pagó el anticipo: debes devolverle {cop(anticipoDe(modalCancelarViaje.plan_pagos)?.monto)}. Sin fuerza mayor, afecta tu confiabilidad como conductor. El viaje vuelve a quedar disponible para otro conductor.
                   </p>
                 </div>
-              )}
+              ) : (
+                <div style={{ padding: '10px 12px', borderRadius: '8px', marginBottom: '14px', background: 'var(--t-musgo)', border: '1px solid var(--t-musgo-linea)' }}>
+                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'var(--t-musgo-texto)' }}>No afecta tu confiabilidad</p>
+                  <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--t-piedra)', lineHeight: 1.5 }}>
+                    El pasajero todavía no ha pagado el anticipo. El viaje vuelve a quedar disponible para otro conductor.
+                  </p>
+                </div>
+              ))}
 
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--t-tinta)', marginBottom: '10px', cursor: 'pointer' }}>
                 <input type="checkbox" checked={fuerzaMayorCancelacion}
@@ -2095,7 +2355,7 @@ const PanelConductor = ({ onVerRuta }) => {
               {fuerzaMayorCancelacion && (
                 <div style={{ marginBottom: '10px' }}>
                   <p style={{ margin: '0 0 6px', fontSize: '12px', color: 'var(--t-piedra)' }}>
-                    No afecta tu confiabilidad si adjuntas una evidencia (foto, reporte, certificado, etc.).
+                    No afecta tu confiabilidad si adjuntas una evidencia (foto, reporte, certificado, etc.). Si ya te pagaron el anticipo, igual debes devolverlo.
                   </p>
                   <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp"
                     onChange={e => setEvidenciaCancelacion(e.target.files?.[0] || null)}
@@ -2119,9 +2379,98 @@ const PanelConductor = ({ onVerRuta }) => {
                 </button>
               </div>
             </motion.div>
+            </div>
           </>
         )}
       </AnimatePresence>
+
+      {/* CÓDIGO DE ABORDAJE — SCRUM-259 */}
+      <AnimatePresence>
+        {modalCodigo && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => !enviandoCodigo && setModalCodigo(null)}
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
+            <div style={{ position: 'fixed', inset: 0, zIndex: 3001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', boxSizing: 'border-box', pointerEvents: 'none' }}>
+              <motion.form role="dialog" aria-modal="true" aria-labelledby="titulo-codigo"
+                onSubmit={(e) => { e.preventDefault(); enviarCodigo(); }}
+                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                style={{ pointerEvents: 'auto', maxHeight: '100%', overflowY: 'auto', boxSizing: 'border-box', background: 'var(--t-papel)', borderRadius: '16px', padding: '26px', width: '360px', maxWidth: '100%', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+                <h3 id="titulo-codigo" style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px', fontFamily: T.display, fontWeight: 700 }}>
+                  {modalCodigo.accion === 'start-return' ? 'Código para el regreso' : 'Código de abordaje'}
+                </h3>
+                <p style={{ margin: '0 0 16px', fontSize: '13px', color: 'var(--t-piedra)', lineHeight: 1.5 }}>
+                  Pídele al pasajero los 4 dígitos que ve en su app cuando el grupo se suba. Así queda constancia de que {modalCodigo.accion === 'start-return' ? 'los recogiste para volver' : 'los recogiste'}.
+                </p>
+                <input id="codigo-abordaje" value={codigoIngresado} autoFocus
+                  onChange={e => { setCodigoIngresado(e.target.value.replace(/\D/g, '').slice(0, 4)); setErrorCodigo(''); }}
+                  inputMode="numeric" autoComplete="one-time-code" maxLength={4} aria-label="Código de 4 dígitos" placeholder="0000"
+                  style={{ width: '100%', boxSizing: 'border-box', textAlign: 'center', fontFamily: T.display, fontWeight: 700, fontSize: '30px', letterSpacing: '.45em', textIndent: '.45em', padding: '12px', border: `1.5px solid ${errorCodigo ? 'var(--t-alerta-linea)' : 'var(--t-linea)'}`, borderRadius: '10px', background: 'var(--t-niebla)', color: 'var(--t-tinta)', outline: 'none' }} />
+                {errorCodigo && (
+                  <p role="alert" style={{ margin: '8px 0 0', fontSize: '12.5px', color: 'var(--t-alerta-texto)', lineHeight: 1.45 }}>{errorCodigo}</p>
+                )}
+                <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
+                  <button type="button" onClick={() => setModalCodigo(null)} disabled={enviandoCodigo}
+                    style={{ flex: 1, background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>
+                    Volver
+                  </button>
+                  <button type="submit" disabled={codigoIngresado.length !== 4 || enviandoCodigo}
+                    style={{ flex: 1, background: codigoIngresado.length === 4 && !enviandoCodigo ? BRAND_GREEN : 'var(--t-piedra-clara)', color: codigoIngresado.length === 4 && !enviandoCodigo ? 'var(--t-sobre-ruta)' : '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: codigoIngresado.length === 4 && !enviandoCodigo ? 'pointer' : 'not-allowed' }}>
+                    {enviandoCodigo ? 'Validando…' : modalCodigo.accion === 'start-return' ? 'Iniciar regreso' : 'Iniciar viaje'}
+                  </button>
+                </div>
+              </motion.form>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* CERRAR SIN REGRESO — SCRUM-259 */}
+      <AnimatePresence>
+        {modalSinRegreso && (() => {
+          const pagoRegreso = modalSinRegreso.plan_pagos?.pagos?.find(p => p.hito === 'RECOGIDA_REGRESO');
+          const motivoValido = motivoSinRegreso.trim().length >= 5;
+          return (
+            <>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={() => !enviandoSinRegreso && setModalSinRegreso(null)}
+                style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000 }} />
+              <div style={{ position: 'fixed', inset: 0, zIndex: 3001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', boxSizing: 'border-box', pointerEvents: 'none' }}>
+                <motion.div role="dialog" aria-modal="true" aria-labelledby="titulo-sin-regreso"
+                  initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                  style={{ pointerEvents: 'auto', maxHeight: '100%', overflowY: 'auto', boxSizing: 'border-box', background: 'var(--t-papel)', borderRadius: '16px', padding: '26px', width: '380px', maxWidth: '100%', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+                  <h3 id="titulo-sin-regreso" style={{ margin: '0 0 6px', color: 'var(--t-tinta)', fontSize: '17px', fontFamily: T.display, fontWeight: 700 }}>
+                    El grupo no regresa contigo
+                  </h3>
+                  <p style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--t-piedra)', lineHeight: 1.5 }}>
+                    El viaje se cierra aquí. El pago del regreso{pagoRegreso ? ` (${cop(pagoRegreso.monto)})` : ''} no se cobra y, si ya te lo habían pagado, debes devolverlo. El pasajero puede abrir un reclamo si no está de acuerdo.
+                  </p>
+                  <label htmlFor="motivo-sin-regreso" style={{ display: 'block', fontSize: '12px', color: 'var(--t-piedra)', marginBottom: '4px' }}>¿Qué pasó?</label>
+                  <textarea id="motivo-sin-regreso" value={motivoSinRegreso} onChange={e => setMotivoSinRegreso(e.target.value)} rows={3} maxLength={500}
+                    placeholder="Ej.: el grupo decidió quedarse el fin de semana."
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--t-linea)', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit', background: 'var(--t-papel)', color: 'var(--t-tinta)' }} />
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+                    <button onClick={() => setModalSinRegreso(null)} disabled={enviandoSinRegreso}
+                      style={{ flex: 1, background: 'var(--t-niebla-2)', color: 'var(--t-piedra)', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>
+                      Volver
+                    </button>
+                    <button onClick={cerrarSinRegreso} disabled={!motivoValido || enviandoSinRegreso}
+                      style={{ flex: 1, background: motivoValido && !enviandoSinRegreso ? 'var(--t-alerta-linea)' : 'var(--t-piedra-clara)', color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: motivoValido && !enviandoSinRegreso ? 'pointer' : 'not-allowed' }}>
+                      {enviandoSinRegreso ? 'Cerrando…' : 'Cerrar el viaje'}
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            </>
+          );
+        })()}
+      </AnimatePresence>
+
+      {/* RECLAMO SOBRE LOS PAGOS — SCRUM-264 */}
+      <ModalReclamo abierto={!!reclamoViajeId} onCerrar={() => setReclamoViajeId(null)}
+        onEnviar={enviarReclamo} enviando={enviandoReclamo} />
 
     <PerfilDrawer abierto={mostrarPerfil} onCerrar={() => setMostrarPerfil(false)} />
     <ToastContainer toasts={toasts} onRemove={removeToast} />

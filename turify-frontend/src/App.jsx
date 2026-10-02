@@ -9,8 +9,10 @@ import Dashboard from './Dashboard';
 import FormularioConductor from './FormularioConductor';
 import AdminConductores from './AdminConductores';
 import AdminLogs from './AdminLogs';
+import AdminPagos from './AdminPagos';
 import PerfilConductorPagina from './PerfilConductorPagina';
 import Politicas from './Politicas';
+import AvisoCookies from './AvisoCookies';
 
 // Clave para recordar la intención (pasajero/conductor) del lado del navegador.
 // El state de React Router (location.state) no sobrevive a un F5 ni a que la
@@ -86,11 +88,13 @@ function App() {
           <Route element={<RutaAdmin />}>
             <Route path="/admin/conductores" element={<AdminConductores />} />
             <Route path="/admin/logs" element={<AdminLogs />} />
+            <Route path="/admin/pagos" element={<AdminPagos />} />
           </Route>
 
           {/* Redirección por defecto */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        <AvisoCookies />
       </BrowserRouter>
     </AuthProvider>
   );

@@ -9,6 +9,7 @@ def test_registro_pasajero_exitoso(client):
         "email": "ana.torres@example.com",
         "password": "ClaveSegura123",
         "phone_number": "3001112233",
+        "acepta_politicas": True,
     })
 
     assert respuesta.status_code == 201
@@ -25,6 +26,7 @@ def test_registro_rechaza_email_duplicado(client):
         "email": "carlos.ruiz@example.com",
         "password": "ClaveSegura123",
         "phone_number": "3002223344",
+        "acepta_politicas": True,
     }
     primera = client.post("/users/register", json=payload)
     assert primera.status_code == 201

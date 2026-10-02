@@ -1,6 +1,6 @@
 import API_BASE_URL from './api';
 import { useState } from 'react';
-import { T, EstilosBase, Boton, Rotulo, TableroRuta, LogoWordmark, IconAlerta, IconVisto, IconOjo, IconOjoTachado } from './diseno';
+import { T, EstilosBase, Boton, Rotulo, TableroRuta, LogoWordmark, IconAlerta, IconVisto, IconOjo, IconOjoTachado, Resalte } from './diseno';
 
 const Registro = ({ irALogin }) => {
   const [formData, setFormData] = useState({
@@ -13,6 +13,9 @@ const Registro = ({ irALogin }) => {
   const [mensajeExito, setMensajeExito] = useState('');
   const [errorBackend, setErrorBackend] = useState('');
   const [campoActivo, setCampoActivo] = useState(null);
+  // Ley 1581 — autorización previa, expresa e informada. La casilla empieza
+  // sin marcar y sin ella no se crea la cuenta (el backend también lo exige).
+  const [aceptaPoliticas, setAceptaPoliticas] = useState(false);
 
   const hasMinLength = formData.password.length >= 8;
   const hasUppercase = /[A-Z]/.test(formData.password);
@@ -32,7 +35,8 @@ const Registro = ({ irALogin }) => {
     telValido &&
     isPasswordValid &&
     formData.confirmPassword === formData.password &&
-    formData.password !== '';
+    formData.password !== '' &&
+    aceptaPoliticas;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -77,7 +81,7 @@ const Registro = ({ irALogin }) => {
       const response = await fetch(`${API_BASE_URL}/users/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...payload, acepta_politicas: aceptaPoliticas })
       });
       if (response.ok) {
         setMensajeExito('Tu cuenta quedó creada. Te llevamos al inicio de sesión…');
@@ -127,7 +131,8 @@ const Registro = ({ irALogin }) => {
   const estiloAyudaCampo = { fontSize: '11px', color: T.piedraClara, marginTop: '4px', display: 'block' };
 
   const ojo = (visible, alternar) => (
-    <button type="button" className="t-foco" tabIndex={-1} onClick={alternar}
+    <button type="button" className="t-foco" onClick={alternar}
+      aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'} aria-pressed={visible}
       title={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
       style={{
         position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
@@ -189,10 +194,10 @@ const Registro = ({ irALogin }) => {
 
           <div style={{ position: 'relative' }}>
             <h2 style={{
-              fontFamily: T.display, fontWeight: 800, fontSize: '27px', lineHeight: 1.15,
-              letterSpacing: '-.02em', color: '#fff', margin: '0 0 12px',
+              fontFamily: T.frase, fontWeight: 400, fontSize: '27px', lineHeight: 1.2,
+              letterSpacing: '-.01em', color: '#fff', margin: '0 0 12px',
             }}>
-              Sumate a la red<br /><span style={{ color: T.chiva }}>Turify.</span>
+              Sumate a la red<br /><Resalte sobreOscuro>Turify.</Resalte>
             </h2>
             <p style={{ fontSize: '13px', color: 'rgba(234,242,236,.55)', lineHeight: 1.6, margin: '0 0 22px' }}>
               Publicá tu viaje, negociá la tarifa y viajá con conductores verificados en Medellín y su región.
@@ -237,8 +242,8 @@ const Registro = ({ irALogin }) => {
             <form onSubmit={handleSubmit}>
               <div className="reg-rejilla">
                 <div className="reg-completo">
-                  <label style={estiloEtiqueta}>Nombre completo</label>
-                  <input type="text" name="full_name" placeholder="Juan Pérez" value={formData.full_name}
+                  <label htmlFor="reg-nombre" style={estiloEtiqueta}>Nombre completo</label>
+                  <input id="reg-nombre" type="text" name="full_name" placeholder="Juan Pérez" value={formData.full_name}
                     onChange={handleChange} onFocus={() => setCampoActivo('full_name')} onBlur={() => handleBlur('full_name')}
                     style={estiloCampo('full_name', errores.full_name)} disabled={isLoading} />
                   {errores.full_name
@@ -247,16 +252,16 @@ const Registro = ({ irALogin }) => {
                 </div>
 
                 <div>
-                  <label style={estiloEtiqueta}>Correo</label>
-                  <input type="email" name="email" placeholder="tu@correo.com" value={formData.email}
+                  <label htmlFor="reg-correo" style={estiloEtiqueta}>Correo</label>
+                  <input id="reg-correo" type="email" name="email" placeholder="tu@correo.com" value={formData.email}
                     onChange={handleChange} onFocus={() => setCampoActivo('email')} onBlur={() => handleBlur('email')}
                     style={estiloCampo('email', errores.email)} disabled={isLoading} />
                   {errores.email && <span style={estiloErrorCampo}>{errores.email}</span>}
                 </div>
 
                 <div>
-                  <label style={estiloEtiqueta}>Teléfono</label>
-                  <input type="tel" inputMode="tel" name="phone_number" placeholder="3001234567" value={formData.phone_number}
+                  <label htmlFor="reg-telefono" style={estiloEtiqueta}>Teléfono</label>
+                  <input id="reg-telefono" type="tel" inputMode="tel" name="phone_number" placeholder="3001234567" value={formData.phone_number}
                     onChange={(e) => handleChange({ target: { name: 'phone_number', value: e.target.value.replace(/[^0-9+\s()-]/g, '') } })}
                     onFocus={() => setCampoActivo('phone_number')} onBlur={() => handleBlur('phone_number')} maxLength={20}
                     style={{ ...estiloCampo('phone_number', errores.phone_number), fontFamily: T.dato, letterSpacing: '.06em' }} disabled={isLoading} />
@@ -264,9 +269,9 @@ const Registro = ({ irALogin }) => {
                 </div>
 
                 <div>
-                  <label style={estiloEtiqueta}>Contraseña</label>
+                  <label htmlFor="reg-clave" style={estiloEtiqueta}>Contraseña</label>
                   <div style={{ position: 'relative' }}>
-                    <input type={showPassword ? 'text' : 'password'} name="password" placeholder="••••••••"
+                    <input id="reg-clave" type={showPassword ? 'text' : 'password'} name="password" placeholder="••••••••"
                       value={formData.password} onChange={handleChange}
                       onFocus={() => setCampoActivo('password')} onBlur={() => handleBlur('password')}
                       style={{ ...estiloCampo('password', errores.password), paddingRight: '44px' }} disabled={isLoading} />
@@ -275,9 +280,9 @@ const Registro = ({ irALogin }) => {
                 </div>
 
                 <div>
-                  <label style={estiloEtiqueta}>Confirmar contraseña</label>
+                  <label htmlFor="reg-clave2" style={estiloEtiqueta}>Confirmar contraseña</label>
                   <div style={{ position: 'relative' }}>
-                    <input type={showConfirm ? 'text' : 'password'} name="confirmPassword" placeholder="••••••••"
+                    <input id="reg-clave2" type={showConfirm ? 'text' : 'password'} name="confirmPassword" placeholder="••••••••"
                       value={formData.confirmPassword} onChange={handleChange}
                       onFocus={() => setCampoActivo('confirmPassword')} onBlur={() => handleBlur('confirmPassword')}
                       style={{ ...estiloCampo('confirmPassword', errores.confirmPassword), paddingRight: '44px' }} disabled={isLoading} />
@@ -300,9 +305,24 @@ const Registro = ({ irALogin }) => {
                 </div>
               )}
 
+              <label htmlFor="reg-acepta" style={{
+                display: 'flex', gap: '10px', alignItems: 'flex-start', marginTop: '18px',
+                fontSize: '12.5px', lineHeight: 1.5, color: T.piedra, cursor: 'pointer',
+              }}>
+                <input id="reg-acepta" type="checkbox" checked={aceptaPoliticas} disabled={isLoading}
+                  onChange={e => { setAceptaPoliticas(e.target.checked); if (errorBackend) setErrorBackend(''); }}
+                  style={{ marginTop: '2px', width: '16px', height: '16px', flexShrink: 0, accentColor: 'var(--t-ruta)' }} />
+                <span>
+                  Acepto los{' '}
+                  <a href="/politicas#terminos" target="_blank" rel="opener" style={{ color: T.tinta }}>Términos y Condiciones</a>{' '}
+                  y autorizo a Turify a tratar mis datos personales según la{' '}
+                  <a href="/politicas#datos" target="_blank" rel="opener" style={{ color: T.tinta }}>Política de Tratamiento de Datos</a>.
+                </span>
+              </label>
+
               <Boton type="submit" ancho disabled={!isFormValid || isLoading}
                 variante={isFormValid && !isLoading ? 'primario' : 'inactivo'}
-                style={{ marginTop: '20px', padding: '13px' }}>
+                style={{ marginTop: '16px', padding: '13px' }}>
                 {isLoading ? 'Creando cuenta…' : 'Crear cuenta'}
               </Boton>
 

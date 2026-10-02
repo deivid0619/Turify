@@ -35,7 +35,7 @@ const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
 
           <motion.div initial={{ opacity: 0, y: 28, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 14, scale: 0.96 }}
             transition={{ type: 'tween', duration: 0.24 }}
-            style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '480px', maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', zIndex: 4001, borderRadius: '26px', boxShadow: '0 30px 80px rgba(5,46,22,0.45)', backgroundColor: 'var(--t-papel)', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+            style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '480px', maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', zIndex: 4001, borderRadius: '26px', boxShadow: '0 30px 80px rgba(5,46,22,0.45)', backgroundColor: 'var(--t-papel)', fontFamily: "'Questrial', system-ui, sans-serif" }}>
 
             {(cargando || !datos) ? (
               <div style={{ padding: '100px 20px', textAlign: 'center', color: 'var(--t-piedra)', fontSize: '16px' }}>⏳ Cargando perfil...</div>
@@ -46,7 +46,7 @@ const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
                   position: 'relative', padding: '36px 34px 54px', color: 'var(--t-musgo)',
                   background: `radial-gradient(circle at 15% -10%, rgba(34,197,94,0.35), transparent 55%), linear-gradient(155deg, #0a3d1f, ${FOREST} 65%)`
                 }}>
-                  <button onClick={onCerrar}
+                  <button onClick={onCerrar} aria-label="Cerrar" className="t-foco"
                     style={{ position: 'absolute', top: '18px', right: '18px', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     ×
                   </button>
@@ -61,7 +61,7 @@ const PerfilConductorPublico = ({ abierto, cargando, datos, onCerrar }) => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                     <div style={{ width: '84px', height: '84px', borderRadius: '50%', flexShrink: 0, background: 'rgba(255,255,255,0.12)', border: '3px solid rgba(240,253,244,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '34px', overflow: 'hidden' }}>
                       {datos.profile_photo_url
-                        ? <img src={datos.profile_photo_url} alt="foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ? <img src={datos.profile_photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : <IconPersona size={38} color="rgba(240,253,244,.7)" />}
                     </div>
                     <div style={{ minWidth: 0 }}>
