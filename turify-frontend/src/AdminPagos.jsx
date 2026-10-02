@@ -9,13 +9,19 @@ import {
 } from './diseno';
 import { ToastContainer, useToast } from './Toast';
 import { ModalDocumento } from './AdminConductores';
-import { cop, cargarCuentasAdmin, verificarCuentaAdmin, cargarReclamosAdmin, resolverReclamoAdmin } from './pagos';
+import {
+  cop, cargarCuentasAdmin, verificarCuentaAdmin, cargarReclamosAdmin, resolverReclamoAdmin,
+  cargarAnticiposAdmin, moverAnticipoAdmin,
+} from './pagos';
+import { codigoViaje, municipioDe as municipio } from './viajes';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Pagos — lo que solo puede decidir un administrador (ÉPICA 6):
 //    · SCRUM-263 verificar que la cuenta del conductor esté a su nombre
 //      (hasta entonces el pasajero no la ve).
 //    · SCRUM-264 resolver los reclamos de pagos con la bitácora del viaje.
+//    · SCRUM-180 entregarle al conductor el anticipo que el pasajero pagó en
+//      la app (al llegar al destino) o devolvérselo al pasajero.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CLARO = '#EAF2EC';
@@ -27,6 +33,11 @@ const FILTROS_CUENTAS = [
   { value: 'VERIFICADA', label: 'Verificadas' },
   { value: 'RECHAZADA', label: 'Rechazadas' },
   { value: 'TODAS', label: 'Todas' },
+];
+const FILTROS_ANTICIPOS = [
+  { value: 'por_liberar', label: 'Por entregar al conductor' },
+  { value: 'por_reembolsar', label: 'Por devolver al pasajero' },
+  { value: 'retenidos', label: 'Esperando la llegada' },
 ];
 const FILTROS_RECLAMOS = [
   { value: 'ABIERTO', label: 'Abiertos' },
@@ -78,9 +89,6 @@ const ayudaDecision = (clave, reclamo) => {
   }
   return DECISION[clave].ayuda;
 };
-
-// "Guatapé, Antioquia" -> "Guatapé": todo es Antioquia y así la ruta no se corta.
-const municipio = (lugar) => (lugar || '').split(',')[0];
 
 const fecha = (iso) => {
   if (!iso) return '—';
@@ -256,7 +264,7 @@ const TarjetaReclamo = ({ reclamo, procesando, onResolver }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
           {v && <TableroRuta origen={municipio(v.origin)} destino={municipio(v.destination)} size={12} />}
           <span style={{ fontSize: '13px', color: T.piedra }}>
-            Viaje #{v?.request_id} · {v?.trip_type === 'ROUND_TRIP' ? 'Ida y vuelta' : 'Solo ida'} · sale el {fecha(v?.departure_time)}
+            Viaje {codigoViaje(v?.request_id)} · {v?.trip_type === 'ROUND_TRIP' ? 'Ida y vuelta' : 'Solo ida'} · sale el {fecha(v?.departure_time)}
           </span>
         </div>
         <Chip tono={abierto ? 'alerta' : 'verde'} style={{ fontSize: '11.5px', padding: '4px 10px' }}>{abierto ? 'Abierto' : 'Resuelto'}</Chip>
@@ -359,6 +367,98 @@ const TarjetaReclamo = ({ reclamo, procesando, onResolver }) => {
 };
 
 
+// ── Anticipo pagado en la app (SCRUM-180) ───────────────────────────────────
+
+const CHIP_ANTICIPO = {
+  por_liberar: { tono: 'verde', texto: 'Por entregar' },
+  por_reembolsar: { tono: 'chiva', texto: 'Por devolver' },
+  retenidos: { tono: 'neutro', texto: 'Retenido' },
+};
+
+const TarjetaAnticipo = ({ fila, tipo, procesando, onMover }) => {
+  const [nota, setNota] = useState('');
+  const { pago, viaje: v, wompi, cuenta_conductor: cuenta } = fila;
+  const entregar = tipo === 'por_liberar';
+  const devolver = tipo === 'por_reembolsar';
+  const neto = pago.monto - pago.comision;
+  const chip = CHIP_ANTICIPO[tipo];
+  const idNota = `nota-anticipo-${pago.pago_id}`;
+  const listo = (devolver || (entregar && cuenta)) && !procesando;
+  const sub = { display: 'block', fontSize: '13px', color: T.piedra, marginTop: '2px' };
+
+  return (
+    <article style={tarjeta}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
+          <TableroRuta origen={municipio(v.origin)} destino={municipio(v.destination)} size={12} />
+          <span style={{ fontSize: '13px', color: T.piedra }}>
+            Viaje {codigoViaje(v.request_id)} · {v.trip_type === 'ROUND_TRIP' ? 'Ida y vuelta' : 'Solo ida'} · sale el {fecha(v.departure_time)}
+          </span>
+        </div>
+        <Chip tono={chip.tono} style={{ fontSize: '11.5px', padding: '4px 10px' }}>{chip.texto}</Chip>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '14px 18px' }}>
+        <Campo etiqueta="Anticipo pagado">
+          <b style={{ fontWeight: 700 }}>{cop(pago.monto)}</b>
+          <span style={sub}>{wompi.medio || 'Wompi'}{fila.pagado_at ? ` · ${fecha(fila.pagado_at)}` : ''}</span>
+        </Campo>
+        {devolver ? (
+          <Campo etiqueta="Devolver al pasajero">
+            <b style={{ fontWeight: 700 }}>{cop(pago.monto)}</b>
+            <span style={sub}>Completo: la comisión de Wompi la asume Turify</span>
+          </Campo>
+        ) : (
+          <Campo etiqueta="Para el conductor">
+            <b style={{ fontWeight: 700 }}>{cop(neto)}</b>
+            <span style={sub}>{pago.comision > 0 ? `Comisión de Turify: ${cop(pago.comision)}` : 'Sin comisión: es su compensación'}</span>
+          </Campo>
+        )}
+        <Persona rol="Pasajero" persona={fila.pasajero} />
+        <Persona rol="Conductor" persona={fila.conductor} />
+        <Campo etiqueta="Transacción en Wompi">
+          {wompi.transaccion_id ? <Dato style={{ fontSize: '13px' }}>{wompi.transaccion_id}</Dato> : '—'}
+        </Campo>
+      </div>
+
+      <div style={{ background: T.niebla, border: `1px solid ${T.linea}`, borderRadius: T.rControl, padding: '12px 14px', fontSize: '13.5px', lineHeight: 1.5, color: T.piedra }}>
+        {entregar && cuenta && (
+          <>Transfiere <b style={{ color: T.tinta }}>{cop(neto)}</b> desde la cuenta de Turify a {cuenta.tipo_texto}{' '}
+            <Dato style={{ fontSize: '13px' }}>{cuenta.numero}</Dato> a nombre de {cuenta.titular_nombre}, y regístralo aquí.</>
+        )}
+        {entregar && !cuenta && (
+          <span style={{ display: 'flex', gap: '6px', alignItems: 'center', color: T.alertaTexto }}>
+            <IconAlerta size={15} />El conductor no tiene una cuenta verificada. Verifícala en la pestaña Cuentas antes de transferirle.
+          </span>
+        )}
+        {devolver && (
+          <>Si pagó con tarjeta, anula la transacción en el panel de Wompi. Si pagó con PSE, Nequi o Bancolombia,
+            transfiérele <b style={{ color: T.tinta }}>{cop(pago.monto)}</b> al pasajero. Después regístralo aquí.</>
+        )}
+        {!entregar && !devolver && fila.motivo}
+      </div>
+
+      {(entregar || devolver) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: `1px solid ${T.linea}`, paddingTop: '16px' }}>
+          <label htmlFor={idNota} style={{ fontSize: '13.5px', color: T.tinta }}>
+            Comprobante <span style={{ color: T.piedra }}>(opcional; queda en la bitácora del viaje)</span>
+          </label>
+          <input id={idNota} type="text" value={nota} onChange={e => setNota(e.target.value)} maxLength={500}
+            placeholder={entregar ? 'Ej.: transferencia Nequi #8812' : 'Ej.: anulada en Wompi el 3 oct'} className="t-foco" style={campoTexto} />
+          <div>
+            <Boton variante={listo ? 'primario' : 'inactivo'} disabled={!listo}
+              onClick={() => onMover(fila, entregar ? 'liberar' : 'reembolsar', nota.trim())}>
+              <IconVisto size={15} />
+              {procesando ? 'Guardando' : entregar ? `Ya le transferí ${cop(neto)}` : `Ya le devolví ${cop(pago.monto)}`}
+            </Boton>
+          </div>
+        </div>
+      )}
+    </article>
+  );
+};
+
+
 // ── Página ──────────────────────────────────────────────────────────────────
 
 const AdminPagos = () => {
@@ -368,12 +468,14 @@ const AdminPagos = () => {
   const [tema, alternarTema] = useTema();
   const { toasts, removeToast, toast } = useToast();
 
-  const [pestana, setPestana] = useState(params.get('pestana') === 'reclamos' ? 'reclamos' : 'cuentas');
+  const [pestana, setPestana] = useState(['reclamos', 'anticipos'].includes(params.get('pestana')) ? params.get('pestana') : 'cuentas');
   const [estadoCuentas, setEstadoCuentas] = useState('PENDIENTE_VERIFICACION');
   const [estadoReclamos, setEstadoReclamos] = useState('ABIERTO');
+  const [vistaAnticipos, setVistaAnticipos] = useState('por_liberar');
   const [cuentas, setCuentas] = useState([]);
   const [reclamos, setReclamos] = useState([]);
-  const [conteo, setConteo] = useState({ cuentas: null, reclamos: null });
+  const [anticipos, setAnticipos] = useState({ por_liberar: [], por_reembolsar: [], retenidos: [] });
+  const [conteo, setConteo] = useState({ cuentas: null, reclamos: null, anticipos: null });
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
   const [recarga, setRecarga] = useState(0);
@@ -384,11 +486,15 @@ const AdminPagos = () => {
   useEffect(() => {
     if (!token) return undefined;
     let vigente = true;
-    const peticion = pestana === 'cuentas' ? cargarCuentasAdmin(token, estadoCuentas) : cargarReclamosAdmin(token, estadoReclamos);
+    const peticion = pestana === 'cuentas' ? cargarCuentasAdmin(token, estadoCuentas)
+      : pestana === 'anticipos' ? cargarAnticiposAdmin(token)
+        : cargarReclamosAdmin(token, estadoReclamos);
     peticion
       .then(datos => {
         if (!vigente) return;
-        if (pestana === 'cuentas') setCuentas(datos); else setReclamos(datos);
+        if (pestana === 'cuentas') setCuentas(datos);
+        else if (pestana === 'anticipos') setAnticipos(datos);
+        else setReclamos(datos);
         setError(null);
       })
       .catch(e => { if (vigente) setError(e.message); })
@@ -400,8 +506,10 @@ const AdminPagos = () => {
   useEffect(() => {
     if (!token) return undefined;
     let vigente = true;
-    Promise.all([cargarCuentasAdmin(token), cargarReclamosAdmin(token)])
-      .then(([c, r]) => { if (vigente) setConteo({ cuentas: c.length, reclamos: r.length }); })
+    Promise.all([cargarCuentasAdmin(token), cargarReclamosAdmin(token), cargarAnticiposAdmin(token)])
+      .then(([c, r, a]) => {
+        if (vigente) setConteo({ cuentas: c.length, reclamos: r.length, anticipos: a.por_liberar.length + a.por_reembolsar.length });
+      })
       .catch(() => {});
     return () => { vigente = false; };
   }, [token, recarga]);
@@ -410,7 +518,9 @@ const AdminPagos = () => {
   const cambiarPestana = (p) => { if (p !== pestana) { setCargando(true); setPestana(p); } };
   const cambiarFiltro = (valor) => {
     setCargando(true);
-    if (pestana === 'cuentas') setEstadoCuentas(valor); else setEstadoReclamos(valor);
+    if (pestana === 'cuentas') setEstadoCuentas(valor);
+    else if (pestana === 'anticipos') { setVistaAnticipos(valor); setCargando(false); }
+    else setEstadoReclamos(valor);
   };
 
   const verificar = async (cuenta, aprobar, nota) => {
@@ -441,13 +551,29 @@ const AdminPagos = () => {
     }
   };
 
-  const filtros = pestana === 'cuentas' ? FILTROS_CUENTAS : FILTROS_RECLAMOS;
-  const filtroActivo = pestana === 'cuentas' ? estadoCuentas : estadoReclamos;
-  const lista = pestana === 'cuentas' ? cuentas : reclamos;
+  const mover = async (fila, accion, nota) => {
+    setProcesando(`anticipo-${fila.pago.pago_id}`);
+    try {
+      await moverAnticipoAdmin(token, fila.pago.pago_id, accion, nota);
+      toast.success(accion === 'liberar'
+        ? `Listo. Le avisamos a ${fila.conductor?.nombre || 'el conductor'} que ya le transferiste.`
+        : `Listo. Le avisamos a ${fila.pasajero?.nombre || 'el pasajero'} que ya le devolviste el pago.`);
+      recargar();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setProcesando(null);
+    }
+  };
+
+  const filtros = { cuentas: FILTROS_CUENTAS, reclamos: FILTROS_RECLAMOS, anticipos: FILTROS_ANTICIPOS }[pestana];
+  const filtroActivo = { cuentas: estadoCuentas, reclamos: estadoReclamos, anticipos: vistaAnticipos }[pestana];
+  const lista = { cuentas, reclamos, anticipos: anticipos[vistaAnticipos] }[pestana];
 
   const PESTANAS = [
     { id: 'cuentas', label: 'Cuentas', n: conteo.cuentas },
     { id: 'reclamos', label: 'Reclamos', n: conteo.reclamos },
+    { id: 'anticipos', label: 'Anticipos', n: conteo.anticipos },
   ];
 
   return (
@@ -501,7 +627,9 @@ const AdminPagos = () => {
         <p style={{ margin: 0, fontSize: '14px', color: T.piedra, lineHeight: 1.55, maxWidth: '68ch' }}>
           {pestana === 'cuentas'
             ? 'El pasajero solo ve la cuenta del conductor cuando la verificas. Verifícala únicamente si está a nombre del conductor.'
-            : 'Cuando alguien dice que un pago o una devolución no le llegó, el pago queda en reclamo. Revisa la bitácora, llama a las partes si hace falta y decide.'}
+            : pestana === 'anticipos'
+              ? 'Los anticipos pagados en la app quedan en la cuenta de Turify hasta que el grupo llega al destino. Entonces se le transfieren al conductor, menos la comisión. Si el viaje se cancela con tiempo, se le devuelven completos al pasajero.'
+              : 'Cuando alguien dice que un pago o una devolución no le llegó, el pago queda en reclamo. Revisa la bitácora, llama a las partes si hace falta y decide.'}
         </p>
 
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -535,6 +663,21 @@ const AdminPagos = () => {
               {cuentas.map(c => (
                 <TarjetaCuenta key={c.cuenta_id} cuenta={c} procesando={procesando === `cuenta-${c.cuenta_id}`}
                   onVerificar={verificar} onVerDocumento={setDocPreview} />
+              ))}
+            </div>
+          )
+        ) : pestana === 'anticipos' ? (
+          lista.length === 0 ? (
+            <Vacio texto={{
+              por_liberar: 'No hay anticipos por entregar.',
+              por_reembolsar: 'No hay anticipos por devolver.',
+              retenidos: 'No hay anticipos esperando la llegada.',
+            }[vistaAnticipos]} />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {lista.map(f => (
+                <TarjetaAnticipo key={f.pago.pago_id} fila={f} tipo={vistaAnticipos}
+                  procesando={procesando === `anticipo-${f.pago.pago_id}`} onMover={mover} />
               ))}
             </div>
           )

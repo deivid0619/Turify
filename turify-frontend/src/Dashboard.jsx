@@ -10,6 +10,7 @@ import SelectorFechaHora from './SelectorFechaHora';
 import PerfilDrawer from './PerfilDrawer';
 import { ToastContainer, useToast } from './Toast';
 import { comoBoton } from './teclado';
+import { codigoViaje, municipioDe, detalleDireccion, fechaViaje } from './viajes';
 import { SkeletonDashboard, SkeletonTarjetaConfirmado, ErrorConexion } from './Skeleton';
 
 const BRAND_GREEN = T.ruta;
@@ -17,6 +18,7 @@ import API_BASE_URL from './api';
 import { PlanPagos, PagosPendientes, CodigoAbordaje, CuentaParaPagar, ModalReclamo } from './PagosViaje';
 import {
   cop, ejecutarAccionPago, abrirReclamo, cargarPagosPendientes, MENSAJE_ACCION,
+  confirmarPagoWompi, transaccionDeRegreso, MENSAJE_WOMPI,
   hayPagoPorHacer, anticipoDe, anticipoPagado,
 } from './pagos';
 import {
@@ -41,6 +43,18 @@ const centroDefaultColombia = { lat: 4.6097, lng: -74.0817 };
 
 // Iconos, tokens y componentes compartidos viven en ./diseno — un solo lugar.
 const IconTrazo = Icono;
+
+// Una línea con el estado de la plata del viaje, para la tarjeta plegada.
+const resumenPagos = (plan) => {
+  if (!plan || !plan.pagos?.length) return null;
+  if (plan.pagos.some(p => p.estado === 'EN_RECLAMO')) {
+    return { texto: 'Hay un pago en reclamo', color: 'var(--t-alerta-texto)' };
+  }
+  const porPagar = plan.pagos.find(p => p.exigible && p.estado === 'PENDIENTE' && p.acciones?.length);
+  if (porPagar) return { texto: `Por pagar: ${porPagar.etiqueta.toLowerCase()} · ${cop(porPagar.monto)}`, color: 'var(--t-chiva-texto)' };
+  if (plan.pagos.some(p => p.acciones?.length)) return { texto: 'Tienes un pago por confirmar', color: 'var(--t-chiva-texto)' };
+  return { texto: `Pagado ${cop(plan.pagado)} de ${cop(plan.precio)}`, color: 'var(--t-piedra)' };
+};
 
 // Animación de "buscando conductor": un minibús estilo chiva que avanza sobre una
 // vía punteada mientras el pasajero espera ofertas. Respeta prefers-reduced-motion.
@@ -271,6 +285,9 @@ const Dashboard = () => {
   const [modalFuec, setModalFuec] = useState(null); // request_id del viaje a registrar
   // Ley 1581 — son datos de otras personas: el pasajero declara que lo autorizaron.
   const [autorizaOcupantes, setAutorizaOcupantes] = useState(false);
+  // Tarjetas de "Mis viajes": plegadas por defecto, salvo el viaje en curso y
+  // el próximo confirmado (que tienen el código de abordaje y los pagos a mano).
+  const [tarjetasAbiertas, setTarjetasAbiertas] = useState({});
   // HU46 — Calificaciones bidireccionales
   const [modalCalificar, setModalCalificar] = useState(null); // request_id del viaje a calificar
   const [estrellasCalificar, setEstrellasCalificar] = useState(0);
@@ -1091,6 +1108,7 @@ const Dashboard = () => {
             fechaCreacion: new Date(v.created_at || Date.now()).toLocaleDateString(),
             conductor_nombre: v.conductor_nombre || 'Conductor asignado',
             conductor_foto: v.conductor_foto || null,
+            vehiculo_placa: v.vehiculo_placa || null,
             precio_acordado: v.precio_acordado || 0,
             trip_status: v.trip_status || v.status || 'ASSIGNED',
             // HU43 — tracking en tiempo real
@@ -1141,6 +1159,25 @@ const Dashboard = () => {
       setActualizandoViajes(false);
     }
   };
+
+  // SCRUM-180 — de vuelta de Wompi (?pago=wompi&id=…): se revisa el pago con
+  // el backend y se limpia la URL para que recargar la página no lo repita.
+  useEffect(() => {
+    const transaccionId = transaccionDeRegreso(window.location.search);
+    if (!transaccionId || !token) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    confirmarPagoWompi(token, transaccionId)
+      .then(r => {
+        const mensaje = MENSAJE_WOMPI[r.estado_transaccion] || MENSAJE_WOMPI.PENDING;
+        if (r.estado_transaccion === 'APPROVED') toast.success(mensaje, 6000);
+        else if (r.estado_transaccion === 'PENDING') toast.info(mensaje, 6000);
+        else toast.error(mensaje);
+        setPestanaViajes('confirmados');
+        return cargarMisViajes();
+      })
+      .catch(e => toast.error(e.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   // ÉPICA 6 — acciones sobre un pago: reportar, confirmar o reclamar
   const accionPago = async (pago, accion) => {
@@ -1264,10 +1301,13 @@ const Dashboard = () => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || 'No se pudo cancelar el viaje.');
 
+      const reembolso = data.reembolso_turify || 0;
       if (data.penalty_amount > 0) {
         toast.success(`Viaje cancelado. El anticipo (${cop(data.penalty_amount)}) queda para el conductor.`);
-      } else if (data.monto_a_devolver > 0) {
-        toast.success(`Viaje cancelado. El conductor debe devolverte ${cop(data.monto_a_devolver)}: confírmalo en Mis viajes cuando te llegue.`);
+      } else if (data.monto_a_devolver - reembolso > 0) {
+        toast.success(`Viaje cancelado. El conductor debe devolverte ${cop(data.monto_a_devolver - reembolso)}: confírmalo en Mis viajes cuando te llegue.`);
+      } else if (reembolso > 0) {
+        toast.success(`Viaje cancelado. Turify te devuelve los ${cop(reembolso)} que pagaste en la app.`);
       } else {
         toast.success('Viaje cancelado sin penalización.');
       }
@@ -1392,7 +1432,7 @@ const Dashboard = () => {
         body: JSON.stringify({ offered_price: Number(precioContraoferta) })
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-      toast.success(`¡Contraoferta de $${Number(precioContraoferta).toLocaleString()} enviada al conductor!`);
+      toast.success(`Contraoferta de ${cop(precioContraoferta)} enviada al conductor.`);
       setModalContraoferta(null);
       cargarMisViajes();
     } catch (error) {
@@ -2385,8 +2425,9 @@ const Dashboard = () => {
                   <motion.div key={viaje.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.04, ease: [0.23, 1, 0.32, 1] }}
                     onClick={() => setViajeSeleccionado(viaje)} {...comoBoton(() => setViajeSeleccionado(viaje))} className="viaje-pasaje t-foco" style={{ cursor: 'pointer', padding: '13px 16px' }}>
+                    <span style={{ display: 'block', fontFamily: T.dato, fontSize: '11.5px', letterSpacing: '.08em', color: 'var(--t-piedra)', marginBottom: '6px' }}>Viaje {codigoViaje(viaje.id)}</span>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <TableroRuta origen={viaje.origin} destino={viaje.destination} size={11} style={{ flex: 1 }} />
+                      <TableroRuta origen={municipioDe(viaje.origin)} destino={municipioDe(viaje.destination)} size={11} style={{ flex: 1 }} />
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, marginLeft: '8px', color: viaje.ofertas.length > 0 ? BRAND_GREEN : 'var(--t-chiva-texto)', fontSize: '12px', fontWeight: '700' }}>
                         {viaje.ofertas.length > 0
                           ? <><IconVisto size={12} />{viaje.ofertas.length}</>
@@ -2395,7 +2436,7 @@ const Dashboard = () => {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12.5px', color: 'var(--t-piedra-clara)' }}>
                       <IconCalendario size={11} />
-                      <span>{new Date(viaje.departure_time).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                      <span>{fechaViaje(viaje.departure_time)}</span>
                       <span style={{ margin: '0 1px' }}>·</span>
                       <IconPersonas size={11} />
                       <span>{viaje.seats_needed}</span>
@@ -2476,6 +2517,10 @@ const Dashboard = () => {
                   };
                   const cfg = cfgEstadoViaje[viaje.trip_status] || cfgEstadoViaje.ASSIGNED;
                   const esEnCurso = viaje.trip_status === 'IN_PROGRESS';
+                  const abierto = tarjetasAbiertas[viaje.id]
+                    ?? (esEnCurso || (viaje.trip_status === 'ASSIGNED' && index === 0));
+                  const resumen = resumenPagos(viaje.plan_pagos);
+                  const detalleOrigen = detalleDireccion(viaje.origin);
 
                   return (
                     <motion.div key={viaje.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -2483,7 +2528,7 @@ const Dashboard = () => {
                       className="viaje-pasaje">
                       <div style={{ padding: '16px 18px 14px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                          <span style={{ fontSize: '12.5px', color: 'var(--t-piedra-clara)' }}>{viaje.fechaCreacion}</span>
+                          <span style={{ fontFamily: T.dato, fontSize: '12px', letterSpacing: '.08em', color: 'var(--t-piedra)' }}>Viaje {codigoViaje(viaje.id)}</span>
                           <span style={{ backgroundColor: cfg.badgeBg, color: cfg.badgeColor, padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' }}>
                             <cfg.Icono size={12} />
                             {cfg.badgeLabel}
@@ -2492,12 +2537,26 @@ const Dashboard = () => {
                             )}
                           </span>
                         </div>
-                        <TableroRuta origen={viaje.origin} destino={viaje.destination} size={12} style={{ marginBottom: '10px' }} />
-                        <div style={{ display: 'flex', gap: '16px', fontSize: '13.5px', color: 'var(--t-piedra)' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><IconCalendario size={13} />{new Date(viaje.departure_time).toLocaleString()}</span>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><IconPersonas size={13} />{viaje.seats_needed}</span>
+                        <TableroRuta origen={municipioDe(viaje.origin)} destino={municipioDe(viaje.destination)} size={12} />
+                        <p style={{ margin: '6px 0 0', fontSize: '12.5px', color: 'var(--t-piedra)', overflowWrap: 'anywhere' }}>
+                          {detalleOrigen ? `Desde ${detalleOrigen} · ` : ''}{viaje.trip_type === 'ROUND_TRIP' ? 'Ida y vuelta' : 'Solo ida'}
+                        </p>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: '10px', fontSize: '13px', color: 'var(--t-piedra)' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><IconCalendario size={13} />{fechaViaje(viaje.departure_time)}</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><IconAuto size={13} />{viaje.conductor_nombre}{viaje.vehiculo_placa ? ` · ${viaje.vehiculo_placa}` : ''}</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><IconPersonas size={13} />{viaje.seats_needed} {viaje.seats_needed === 1 ? 'pasajero' : 'pasajeros'}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--t-linea)' }}>
+                          <span style={{ fontSize: '12.5px', color: resumen ? resumen.color : 'var(--t-piedra)' }}>{resumen ? resumen.texto : ''}</span>
+                          <button type="button" className="t-foco" aria-expanded={abierto}
+                            onClick={() => setTarjetasAbiertas(prev => ({ ...prev, [viaje.id]: !abierto }))}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0, background: 'none', border: 'none', padding: '2px 0', cursor: 'pointer', color: 'var(--t-musgo-texto)', fontFamily: T.display, fontWeight: 700, fontSize: '12.5px' }}>
+                            {abierto ? 'Ocultar detalle' : 'Ver detalle'}
+                            <IconTrazo size={13} style={{ transform: abierto ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}><path d="M6 9.5l6 5.5 6-5.5" /></IconTrazo>
+                          </button>
                         </div>
                       </div>
+                      {abierto && (<>
                       <div className="viaje-pasaje__talon" />
                       <div style={{ padding: '14px 18px 16px' }}>
                         {/* Info estado */}
@@ -2579,7 +2638,7 @@ const Dashboard = () => {
                             </p>
                             {viaje.precio_acordado > 0 && (
                               <p style={{ margin: '2px 0 0', fontSize: '13px', color: 'var(--t-piedra)' }}>
-                                Precio acordado: <strong style={{ color: BRAND_GREEN }}>${Number(viaje.precio_acordado).toLocaleString()}</strong>
+                                Precio acordado: <strong style={{ color: 'var(--t-musgo-texto)' }}>{cop(viaje.precio_acordado)}</strong>
                               </p>
                             )}
                           </div>
@@ -2610,7 +2669,8 @@ const Dashboard = () => {
                         {viaje.plan_pagos && (
                           <>
                             {viaje.trip_status !== 'COMPLETED' && (
-                              <CuentaParaPagar cuenta={viaje.cuenta_conductor} hayPagosPorHacer={hayPagoPorHacer(viaje.plan_pagos)} />
+                              <CuentaParaPagar cuenta={viaje.cuenta_conductor} hayPagosPorHacer={hayPagoPorHacer(viaje.plan_pagos)}
+                                anticipoEnApp={anticipoDe(viaje.plan_pagos)?.canal === 'APP'} />
                             )}
                             <PlanPagos plan={viaje.plan_pagos} onAccion={accionPago} procesando={procesandoPago}
                               onReclamo={() => setReclamoViajeId(viaje.id)} />
@@ -2721,6 +2781,7 @@ const Dashboard = () => {
                         </button>
                       )}
                       </div>
+                      </>)}
                     </motion.div>
                   );
                 })}
@@ -2761,7 +2822,7 @@ const Dashboard = () => {
                                 <div style={{ fontSize: '12.5px', color: 'var(--t-piedra)', marginTop: '1px' }}>{oferta.vehiculo}</div>
                               </div>
                             </div>
-                            <div style={{ fontWeight: '600', fontSize: '17px', color: BRAND_GREEN, flexShrink: 0, fontFamily: T.dato }}>${oferta.precio.toLocaleString()}</div>
+                            <div style={{ fontWeight: '600', fontSize: '17px', color: BRAND_GREEN, flexShrink: 0, fontFamily: T.dato }}>{cop(oferta.precio)}</div>
                           </div>
 
                           {oferta.comodidades && (

@@ -823,11 +823,15 @@ def _resumen_de_pagos(db: Session, conductor, inicio_mes) -> dict:
             resumen["comision_mes"] += servicio_pagos.pesos(pago.comision)
             if viaje.status == "CANCELLED":
                 resumen["compensaciones_mes"] += neto
-        if pago.estado in ("PENDIENTE", "PAGO_REPORTADO") and pago.exigible_desde is not None:
+        # RETENIDO: el pasajero lo pagó en la app y Turify se lo entrega al
+        # llegar al destino — para el conductor sigue siendo plata por cobrar.
+        if (pago.estado in ("PENDIENTE", "PAGO_REPORTADO") and pago.exigible_desde is not None) \
+                or pago.estado == "RETENIDO":
             resumen["por_cobrar"] += neto
         if pago.estado == "EN_RECLAMO":
             resumen["en_reclamo"] += servicio_pagos.pesos(pago.monto)
-        if pago.estado in servicio_pagos.ESTADOS_DEVOLUCION:
+        # Lo pagado en la app lo devuelve Turify, no el conductor.
+        if pago.estado in servicio_pagos.ESTADOS_DEVOLUCION and pago.canal == "DIRECTO":
             resumen["por_devolver"] += servicio_pagos.pesos(pago.monto)
 
         detalle = por_viaje.setdefault(oferta.offer_id, {

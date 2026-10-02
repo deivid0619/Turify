@@ -6,13 +6,17 @@ paga (o devuelve) solo puede reportar que lo hizo; si quien debía recibirla
 dice que no le llegó, el pago queda en reclamo y lo resuelve un administrador
 con la bitácora del viaje.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+import os
+
+import httpx
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.audit import registrar_log
 from app.database import get_db
-from app.pagos import servicio
+from app.pagos import servicio, wompi
 from app.pagos.servicio import cop
 from app.security import get_current_user
 
@@ -115,6 +119,7 @@ def pagos_pendientes_fuera_de_viajes_activos(db: Session = Depends(get_db),
             models.PagoViaje.driver_id == current_user.user_id,
             models.PagoViaje.estado.in_(servicio.ESTADOS_DEVOLUCION + ("EN_RECLAMO", "PAGO_REPORTADO")),
             (models.DriverOffer.status != "ACCEPTED") | (models.ServiceRequest.status == "CANCELLED"),
+            ~((models.PagoViaje.canal == "APP") & models.PagoViaje.estado.in_(servicio.ESTADOS_DEVOLUCION)),
         ).all()
     else:
         rol = "PASAJERO"
@@ -134,6 +139,79 @@ def pagos_pendientes_fuera_de_viajes_activos(db: Session = Depends(get_db),
         },
         "pago": servicio.serializar_pago(pago, viaje, rol, plan_vigente=False),
     } for pago, viaje, _oferta in sorted(filas, key=lambda f: f[0].pago_id)]
+
+
+# ── Anticipo pagado en la app con Wompi (SCRUM-179/180) ──────────────────────
+
+def _sin_pasarela():
+    if not wompi.configurado():
+        raise HTTPException(status_code=503, detail="Los pagos en línea no están disponibles en este momento.")
+
+
+@router.post("/{pago_id}/pagar-en-linea")
+def pagar_en_linea(pago_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """Link del checkout de Wompi para pagar el anticipo. Monto y referencia
+    van firmados con el secreto de integridad: no se pueden cambiar desde el
+    navegador. Wompi devuelve al pasajero a Turify con ?id=<transacción>."""
+    _sin_pasarela()
+    pago, viaje = _preparar(db, pago_id, current_user, "PASAJERO", "PAGAR_EN_LINEA")
+    frontend = (os.getenv("FRONTEND_URL") or "").strip().rstrip("/")
+    volver_a = f"{frontend}/dashboard?pago=wompi" if frontend else None
+    referencia = wompi.nueva_referencia(viaje.request_id, pago.pago_id)
+    return {
+        "url": wompi.url_checkout(referencia, servicio.pesos(pago.monto) * 100, volver_a),
+        "referencia": referencia,
+        "ambiente": wompi.ambiente(),
+    }
+
+
+@router.post("/wompi/confirmar")
+def confirmar_pago_en_linea(payload: schemas.ConfirmarWompi, db: Session = Depends(get_db),
+                            current_user: models.User = Depends(get_current_user)):
+    """El pasajero vuelve de Wompi. El resultado se consulta en la API de
+    Wompi con el id de la transacción: no se le cree al navegador."""
+    _sin_pasarela()
+    try:
+        transaccion = wompi.consultar_transaccion(payload.transaccion_id)
+    except httpx.HTTPError:
+        raise HTTPException(status_code=502, detail="No pudimos consultar tu pago en Wompi. Si ya pagaste, "
+                                                    "en unos minutos se refleja solo en el viaje.")
+    referencia = wompi.leer_referencia(str(transaccion.get("reference") or ""))
+    viaje = db.get(models.ServiceRequest, referencia[0]) if referencia else None
+    if viaje is None:
+        raise HTTPException(status_code=404, detail="Ese pago no corresponde a un viaje de Turify.")
+    if viaje.passenger_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Ese pago no es de un viaje tuyo.")
+    resultado = servicio.procesar_transaccion(db, transaccion)
+    if resultado is None:
+        raise HTTPException(status_code=404, detail="Ese pago no corresponde a un anticipo de Turify.")
+    pago, viaje = resultado
+    return {
+        "estado_transaccion": transaccion.get("status"),
+        "request_id": viaje.request_id,
+        "pago_estado": pago.estado,
+    }
+
+
+@router.post("/wompi/eventos")
+def evento_wompi(evento: dict = Body(...), db: Session = Depends(get_db)):
+    """Webhook de Wompi (se configura en su panel: URL de eventos). Llega sin
+    usuario, así que lo primero es verificar la firma; Wompi reintenta si no
+    recibe un 200. Así el anticipo queda pagado aunque el pasajero cierre la
+    pestaña antes de volver a Turify."""
+    _sin_pasarela()
+    if not wompi.evento_autentico(evento):
+        raise HTTPException(status_code=401, detail="Firma del evento inválida.")
+    if evento.get("event") != "transaction.updated":
+        return {"ok": True}
+    transaccion = (evento.get("data") or {}).get("transaction") or {}
+    # Con la firma ya verificada actúa Turify: rol ADMIN para las políticas
+    # RLS (no hay pasajero en sesión). Las filas que toca son solo las del
+    # pago que dice la referencia.
+    db.info["rls_role"] = "ADMIN"
+    db.execute(text("SET LOCAL app.current_user_role = 'ADMIN'"))
+    servicio.procesar_transaccion(db, transaccion)
+    return {"ok": True}
 
 
 # ── Pagos al conductor ───────────────────────────────────────────────────────
@@ -358,7 +436,8 @@ def listar_reclamos(estado: str = Query("ABIERTO", pattern="^(ABIERTO|RESUELTO|T
             "resolucion": r.resolucion,
             "created_at": r.created_at.isoformat() if r.created_at else None,
             "abierto_por": autor.full_name if autor else None,
-            "abierto_por_rol": ("Pasajero" if viaje and r.abierto_por == viaje.passenger_id else "Conductor"),
+            "abierto_por_rol": ("Turify" if r.abierto_por is None
+                                else "Pasajero" if viaje and r.abierto_por == viaje.passenger_id else "Conductor"),
             "viaje": {
                 "request_id": viaje.request_id,
                 "origin": viaje.origin,
@@ -453,6 +532,115 @@ def resolver_reclamo(reclamo_id: int, payload: schemas.ResolverReclamo,
         servicio.notificar(db, conductor_id, "Reclamo resuelto", mensaje)
     return {"reclamo_id": reclamo.reclamo_id, "estado": reclamo.estado, "decision": reclamo.decision,
             "pago_estado": pago.estado if pago else None}
+
+
+# ── Anticipos que Turify retiene (SCRUM-180) ─────────────────────────────────
+
+def _usuario_breve(db: Session, user_id):
+    usuario = db.get(models.User, user_id) if user_id else None
+    return {"nombre": usuario.full_name, "telefono": usuario.phone_number} if usuario else None
+
+
+@router.get("/admin/anticipos")
+def listar_anticipos(db: Session = Depends(get_db), admin: models.User = Depends(_solo_admin)):
+    """Anticipos pagados en la app que Turify tiene que mover: entregárselos
+    al conductor (ya llegaron al destino, o es su compensación) o
+    devolvérselos al pasajero. Los retenidos que todavía no se pueden entregar
+    salen aparte, con el motivo."""
+    filas = db.query(models.PagoViaje, models.ServiceRequest).join(
+        models.ServiceRequest, models.ServiceRequest.request_id == models.PagoViaje.request_id
+    ).filter(
+        models.PagoViaje.canal == "APP",
+        models.PagoViaje.estado.in_(("RETENIDO", "DEVOLUCION_PENDIENTE")),
+    ).order_by(models.PagoViaje.pago_id).limit(200).all()
+
+    resultado = {"por_liberar": [], "retenidos": [], "por_reembolsar": []}
+    for pago, viaje in filas:
+        transaccion_id, medio = servicio.transaccion_aprobada(db, pago)
+        fila = {
+            "pago": servicio.serializar_pago(pago, viaje, "ADMIN", False),
+            "viaje": {
+                "request_id": viaje.request_id,
+                "origin": viaje.origin,
+                "destination": viaje.destination,
+                "departure_time": viaje.departure_time.isoformat() if viaje.departure_time else None,
+                "status": viaje.status,
+                "trip_type": viaje.trip_type,
+            },
+            "pasajero": _usuario_breve(db, viaje.passenger_id),
+            "conductor": _usuario_breve(db, pago.driver_id),
+            "wompi": {"transaccion_id": transaccion_id, "medio": medio},
+            "pagado_at": pago.reportado_at.isoformat() if pago.reportado_at else None,
+        }
+        if pago.estado == "DEVOLUCION_PENDIENTE":
+            resultado["por_reembolsar"].append(fila)
+            continue
+        liberable, motivo = servicio.anticipo_liberable(db, pago, viaje)
+        cuenta = servicio.cuenta_de(db, pago.driver_id)
+        fila["motivo"] = motivo
+        fila["cuenta_conductor"] = (servicio.serializar_cuenta(cuenta, completa=True)
+                                    if cuenta is not None and cuenta.estado == "VERIFICADA" else None)
+        resultado["por_liberar" if liberable else "retenidos"].append(fila)
+    return resultado
+
+
+@router.post("/admin/anticipos/{pago_id}/liberar")
+def liberar_anticipo(pago_id: int, payload: schemas.NotaAdmin | None = None,
+                     db: Session = Depends(get_db), admin: models.User = Depends(_solo_admin)):
+    """Registra que Turify ya le transfirió al conductor el anticipo menos la
+    comisión. Por ahora la transferencia se hace a mano desde la cuenta de
+    Turify a la cuenta verificada del conductor; con "Pagos a terceros" de
+    Wompi se podrá hacer desde aquí mismo."""
+    pago, viaje = _pago(db, pago_id)
+    liberable, motivo = servicio.anticipo_liberable(db, pago, viaje)
+    if not liberable:
+        raise HTTPException(status_code=400, detail=motivo)
+    cuenta = servicio.cuenta_de(db, pago.driver_id)
+    if cuenta is None or cuenta.estado != "VERIFICADA":
+        raise HTTPException(status_code=400, detail="El conductor no tiene una cuenta de pagos verificada: "
+                                                    "verifícala antes de transferirle.")
+    nota = (payload.nota or "").strip() if payload else ""
+    neto = servicio.pesos(pago.monto) - servicio.pesos(pago.comision)
+    destino = servicio.serializar_cuenta(cuenta, completa=False)
+    pago.estado = "LIBERADO"
+    pago.confirmado_at = servicio.ahora()
+    servicio.registrar_evento(
+        db, viaje.request_id, "ANTICIPO_LIBERADO", actor=admin, pago=pago, monto=neto,
+        detalle=(f"Transferidos {cop(neto)} a {destino['tipo_texto']} {destino['numero']} "
+                 f"(comisión de Turify {cop(pago.comision)}). {nota}").strip(),
+    )
+    db.commit()
+
+    registrar_log(db, action="LIBERAR_ANTICIPO", user_id=admin.user_id, entity="PagoViaje", entity_id=pago.pago_id,
+                  detail=f"Viaje #{viaje.request_id}: {cop(neto)} al conductor #{pago.driver_id}")
+    servicio.notificar(db, pago.driver_id, "Te transferimos el anticipo",
+                       f"Turify te transfirió {cop(neto)} del viaje {viaje.origin} → {viaje.destination} "
+                       f"a tu cuenta {destino['numero']}.", pago.offer_id)
+    return {"pago_id": pago.pago_id, "estado": pago.estado, "neto_conductor": neto}
+
+
+@router.post("/admin/anticipos/{pago_id}/reembolsar")
+def reembolsar_anticipo(pago_id: int, payload: schemas.NotaAdmin | None = None,
+                        db: Session = Depends(get_db), admin: models.User = Depends(_solo_admin)):
+    """Registra que Turify ya le devolvió al pasajero lo que pagó en la app
+    (anulando la transacción en el panel de Wompi o por transferencia). Se
+    devuelve completo: la comisión de Wompi la asume Turify."""
+    pago, viaje = _pago(db, pago_id)
+    if pago.canal != "APP" or pago.estado != "DEVOLUCION_PENDIENTE":
+        raise HTTPException(status_code=400, detail="Este pago no tiene un reembolso pendiente de Turify.")
+    nota = (payload.nota or "").strip() if payload else ""
+    pago.estado = "REEMBOLSADO"
+    pago.confirmado_at = servicio.ahora()
+    servicio.registrar_evento(db, viaje.request_id, "ANTICIPO_REEMBOLSADO", actor=admin, pago=pago, monto=pago.monto,
+                              detalle=f"{cop(pago.monto)} devueltos al pasajero. {nota}".strip())
+    db.commit()
+
+    registrar_log(db, action="REEMBOLSAR_ANTICIPO", user_id=admin.user_id, entity="PagoViaje", entity_id=pago.pago_id,
+                  detail=f"Viaje #{viaje.request_id}: {cop(pago.monto)} al pasajero #{viaje.passenger_id}")
+    servicio.notificar(db, viaje.passenger_id, "Te devolvimos tu pago",
+                       f"Turify te devolvió {cop(pago.monto)} del viaje {viaje.origin} → {viaje.destination}. "
+                       "Según tu banco, puede tardar unos días en verse.", pago.offer_id)
+    return {"pago_id": pago.pago_id, "estado": pago.estado}
 
 
 @router.get("/admin/cuentas")

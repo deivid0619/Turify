@@ -986,9 +986,13 @@ def get_assigned_requests(
         driver_id = None
         conductor_lat = None
         conductor_lng = None
+        vehiculo_placa = None
 
         if oferta_aceptada:
             driver_id = oferta_aceptada.driver_id
+            # La placa ayuda a reconocer el viaje en la tarjeta (y el carro en la calle).
+            vehiculo = db.get(models.Vehicle, oferta_aceptada.vehicle_id) if oferta_aceptada.vehicle_id else None
+            vehiculo_placa = vehiculo.plate if vehiculo else None
             conductor = db.query(models.User).filter(
                 models.User.user_id == oferta_aceptada.driver_id
             ).first()
@@ -1027,6 +1031,7 @@ def get_assigned_requests(
             "created_at": v.created_at.isoformat() if v.created_at else None,
             "conductor_nombre": conductor_nombre,
             "conductor_foto": conductor_foto,
+            "vehiculo_placa": vehiculo_placa,
             "precio_acordado": precio_acordado,
             "driver_id": driver_id,
             "conductor_lat": conductor_lat,
@@ -1711,7 +1716,7 @@ async def cancel_service_request(
     # está PENDING no hay plan de pagos: cancelar siempre es libre.
     penalty_pct = 0
     penalty_amount = 0.0
-    resultado_pagos = {"anticipo_pagado": False, "monto_a_devolver": 0}
+    resultado_pagos = {"anticipo_pagado": False, "monto_a_devolver": 0, "reembolso_turify": 0}
     if viaje.status == 'ASSIGNED' and oferta_aceptada:
         pagos.asegurar_plan(db, viaje, oferta_aceptada)
         horas_restantes = (pagos.con_zona(viaje.departure_time) - pagos.ahora()).total_seconds() / 3600
@@ -1752,13 +1757,15 @@ async def cancel_service_request(
 
         db.commit()
 
-        devolucion = resultado_pagos["monto_a_devolver"]
+        reembolso = resultado_pagos["reembolso_turify"]
+        devolucion = resultado_pagos["monto_a_devolver"] - reembolso
         crear_notificacion(
             db,
             user_id=viaje.passenger_id,
             title="Tu conductor canceló el viaje",
             message=(f"El conductor no podrá cumplir el viaje de {viaje.origin} → {viaje.destination}. Seguimos buscando otro conductor."
-                     + (f" Debe devolverte {pagos.cop(devolucion)}: confírmalo en la app cuando te llegue." if devolucion else "")),
+                     + (f" Debe devolverte {pagos.cop(devolucion)}: confírmalo en la app cuando te llegue." if devolucion else "")
+                     + (f" Turify te devuelve los {pagos.cop(reembolso)} que pagaste en la app." if reembolso else "")),
             tipo="SYSTEM",
             offer_id=oferta_aceptada.offer_id
         )
@@ -1788,11 +1795,14 @@ async def cancel_service_request(
                 offer_id=oferta.offer_id
             )
         if oferta_aceptada:
-            devolucion = resultado_pagos["monto_a_devolver"]
+            reembolso = resultado_pagos["reembolso_turify"]
+            devolucion = resultado_pagos["monto_a_devolver"] - reembolso
             if penalty_amount > 0:
                 detalle_penalizacion = f" El anticipo ({pagos.cop(penalty_amount)}) queda para ti como compensación."
             elif devolucion:
                 detalle_penalizacion = f" Canceló con tiempo: debes devolverle {pagos.cop(devolucion)} al pasajero."
+            elif reembolso:
+                detalle_penalizacion = " Canceló con tiempo: Turify le devuelve lo que pagó en la app; tú no tienes que devolver nada."
             else:
                 detalle_penalizacion = " No había pagos de por medio."
             crear_notificacion(
@@ -1817,6 +1827,7 @@ async def cancel_service_request(
         "penalty_amount": penalty_amount,
         "anticipo_pagado": resultado_pagos["anticipo_pagado"],
         "monto_a_devolver": resultado_pagos["monto_a_devolver"],
+        "reembolso_turify": resultado_pagos["reembolso_turify"],
     }
 
 

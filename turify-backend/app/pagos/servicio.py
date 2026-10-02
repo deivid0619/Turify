@@ -16,7 +16,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app import models
-from app.pagos import reglas
+from app.pagos import reglas, wompi
 
 # Estados en los que la plata ya salió del bolsillo del pasajero (aunque el
 # conductor no la haya confirmado todavía).
@@ -117,7 +117,7 @@ def crear_plan(db: Session, viaje, oferta, actor=None) -> bool:
 
     precio = Decimal(str(oferta.offered_price))
     ida_y_vuelta = viaje.trip_type == "ROUND_TRIP"
-    canal = reglas.CANAL_ANTICIPO
+    canal = reglas.canal_anticipo()
     porcentaje_comision, motivo_comision = reglas.comision_vigente(canal)
     reparto = reglas.repartir(precio, reglas.hitos_para(ida_y_vuelta))
     anticipo = reparto[0][2]
@@ -257,6 +257,7 @@ def aplicar_cancelacion(db: Session, viaje, oferta, *, por_pasajero: bool, fuerz
                          and horas_restantes < reglas.HORAS_CANCELACION_LIBRE and anticipo_pagado)
 
     a_devolver = Decimal("0")
+    reembolso_turify = Decimal("0")
     for pago in pagos:
         if pago.estado == "EN_RECLAMO" or pago.estado in ESTADOS_DEVOLUCION:
             continue  # ya va camino a resolverse (administrador o devolución en curso)
@@ -266,14 +267,18 @@ def aplicar_cancelacion(db: Session, viaje, oferta, *, por_pasajero: bool, fuerz
             if pago.comision:
                 pago.comision = Decimal("0")  # la penalización es del conductor, sin comisión
             registrar_evento(db, viaje.request_id, "ANTICIPO_COMPENSACION", actor=actor, pago=pago, monto=pago.monto,
-                             detalle="El pasajero canceló con menos de 24 horas: el anticipo queda para el conductor.")
+                             detalle="El pasajero canceló con menos de 24 horas: el anticipo queda para el conductor."
+                                     + (" Turify se lo entrega." if pago.canal == "APP" else ""))
         elif _estaba_pagado(pago):
             pago.estado = "DEVOLUCION_PENDIENTE"
             pago.reportado_at = None
             pago.confirmado_at = None
             a_devolver += Decimal(pago.monto)
+            if pago.canal == "APP":
+                reembolso_turify += Decimal(pago.monto)
             registrar_evento(db, viaje.request_id, "DEVOLUCION_PENDIENTE", actor=actor, pago=pago, monto=pago.monto,
-                             detalle="El conductor debe devolverle este pago al pasajero.")
+                             detalle="Turify le devuelve al pasajero lo que pagó en la app." if pago.canal == "APP"
+                             else "El conductor debe devolverle este pago al pasajero.")
         else:
             pago.estado = "ANULADO"
             registrar_evento(db, viaje.request_id, "PAGO_ANULADO", actor=actor, pago=pago, monto=pago.monto,
@@ -284,7 +289,183 @@ def aplicar_cancelacion(db: Session, viaje, oferta, *, por_pasajero: bool, fuerz
         "penalty_amount": pesos(anticipo.monto) if conserva_anticipo else 0,
         "anticipo_pagado": anticipo_pagado,
         "monto_a_devolver": pesos(a_devolver),
+        # La parte que estaba en la app la devuelve Turify, no el conductor.
+        "reembolso_turify": pesos(reembolso_turify),
     }
+
+
+# ── Pago en línea con Wompi (SCRUM-179/180) ──────────────────────────────────
+
+# Estado de la transacción en Wompi → tipo de evento en la bitácora.
+_EVENTO_WOMPI = {
+    "APPROVED": "PAGO_EN_LINEA_APROBADO",
+    "DECLINED": "PAGO_EN_LINEA_RECHAZADO",
+    "ERROR": "PAGO_EN_LINEA_RECHAZADO",
+    "VOIDED": "PAGO_EN_LINEA_ANULADO",
+}
+_METODO_WOMPI = {
+    "CARD": "tarjeta", "PSE": "PSE", "NEQUI": "Nequi", "BANCOLOMBIA_TRANSFER": "Botón Bancolombia",
+    "BANCOLOMBIA_QR": "QR Bancolombia", "DAVIPLATA": "Daviplata", "BANCOLOMBIA_COLLECT": "Corresponsal Bancolombia",
+}
+
+
+def _evento_de_transaccion(db: Session, pago, tipos, transaccion_id: str):
+    """¿Ya quedó en la bitácora este resultado de esta transacción? Así el
+    mismo aviso de Wompi (que puede llegar por el webhook y por el regreso
+    del pasajero, o repetido) se aplica una sola vez."""
+    return db.query(models.EventoViaje.evento_id).filter(
+        models.EventoViaje.pago_id == pago.pago_id,
+        models.EventoViaje.tipo.in_(tipos),
+        models.EventoViaje.detalle.like(f"Wompi {transaccion_id} ·%"),
+    ).first() is not None
+
+
+def procesar_transaccion(db: Session, transaccion: dict):
+    """Aplica al anticipo el resultado de una transacción de Wompi (ya
+    verificada: consultada en su API o llegada en un evento firmado) y hace
+    commit. Devuelve (pago, viaje), o None si la transacción no es de un
+    anticipo de Turify.
+
+    - Aprobada sobre un anticipo pendiente: queda RETENIDO por Turify hasta
+      que lleguen al destino.
+    - Aprobada cuando el anticipo ya no se debía (el viaje se canceló
+      mientras pagaba): queda para reembolsárselo al pasajero.
+    - Aprobada cuando el anticipo ya estaba pagado: pago doble; se abre un
+      reclamo para que el administrador reembolse el sobrante.
+    - Rechazada: el anticipo sigue pendiente y el pasajero puede reintentar.
+    - Anulada (el admin la anuló en Wompi para devolver la plata): si era la
+      que pagó el anticipo, queda reembolsado o vuelve a estar pendiente.
+    """
+    referencia = wompi.leer_referencia(str(transaccion.get("reference") or ""))
+    transaccion_id = str(transaccion.get("id") or "")
+    if referencia is None or not wompi.id_transaccion_valido(transaccion_id):
+        return None
+    request_id, pago_id = referencia
+    # Bloquea la fila: el webhook y el regreso del pasajero pueden llegar a la vez.
+    pago = db.query(models.PagoViaje).filter(models.PagoViaje.pago_id == pago_id).with_for_update().first()
+    if pago is None or pago.request_id != request_id or pago.hito != "ANTICIPO" or pago.canal != "APP":
+        return None
+    viaje = db.get(models.ServiceRequest, request_id)
+
+    estado = transaccion.get("status")
+    tipo = _EVENTO_WOMPI.get(estado)
+    if tipo is None:  # PENDING: todavía no hay resultado
+        db.rollback()
+        return pago, viaje
+    tipos_aprobado = ("PAGO_EN_LINEA_APROBADO", "PAGO_EN_LINEA_TARDIO", "PAGO_EN_LINEA_DUPLICADO")
+    if _evento_de_transaccion(db, pago, tipos_aprobado if estado == "APPROVED" else (tipo,), transaccion_id):
+        db.rollback()
+        return pago, viaje
+
+    centavos = pesos(pago.monto) * 100
+    try:
+        centavos_wompi = int(transaccion.get("amount_in_cents"))
+    except (TypeError, ValueError):
+        centavos_wompi = -1
+    if transaccion.get("currency") != "COP" or centavos_wompi != centavos:
+        # No debería pasar (el monto va firmado), pero si pasa no se toca el pago.
+        print(f"[Wompi] Transacción {transaccion_id} con monto o moneda distintos al pago {pago_id}; se ignora.")
+        db.rollback()
+        return pago, viaje
+
+    metodo = (_METODO_WOMPI.get(transaccion.get("payment_method_type"))
+              or transaccion.get("payment_method_type") or "pago en línea")
+    origen = f"Wompi {transaccion_id} · {metodo}"
+    ruta = f"{viaje.origin} → {viaje.destination}"
+    avisos = []  # (usuario, título, mensaje) — se mandan después del commit
+
+    if estado == "APPROVED" and pago.estado == "PENDIENTE":
+        pago.estado = "RETENIDO"
+        pago.reportado_at = ahora()
+        registrar_evento(db, request_id, "PAGO_EN_LINEA_APROBADO", pago=pago, monto=pago.monto,
+                         detalle=f"{origen}: {cop(pago.monto)}. Turify lo retiene hasta que lleguen al destino.")
+        neto = pesos(pago.monto) - pesos(pago.comision)
+        avisos.append((viaje.passenger_id, "Recibimos tu anticipo",
+                       f"Pagaste {cop(pago.monto)} del viaje {ruta}. Turify lo guarda y se lo entrega al "
+                       "conductor cuando lleguen al destino."))
+        avisos.append((pago.driver_id, "El pasajero pagó el anticipo en la app",
+                       f"Turify recibió {cop(pago.monto)} del viaje {ruta}. Te transferimos {cop(neto)} "
+                       "(descontada la comisión) cuando lleguen al destino."))
+    elif estado == "APPROVED" and pago.estado == "ANULADO":
+        pago.estado = "DEVOLUCION_PENDIENTE"
+        registrar_evento(db, request_id, "PAGO_EN_LINEA_TARDIO", pago=pago, monto=pago.monto,
+                         detalle=f"{origen}: {cop(pago.monto)}. El anticipo ya no se debía (el viaje se canceló); "
+                                 "Turify se lo devuelve al pasajero.")
+        avisos.append((viaje.passenger_id, "Te devolvemos tu pago",
+                       f"Pagaste {cop(pago.monto)} cuando el viaje {ruta} ya se había cancelado. "
+                       "Turify te lo devuelve completo."))
+    elif estado == "APPROVED":
+        registrar_evento(db, request_id, "PAGO_EN_LINEA_DUPLICADO", pago=pago, monto=pago.monto,
+                         detalle=f"{origen}: {cop(pago.monto)}. El anticipo ya estaba pagado; hay que reembolsar este cobro.")
+        db.add(models.Reclamo(
+            request_id=request_id, pago_id=pago.pago_id, abierto_por=None,
+            motivo=f"Cobro doble del anticipo en Wompi (transacción {transaccion_id}, {cop(pago.monto)}). "
+                   "Anúlala o reembólsala desde el panel de Wompi y resuelve este reclamo.",
+        ))
+        avisos.append((viaje.passenger_id, "Te cobramos dos veces el anticipo",
+                       f"Ya habías pagado el anticipo del viaje {ruta}. Turify te devuelve el cobro repetido "
+                       f"de {cop(pago.monto)}."))
+    elif estado == "VOIDED":
+        aprobada = _evento_de_transaccion(db, pago, ("PAGO_EN_LINEA_APROBADO", "PAGO_EN_LINEA_TARDIO"), transaccion_id)
+        detalle = f"{origen}: {cop(pago.monto)}. Wompi anuló la transacción."
+        if aprobada and pago.estado == "DEVOLUCION_PENDIENTE":
+            pago.estado = "REEMBOLSADO"
+            pago.confirmado_at = ahora()
+            detalle += " Con eso quedó reembolsado al pasajero."
+            avisos.append((viaje.passenger_id, "Te devolvimos tu pago",
+                           f"Anulamos el cobro de {cop(pago.monto)} del viaje {ruta}. Según tu banco, puede "
+                           "tardar unos días en verse."))
+        elif aprobada and pago.estado == "RETENIDO":
+            pago.estado = "PENDIENTE"
+            pago.reportado_at = None
+            detalle += " El anticipo vuelve a quedar por pagar."
+            avisos.append((viaje.passenger_id, "Tu pago del anticipo se anuló",
+                           f"El cobro de {cop(pago.monto)} del viaje {ruta} se anuló. Vuelve a pagarlo desde la app."))
+        registrar_evento(db, request_id, "PAGO_EN_LINEA_ANULADO", pago=pago, monto=pago.monto, detalle=detalle)
+    else:
+        mensaje = str(transaccion.get("status_message") or "").strip()
+        registrar_evento(db, request_id, "PAGO_EN_LINEA_RECHAZADO", pago=pago, monto=pago.monto,
+                         detalle=f"{origen}: {cop(pago.monto)}. {mensaje or 'El medio de pago no lo aprobó.'}")
+        if pago.estado == "PENDIENTE":
+            avisos.append((viaje.passenger_id, "Tu pago no se aprobó",
+                           f"El pago del anticipo del viaje {ruta} no se aprobó. Puedes intentarlo otra vez "
+                           "con otro medio de pago."))
+
+    db.commit()
+    for usuario, titulo, mensaje in avisos:
+        notificar(db, usuario, titulo, mensaje, pago.offer_id)
+    return pago, viaje
+
+
+def transaccion_aprobada(db: Session, pago):
+    """(id, medio) de la transacción de Wompi con la que se pagó el
+    anticipo, sacados de la bitácora — el admin los necesita para anularla o
+    buscarla en el panel de Wompi."""
+    evento = db.query(models.EventoViaje).filter(
+        models.EventoViaje.pago_id == pago.pago_id,
+        models.EventoViaje.tipo.in_(("PAGO_EN_LINEA_APROBADO", "PAGO_EN_LINEA_TARDIO")),
+    ).order_by(models.EventoViaje.evento_id.desc()).first()
+    m = re.match(r"^Wompi (\S+) · ([^:]+):", evento.detalle or "") if evento else None
+    return (m.group(1), m.group(2)) if m else (None, None)
+
+
+def anticipo_liberable(db: Session, pago, viaje):
+    """(se_puede, motivo) para entregarle al conductor el anticipo que
+    Turify retiene. Se libera al llegar al destino (o al terminar el viaje), o
+    como compensación si el pasajero canceló tarde; nunca con un reclamo
+    abierto en el viaje."""
+    if pago.canal != "APP" or pago.estado != "RETENIDO":
+        return False, "Este anticipo no está retenido por Turify."
+    reclamo = db.query(models.Reclamo.reclamo_id).filter(
+        models.Reclamo.request_id == viaje.request_id, models.Reclamo.estado == "ABIERTO",
+    ).first()
+    if reclamo is not None:
+        return False, "Hay un reclamo abierto en el viaje: resuélvelo primero."
+    if viaje.status == "CANCELLED":
+        return True, "El pasajero canceló con menos de 24 horas: es la compensación del conductor."
+    if viaje.llego_destino_at is not None or viaje.status == "COMPLETED":
+        return True, "Ya llegaron al destino."
+    return False, "Se entrega cuando lleguen al destino."
 
 
 # ── Cuenta del conductor (SCRUM-263) ─────────────────────────────────────────
@@ -346,7 +527,7 @@ def serializar_cuenta(cuenta, completa: bool = True):
 
 TEXTO_MOTIVO_COMISION = {
     "SIN_PASARELA": "no se cobra mientras el anticipo se pague directo al conductor",
-    "NORMAL": "comisión estándar",
+    "NORMAL": "se descuenta del anticipo pagado en la app",
 }
 
 TEXTO_EVENTO = {
@@ -370,6 +551,13 @@ TEXTO_EVENTO = {
     "DEVOLUCION_NO_RECIBIDA": "El pasajero dice que no recibió la devolución",
     "RECLAMO_ABIERTO": "Se abrió un reclamo",
     "RECLAMO_RESUELTO": "Un administrador resolvió el reclamo",
+    "PAGO_EN_LINEA_APROBADO": "El pasajero pagó el anticipo en la app",
+    "PAGO_EN_LINEA_RECHAZADO": "El pago en la app no se aprobó",
+    "PAGO_EN_LINEA_TARDIO": "Pago en la app de un anticipo que ya no se debía",
+    "PAGO_EN_LINEA_DUPLICADO": "Cobro doble del anticipo en la app",
+    "PAGO_EN_LINEA_ANULADO": "Wompi anuló un pago en la app",
+    "ANTICIPO_LIBERADO": "Turify le entregó el anticipo al conductor",
+    "ANTICIPO_REEMBOLSADO": "Turify le devolvió el anticipo al pasajero",
 }
 
 
@@ -392,6 +580,19 @@ def momento_hito(hito: str, ida_y_vuelta: bool) -> str:
 def _texto_estado(pago, rol: str) -> str:
     exigible = pago.exigible_desde is not None
     es_pasajero = rol == "PASAJERO"
+    if pago.canal == "APP":
+        textos_app = {
+            "PENDIENTE": ("Por pagar en la app" if exigible else "Todavía no toca") if es_pasajero
+                         else ("El pasajero aún no lo paga en la app" if exigible else "Todavía no toca"),
+            "RETENIDO": "Pagado en la app; Turify se lo entrega al conductor al llegar al destino" if es_pasajero
+                        else "Pagado en la app; Turify te lo transfiere al llegar al destino",
+            "LIBERADO": "Pagado en la app" if es_pasajero else "Turify te lo transfirió",
+            "DEVOLUCION_PENDIENTE": "Turify te lo devuelve" if es_pasajero
+                                    else "Turify se lo devuelve al pasajero",
+            "REEMBOLSADO": "Turify te lo devolvió" if es_pasajero else "Turify se lo devolvió al pasajero",
+        }
+        if pago.estado in textos_app:
+            return textos_app[pago.estado]
     textos = {
         "PENDIENTE": ("Por pagar" if exigible else "Todavía no toca") if es_pasajero
                      else ("Sin pagar" if exigible else "Todavía no toca"),
@@ -417,11 +618,13 @@ def acciones_de(pago, rol: str, plan_vigente: bool) -> list:
     exigible = pago.exigible_desde is not None
     acciones = []
     if rol == "PASAJERO":
-        if plan_vigente and pago.canal == "DIRECTO" and pago.estado == "PENDIENTE" and exigible:
-            acciones.append("REPORTAR_PAGO")
-        if pago.estado == "DEVOLUCION_REPORTADA":
+        if plan_vigente and pago.estado == "PENDIENTE" and exigible:
+            acciones.append("PAGAR_EN_LINEA" if pago.canal == "APP" else "REPORTAR_PAGO")
+        # Lo que se pagó en la app lo devuelve Turify, no el conductor: el
+        # pasajero no tiene nada que confirmar.
+        if pago.canal == "DIRECTO" and pago.estado == "DEVOLUCION_REPORTADA":
             acciones += ["CONFIRMAR_DEVOLUCION", "DEVOLUCION_NO_RECIBIDA"]
-        elif pago.estado == "DEVOLUCION_PENDIENTE":
+        elif pago.canal == "DIRECTO" and pago.estado == "DEVOLUCION_PENDIENTE":
             acciones.append("DEVOLUCION_NO_RECIBIDA")
     elif rol == "CONDUCTOR":
         # Un pago que el pasajero reportó se puede confirmar (o disputar) aunque
@@ -430,7 +633,7 @@ def acciones_de(pago, rol: str, plan_vigente: bool) -> list:
         por_confirmar = pago.estado == "PAGO_REPORTADO" or (pago.estado == "PENDIENTE" and plan_vigente)
         if pago.canal == "DIRECTO" and exigible and por_confirmar:
             acciones += ["CONFIRMAR_RECIBIDO", "NO_RECIBIDO"]
-        if pago.estado == "DEVOLUCION_PENDIENTE":
+        if pago.canal == "DIRECTO" and pago.estado == "DEVOLUCION_PENDIENTE":
             acciones.append("REPORTAR_DEVOLUCION")
     return acciones
 

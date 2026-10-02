@@ -32,6 +32,10 @@ os.environ["SQLALCHEMY_DATABASE_URL"] = TEST_DATABASE_URL
 os.environ.setdefault("SECRET_KEY", "clave-de-test-no-usar-en-produccion")
 # Nunca se debe exigir un reCAPTCHA real en los tests.
 os.environ.pop("RECAPTCHA_SECRET_KEY", None)
+# Sin llaves de Wompi el anticipo se paga directo al conductor; test_wompi.py
+# las pone con monkeypatch donde las necesita.
+for _llave in ("WOMPI_PUBLIC_KEY", "WOMPI_INTEGRITY_SECRET", "WOMPI_EVENTS_SECRET"):
+    os.environ.pop(_llave, None)
 
 import pytest
 from fastapi.testclient import TestClient
