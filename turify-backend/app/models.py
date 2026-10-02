@@ -283,6 +283,12 @@ class TripPassenger(Base):
 
 class AuditLog(Base):
     __tablename__ = "AuditLog"
+    # Sin INSERT ... RETURNING: en producción el backend entra como turify_app
+    # (respeta RLS) y Postgres exige poder LEER la fila que devuelve RETURNING.
+    # La bitácora se escribe en nombre de cualquiera (registros sin sesión,
+    # ingresos fallidos) y solo el admin la lee, así que con RETURNING el
+    # INSERT fallaba. La llave se pide antes con nextval de la secuencia.
+    __table_args__ = {"implicit_returning": False}
 
     log_id      = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id     = Column(Integer, ForeignKey("User.user_id", ondelete="SET NULL"), nullable=True)
@@ -296,6 +302,9 @@ class AuditLog(Base):
 
 class Notification(Base):
     __tablename__ = "Notification"
+    # Mismo caso que AuditLog: casi siempre se le escribe a OTRO usuario (el
+    # pasajero le notifica al conductor), y RLS no deja leer esa fila.
+    __table_args__ = {"implicit_returning": False}
 
     notification_id     = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id             = Column(Integer, ForeignKey("User.user_id", ondelete="CASCADE"), nullable=False)
